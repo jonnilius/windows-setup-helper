@@ -504,9 +504,13 @@ function createForm {
 }
 function createPanel {
     param (
-        # Größe & Position
+        # Größe
         [int]$Height,                                       # Höhe des Panels
         [int]$Width,                                        # Breite des Panels
+        [int[]]$Size,                                       # Größe des Panels (Breite, Höhe)
+
+        # Position
+        [int]$Padding,                                      # Innenabstand
         [string]$Location,                                  # Position des Panels (x,y)
         [int]$Left,
         [int]$Top,
@@ -515,6 +519,7 @@ function createPanel {
         [string]$BackColor = $DarkColor,                    # Hintergrundfarbe des Panels
         [string]$FlatStyle = 'Flat',                        # Stil des Panels (Flat, Standard)
         [string]$Anchor = 'Top,Right,Left',                 # Ankerposition des Panels (Top, Left, Right, Bottom)
+        [string]$Dock,                                      # Andockverhalten des Panels (Top, Bottom, Left, Right, Fill)
         
         # Verhalten
         [bool]$AutoScroll = $false                          # Automatisches Scrollen
@@ -522,8 +527,10 @@ function createPanel {
 
     $panel = New-Object System.Windows.Forms.Panel
     $panel.FlatStyle    = $FlatStyle
-    $panel.Height       = $Height
-    $panel.Width        = $Width
+    if ( $Dock ) { $panel.Dock = $Dock }
+    if ( $Size ) { $panel.Size = New-Object System.Drawing.Size($Size[0], $Size[1]) }
+    if ( $Width -and $Height ) { $panel.Size = New-Object System.Drawing.Size($Width, $Height) }
+    if ( $Padding) { $panel.Padding = New-Object System.Windows.Forms.Padding($Padding) }
     $panel.Anchor       = $Anchor
     $panel.Location     = New-Object System.Drawing.Point($Left, $Top)
     $panel.BackColor    = [System.Drawing.ColorTranslator]::FromHtml($BackColor)
@@ -866,6 +873,37 @@ function changeFont {
     )
 
     return createFont -FontFamily $FontFamily -FontSize $FontSize -FontStyle $FontStyle
+}
+
+# Message-Box
+function showMessageBox {
+    param (
+        [string]$Title = "Nachricht",
+        [string]$Message = "Dies ist eine Nachricht.",
+        [string]$Buttons,
+        [string]$Icon
+    )
+    switch ($Buttons) {
+        "OK"    { $ButtonsEnum = [System.Windows.Forms.MessageBoxButtons]::OK }
+        "YesNo" { $ButtonsEnum = [System.Windows.Forms.MessageBoxButtons]::YesNo }
+        default { $ButtonsEnum = [System.Windows.Forms.MessageBoxButtons]::OK }
+    }
+    switch ($Icon) {
+        "Information" { $IconEnum = [System.Windows.Forms.MessageBoxIcon]::Information }
+        "Warning"     { $IconEnum = [System.Windows.Forms.MessageBoxIcon]::Warning }
+        "Error"       { $IconEnum = [System.Windows.Forms.MessageBoxIcon]::Error }
+        "Question"    { $IconEnum = [System.Windows.Forms.MessageBoxIcon]::Question }
+        default       { $IconEnum = [System.Windows.Forms.MessageBoxIcon]::Information }
+    }
+
+    $result = [System.Windows.Forms.MessageBox]::Show($Message, $Title, $ButtonsEnum, $IconEnum)
+    switch ($result) {
+        [System.Windows.Forms.DialogResult]::Yes    { return $true }
+        [System.Windows.Forms.DialogResult]::No     { return $false }
+        [System.Windows.Forms.DialogResult]::OK     { return $true }
+        [System.Windows.Forms.DialogResult]::Cancel { return $false }
+        default { return $result.ToString() }
+    }
 }
 
 $Space = createSpace
@@ -1386,10 +1424,9 @@ $AboutLink.Add_Click({
 })
 # More-Label
 $MoreLink.Add_Click({
-        $MoreForm = createForm -Width 240 -Height 100 -Text "Weitere Optionen" -Base64 $Icons['More']
-        $MoreForm.Padding = New-Object System.Windows.Forms.Padding(10)
+        $MoreForm = createForm -Size 240,100 -Text "Weitere Optionen" -Base64 $Icons['More'] -Padding 10
 
-        $MorePanel = createPanel -Width 220 -Height 80 -BackColor $DarkColor
+        $MorePanel = createPanel -Size 220,80 -BackColor $DarkColor 
         $MorePanel.Dock = "Fill"
         $MorePanel.Padding = New-Object System.Windows.Forms.Padding(10)
  
@@ -1397,7 +1434,6 @@ $MoreLink.Add_Click({
         $UnpinStartMenuIconButton = createButton -Text "Startmenü-Icons entfernen" -Dock "Top"
 
         $MorePanel.Controls.AddRange(@($UnpinStartMenuIconButton, $Space, $RemoveOnedriveButton))
-
         $MoreForm.Controls.Add($MorePanel)
 
         $RemoveOnedriveButton.Add_Click({
@@ -1408,11 +1444,182 @@ $MoreLink.Add_Click({
             }
             $RemoveOnedriveButton.ForeColor = $WhiteColor
             $RemoveOnedriveButton.Text = "Entferne OneDrive..."
-            $Debloat.RemoveOneDrive() | Out-Null
+            if (Test-Path "$env:USERPROFILE\OneDrive\*") {
+                Write-Host "OneDrive-Ordner ist nicht leer. Suche Backup-Ordner."
+                Start-Sleep 1
 
+                if (Test-Path "$env:USERPROFILE\Desktop\OneDriveBackupFiles") {
+                    Write-Host "Ordner 'OneDriveBackupFiles' auf dem Desktop gefunden. Alle Dateien werden in diesen Ordner verschoben."
+                } else {
+                    if (!(Test-Path "$env:USERPROFILE\Desktop\OneDriveBackupFiles")) {
+                        Write-Host "Erstelle Ordner 'OneDriveBackupFiles' auf dem Desktop. Alle Dateien werden in diesen Ordner verschoben."
+                        New-Item -Path "$env:USERPROFILE\Desktop" -Name "OneDriveBackupFiles" -ItemType Directory -Force
+                        Write-Host "Erfolgreich den Ordner 'OneDriveBackupFiles' erstellt."
+                    }
+                }
+                Start-Sleep 1
 
-            $RemoveOnedriveButton.Text = "OneDrive wurde entfernt!"
-            })
+                Move-Item -Path "$env:USERPROFILE\OneDrive\*" -Destination "$env:USERPROFILE\Desktop\OneDriveBackupFiles" -Force
+                Write-Host "Alle Dateien wurden in den Ordner 'OneDriveBackupFiles' auf dem Desktop verschoben."
+                Start-Sleep 1
+
+                Write-Host "Fahre mit der OneDrive-Deinstallation fort."
+                Start-Sleep 1
+            } else {
+                Write-Host "OneDrive-Ordner ist leer. Fahre mit der OneDrive-Deinstallation fort."
+                Start-Sleep 1
+
+                Write-Host "Aktiviere Gruppenrichtlinie 'Verweigern der Verwendung von OneDrive für die Dateispeicherung'."
+                $OneDriveKey = 'HKLM:SOFTWARE\Policies\Microsoft\Windows\OneDrive'
+                if (!(Test-Path $OneDriveKey)) {
+                    Mkdir $OneDriveKey
+                    Set-ItemProperty $OneDriveKey -Name OneDrive -Value DisableFileSyncNGSC
+                }
+                Set-ItemProperty $OneDriveKey -Name OneDrive -Value DisableFileSyncNGSC
+            }
+
+            Write-Host "Deinstalliere OneDrive. Bitte warten..."
+            
+            New-PSDrive  HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT
+            $onedrive = "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe"
+            $ExplorerReg1 = "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
+            $ExplorerReg2 = "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
+            Stop-Process -Name "OneDrive*"
+
+            If (!(Test-Path $onedrive)) {
+                # $onedrive = "$env:SYSTEMROOT\System32\OneDriveSetup.exe"
+
+                New-PSDrive  HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT
+                $onedrive = "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe"
+                $ExplorerReg1 = "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
+                $ExplorerReg2 = "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
+                Stop-Process -Name "OneDrive*"
+                Stop-Process -Name "Microsoft OneDriveFile*"
+                Start-Sleep 2
+                If (!(Test-Path $onedrive)) {
+                    $onedrive = "$env:SYSTEMROOT\System32\OneDriveSetup.exe"
+                }
+                Start-Process $onedrive "/uninstall" -NoNewWindow -Wait
+                Start-Sleep 2
+                Write-Output "Beende Datei-Explorer"
+                Start-Sleep 1
+                taskkill.exe /F /IM explorer.exe
+                Start-Sleep 3
+                Write-Output "Entferne verbleibende Dateien"
+                Remove-Item "$env:USERPROFILE\OneDrive" -Force -Recurse
+                Remove-Item "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse
+                Remove-Item "$env:PROGRAMDATA\Microsoft OneDrive" -Force -Recurse
+                If (Test-Path "$env:SYSTEMDRIVE\OneDriveTemp") {
+                    Remove-Item "$env:SYSTEMDRIVE\OneDriveTemp" -Force -Recurse
+                }
+                Write-Output "Entferne OneDrive aus dem Windows Explorer"
+                If (!(Test-Path $ExplorerReg1)) {
+                    New-Item $ExplorerReg1
+                }
+                Set-ItemProperty $ExplorerReg1 System.IsPinnedToNameSpaceTree -Value 0 
+                If (!(Test-Path $ExplorerReg2)) {
+                    New-Item $ExplorerReg2
+                }
+                Set-ItemProperty $ExplorerReg2 System.IsPinnedToNameSpaceTree -Value 0
+                Write-Output "Starte den zuvor beendeten Explorer neu."
+                Start-Process explorer.exe -NoNewWindow
+            
+                Write-Host "Aktiviere die Gruppenrichtlinie 'Verweigern der Verwendung von OneDrive für die Dateispeicherung'"
+                $OneDriveKey = 'HKLM:Software\Policies\Microsoft\Windows\OneDrive'
+                If (!(Test-Path $OneDriveKey)) {
+                    Mkdir $OneDriveKey 
+                }
+                Start-Process $onedrive "/uninstall" -NoNewWindow -Wait
+                Start-Sleep 2
+                Write-Host "Beende Datei-Explorer"
+                Start-Sleep 1
+                taskkill.exe /F /IM explorer.exe
+                Start-Sleep 3
+                Write-Host "Entferne verbleibende Dateien"
+                If (Test-Path "$env:USERPROFILE\OneDrive") {
+                    Remove-Item "$env:USERPROFILE\OneDrive" -Force -Recurse
+                }
+                If (Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive") {
+                    Remove-Item "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse
+                }
+                If (Test-Path "$env:PROGRAMDATA\Microsoft OneDrive") {
+                    Remove-Item "$env:PROGRAMDATA\Microsoft OneDrive" -Force -Recurse
+                }
+                If (Test-Path "$env:SYSTEMDRIVE\OneDriveTemp") {
+                    Remove-Item "$env:SYSTEMDRIVE\OneDriveTemp" -Force -Recurse
+                }
+                Write-Host "Entferne OneDrive aus dem Windows Explorer"
+                If (!(Test-Path $ExplorerReg1)) {
+                    New-Item $ExplorerReg1
+                }
+                Set-ItemProperty $ExplorerReg1 System.IsPinnedToNameSpaceTree -Value 0 
+                If (!(Test-Path $ExplorerReg2)) {
+                    New-Item $ExplorerReg2
+                }
+                Set-ItemProperty $ExplorerReg2 System.IsPinnedToNameSpaceTree -Value 0
+                Write-Host "Starte den zuvor beendeten Explorer neu."
+                Start-Process explorer.exe -NoNewWindow
+                Write-Host "OneDrive wurde erfolgreich deinstalliert!"
+                
+                Remove-item env:OneDrive
+            }
+        })
+        $UnpinStartMenuIconButton.Add_Click({
+             
+             # Startmenü-Icons entfernen
+            $START_MENU_LAYOUT = @"
+<LayoutModificationTemplate xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" Version="1" xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout" xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification">
+    <LayoutOptions StartTileGroupCellWidth="6" />
+    <DefaultLayoutOverride>
+        <StartLayoutCollection>
+            <defaultlayout:StartLayout GroupCellWidth="6" />
+        </StartLayoutCollection>
+    </DefaultLayoutOverride>
+</LayoutModificationTemplate>
+"@
+                $layoutFile="C:\Windows\StartMenuLayout.xml"
+
+                #Lösche die Layout-Datei, falls sie bereits existiert
+                If ( Test-Path $layoutFile ) { Remove-Item $layoutFile }
+
+                # Erstelle die neue Layout-Datei mit dem definierten XML-Layout
+                $START_MENU_LAYOUT | Out-File $layoutFile -Encoding ASCII
+
+                $regAliases = @("HKLM", "HKCU")
+
+                # Weisen Sie das Startlayout zu und erzwingen Sie die Anwendung mit "LockedStartLayout" sowohl auf Maschinen- als auch auf Benutzerebene
+                foreach ($regAlias in $regAliases){
+                    $basePath = $regAlias + ":\SOFTWARE\Policies\Microsoft\Windows"
+                    $keyPath = $basePath + "\Explorer" 
+                    IF(!(Test-Path -Path $keyPath)) { 
+                        New-Item -Path $basePath -Name "Explorer"
+                    }
+                    Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 1
+                    Set-ItemProperty -Path $keyPath -Name "StartLayoutFile" -Value $layoutFile
+                }
+
+                # Explorer neu starten, damit die Änderungen wirksam werden. 
+                # Das Startmenü-Layout wird nun auf das definierte XML-Layout gesetzt, und die Benutzer können keine Änderungen daran vornehmen.
+                Stop-Process -name explorer
+                Start-Sleep -s 5
+                $wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('^{ESCAPE}')
+                Start-Sleep -s 5
+
+                # Entfernen der Sperre, damit Benutzer das Startmenü-Layout wieder anpassen können, falls gewünscht.
+                foreach ($regAlias in $regAliases){
+                    $basePath = $regAlias + ":\SOFTWARE\Policies\Microsoft\Windows"
+                    $keyPath = $basePath + "\Explorer" 
+                    Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 0
+                }
+
+                # Explorer neu starten und die Layout-Datei löschen
+                Stop-Process -name explorer
+
+                # Das neue Startmenü-Layout wird sofort angewendet, und die Benutzer können es nach dem Neustart des Explorers anpassen, wenn sie möchten.
+                Import-StartLayout -LayoutPath $layoutFile -MountPath $env:SystemDrive\
+
+                Remove-Item $layoutFile
+        })
         [void]$MoreForm.ShowDialog()
 })
 

@@ -427,6 +427,7 @@ Add-Type -AssemblyName System.Windows.Forms.DataVisualization
 # global-Variablen
 $global:restartScript = $false
 $global:LabelToolTip = New-Object System.Windows.Forms.ToolTip # Tooltip für Labels
+. .\windows.forms.ps1
 
 # create-Funktionen
 function createFont {
@@ -462,7 +463,7 @@ function createForm {
         [string]$FormBorderStyle = 'FixedSingle',     # Rahmenstil (None, FixedSingle, Fixed3D, Sizable, etc.)
 
         # Fensterverhalten
-        [bool]$TopMost = $true,                       # Immer im Vordergrund
+        [bool]$TopMost = $false,                      # Immer im Vordergrund
         [bool]$ShowIcon = $false,                     # Icon anzeigen
         [string]$Base64,                              # Base64-Icon
         [bool]$MinimizeBox = $false,                  # Minimieren-Schaltfläche
@@ -1002,7 +1003,7 @@ $Footer         = createPanel -Top 505 -Left 10 -Height 50 -Width 380 -BackColor
 
 $AboutLink      = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "ABOUT"    -Location "5,3"                         -Hand -Description "Informationen über das Skript"
 $VersionText    = createLabel -BackColor $AccentColor -FontStyle "Bold,Italic" -FontSize 8 -ForeColor $DarkColor -Text "$Version" -Location "$($PanelWidth / 2 - 40),3"
-$MoreLink       = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "MORE"     -Location "$($PanelWidth - 30),3"       -Hand -Description "Mehr Optionen" -Width 40
+$MoreLink       = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "DEBLOAT"  -Location "$($PanelWidth - 30),3"       -Hand -Description "Mehr Optionen" -Width 40
 
 $AddFooter      = @($AboutLink, $VersionText, $MoreLink)
 $Footer.controls.AddRange($AddFooter)
@@ -1392,7 +1393,6 @@ $MoreChocoLink.Add_Click({
 
 })
 
-
 ### Footer-Panel
 # About-Label
 $AboutLink.Add_Click({
@@ -1423,205 +1423,7 @@ $AboutLink.Add_Click({
         [void]$AboutForm.ShowDialog()
 })
 # More-Label
-$MoreLink.Add_Click({
-        $MoreForm = createForm -Size 240,100 -Text "Weitere Optionen" -Base64 $Icons['More'] -Padding 10
-
-        $MorePanel = createPanel -Size 220,80 -BackColor $DarkColor 
-        $MorePanel.Dock = "Fill"
-        $MorePanel.Padding = New-Object System.Windows.Forms.Padding(10)
- 
-        $RemoveOnedriveButton =    createButton -Text "OneDrive entfernen" -Dock "Top"
-        $UnpinStartMenuIconButton = createButton -Text "Startmenü-Icons entfernen" -Dock "Top"
-
-        $MorePanel.Controls.AddRange(@($UnpinStartMenuIconButton, $Space, $RemoveOnedriveButton))
-        $MoreForm.Controls.Add($MorePanel)
-
-        $RemoveOnedriveButton.Add_Click({
-            # OneDrive deinstallieren
-            $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie OneDrive wirklich entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
-            if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) {
-                return
-            }
-            $RemoveOnedriveButton.ForeColor = $WhiteColor
-            $RemoveOnedriveButton.Text = "Entferne OneDrive..."
-            if (Test-Path "$env:USERPROFILE\OneDrive\*") {
-                Write-Host "OneDrive-Ordner ist nicht leer. Suche Backup-Ordner."
-                Start-Sleep 1
-
-                if (Test-Path "$env:USERPROFILE\Desktop\OneDriveBackupFiles") {
-                    Write-Host "Ordner 'OneDriveBackupFiles' auf dem Desktop gefunden. Alle Dateien werden in diesen Ordner verschoben."
-                } else {
-                    if (!(Test-Path "$env:USERPROFILE\Desktop\OneDriveBackupFiles")) {
-                        Write-Host "Erstelle Ordner 'OneDriveBackupFiles' auf dem Desktop. Alle Dateien werden in diesen Ordner verschoben."
-                        New-Item -Path "$env:USERPROFILE\Desktop" -Name "OneDriveBackupFiles" -ItemType Directory -Force
-                        Write-Host "Erfolgreich den Ordner 'OneDriveBackupFiles' erstellt."
-                    }
-                }
-                Start-Sleep 1
-
-                Move-Item -Path "$env:USERPROFILE\OneDrive\*" -Destination "$env:USERPROFILE\Desktop\OneDriveBackupFiles" -Force
-                Write-Host "Alle Dateien wurden in den Ordner 'OneDriveBackupFiles' auf dem Desktop verschoben."
-                Start-Sleep 1
-
-                Write-Host "Fahre mit der OneDrive-Deinstallation fort."
-                Start-Sleep 1
-            } else {
-                Write-Host "OneDrive-Ordner ist leer. Fahre mit der OneDrive-Deinstallation fort."
-                Start-Sleep 1
-
-                Write-Host "Aktiviere Gruppenrichtlinie 'Verweigern der Verwendung von OneDrive für die Dateispeicherung'."
-                $OneDriveKey = 'HKLM:SOFTWARE\Policies\Microsoft\Windows\OneDrive'
-                if (!(Test-Path $OneDriveKey)) {
-                    Mkdir $OneDriveKey
-                    Set-ItemProperty $OneDriveKey -Name OneDrive -Value DisableFileSyncNGSC
-                }
-                Set-ItemProperty $OneDriveKey -Name OneDrive -Value DisableFileSyncNGSC
-            }
-
-            Write-Host "Deinstalliere OneDrive. Bitte warten..."
-            
-            New-PSDrive  HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT
-            $onedrive = "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe"
-            $ExplorerReg1 = "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
-            $ExplorerReg2 = "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
-            Stop-Process -Name "OneDrive*"
-
-            If (!(Test-Path $onedrive)) {
-                # $onedrive = "$env:SYSTEMROOT\System32\OneDriveSetup.exe"
-
-                New-PSDrive  HKCR -PSProvider Registry -Root HKEY_CLASSES_ROOT
-                $onedrive = "$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe"
-                $ExplorerReg1 = "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
-                $ExplorerReg2 = "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}"
-                Stop-Process -Name "OneDrive*"
-                Stop-Process -Name "Microsoft OneDriveFile*"
-                Start-Sleep 2
-                If (!(Test-Path $onedrive)) {
-                    $onedrive = "$env:SYSTEMROOT\System32\OneDriveSetup.exe"
-                }
-                Start-Process $onedrive "/uninstall" -NoNewWindow -Wait
-                Start-Sleep 2
-                Write-Output "Beende Datei-Explorer"
-                Start-Sleep 1
-                taskkill.exe /F /IM explorer.exe
-                Start-Sleep 3
-                Write-Output "Entferne verbleibende Dateien"
-                Remove-Item "$env:USERPROFILE\OneDrive" -Force -Recurse
-                Remove-Item "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse
-                Remove-Item "$env:PROGRAMDATA\Microsoft OneDrive" -Force -Recurse
-                If (Test-Path "$env:SYSTEMDRIVE\OneDriveTemp") {
-                    Remove-Item "$env:SYSTEMDRIVE\OneDriveTemp" -Force -Recurse
-                }
-                Write-Output "Entferne OneDrive aus dem Windows Explorer"
-                If (!(Test-Path $ExplorerReg1)) {
-                    New-Item $ExplorerReg1
-                }
-                Set-ItemProperty $ExplorerReg1 System.IsPinnedToNameSpaceTree -Value 0 
-                If (!(Test-Path $ExplorerReg2)) {
-                    New-Item $ExplorerReg2
-                }
-                Set-ItemProperty $ExplorerReg2 System.IsPinnedToNameSpaceTree -Value 0
-                Write-Output "Starte den zuvor beendeten Explorer neu."
-                Start-Process explorer.exe -NoNewWindow
-            
-                Write-Host "Aktiviere die Gruppenrichtlinie 'Verweigern der Verwendung von OneDrive für die Dateispeicherung'"
-                $OneDriveKey = 'HKLM:Software\Policies\Microsoft\Windows\OneDrive'
-                If (!(Test-Path $OneDriveKey)) {
-                    Mkdir $OneDriveKey 
-                }
-                Start-Process $onedrive "/uninstall" -NoNewWindow -Wait
-                Start-Sleep 2
-                Write-Host "Beende Datei-Explorer"
-                Start-Sleep 1
-                taskkill.exe /F /IM explorer.exe
-                Start-Sleep 3
-                Write-Host "Entferne verbleibende Dateien"
-                If (Test-Path "$env:USERPROFILE\OneDrive") {
-                    Remove-Item "$env:USERPROFILE\OneDrive" -Force -Recurse
-                }
-                If (Test-Path "$env:LOCALAPPDATA\Microsoft\OneDrive") {
-                    Remove-Item "$env:LOCALAPPDATA\Microsoft\OneDrive" -Force -Recurse
-                }
-                If (Test-Path "$env:PROGRAMDATA\Microsoft OneDrive") {
-                    Remove-Item "$env:PROGRAMDATA\Microsoft OneDrive" -Force -Recurse
-                }
-                If (Test-Path "$env:SYSTEMDRIVE\OneDriveTemp") {
-                    Remove-Item "$env:SYSTEMDRIVE\OneDriveTemp" -Force -Recurse
-                }
-                Write-Host "Entferne OneDrive aus dem Windows Explorer"
-                If (!(Test-Path $ExplorerReg1)) {
-                    New-Item $ExplorerReg1
-                }
-                Set-ItemProperty $ExplorerReg1 System.IsPinnedToNameSpaceTree -Value 0 
-                If (!(Test-Path $ExplorerReg2)) {
-                    New-Item $ExplorerReg2
-                }
-                Set-ItemProperty $ExplorerReg2 System.IsPinnedToNameSpaceTree -Value 0
-                Write-Host "Starte den zuvor beendeten Explorer neu."
-                Start-Process explorer.exe -NoNewWindow
-                Write-Host "OneDrive wurde erfolgreich deinstalliert!"
-                
-                Remove-item env:OneDrive
-            }
-        })
-        $UnpinStartMenuIconButton.Add_Click({
-             
-             # Startmenü-Icons entfernen
-            $START_MENU_LAYOUT = @"
-<LayoutModificationTemplate xmlns:defaultlayout="http://schemas.microsoft.com/Start/2014/FullDefaultLayout" xmlns:start="http://schemas.microsoft.com/Start/2014/StartLayout" Version="1" xmlns:taskbar="http://schemas.microsoft.com/Start/2014/TaskbarLayout" xmlns="http://schemas.microsoft.com/Start/2014/LayoutModification">
-    <LayoutOptions StartTileGroupCellWidth="6" />
-    <DefaultLayoutOverride>
-        <StartLayoutCollection>
-            <defaultlayout:StartLayout GroupCellWidth="6" />
-        </StartLayoutCollection>
-    </DefaultLayoutOverride>
-</LayoutModificationTemplate>
-"@
-                $layoutFile="C:\Windows\StartMenuLayout.xml"
-
-                #Lösche die Layout-Datei, falls sie bereits existiert
-                If ( Test-Path $layoutFile ) { Remove-Item $layoutFile }
-
-                # Erstelle die neue Layout-Datei mit dem definierten XML-Layout
-                $START_MENU_LAYOUT | Out-File $layoutFile -Encoding ASCII
-
-                $regAliases = @("HKLM", "HKCU")
-
-                # Weisen Sie das Startlayout zu und erzwingen Sie die Anwendung mit "LockedStartLayout" sowohl auf Maschinen- als auch auf Benutzerebene
-                foreach ($regAlias in $regAliases){
-                    $basePath = $regAlias + ":\SOFTWARE\Policies\Microsoft\Windows"
-                    $keyPath = $basePath + "\Explorer" 
-                    IF(!(Test-Path -Path $keyPath)) { 
-                        New-Item -Path $basePath -Name "Explorer"
-                    }
-                    Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 1
-                    Set-ItemProperty -Path $keyPath -Name "StartLayoutFile" -Value $layoutFile
-                }
-
-                # Explorer neu starten, damit die Änderungen wirksam werden. 
-                # Das Startmenü-Layout wird nun auf das definierte XML-Layout gesetzt, und die Benutzer können keine Änderungen daran vornehmen.
-                Stop-Process -name explorer
-                Start-Sleep -s 5
-                $wshell = New-Object -ComObject wscript.shell; $wshell.SendKeys('^{ESCAPE}')
-                Start-Sleep -s 5
-
-                # Entfernen der Sperre, damit Benutzer das Startmenü-Layout wieder anpassen können, falls gewünscht.
-                foreach ($regAlias in $regAliases){
-                    $basePath = $regAlias + ":\SOFTWARE\Policies\Microsoft\Windows"
-                    $keyPath = $basePath + "\Explorer" 
-                    Set-ItemProperty -Path $keyPath -Name "LockedStartLayout" -Value 0
-                }
-
-                # Explorer neu starten und die Layout-Datei löschen
-                Stop-Process -name explorer
-
-                # Das neue Startmenü-Layout wird sofort angewendet, und die Benutzer können es nach dem Neustart des Explorers anpassen, wenn sie möchten.
-                Import-StartLayout -LayoutPath $layoutFile -MountPath $env:SystemDrive\
-
-                Remove-Item $layoutFile
-        })
-        [void]$MoreForm.ShowDialog()
-})
+$MoreLink.Add_Click({ [Debloat]::new().Show() })
 
 
 # FOKUS

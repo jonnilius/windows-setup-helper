@@ -292,5 +292,3 @@
         [void]$this.Form.ShowDialog()
     }
 }
-$Form = [Debloat]::new()
-$Form.Show()

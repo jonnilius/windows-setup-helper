@@ -41,20 +41,14 @@ class AdminManager {
     [System.Object]$LocalUser
     [string]$StatusText
     [string]$StatusColor
-    [string]$RightsText
-    [string]$RightsColor
     [bool]$Rights
 
-    AdminManager() {
-        $this.Refresh()
-    }
+    AdminManager() { $this.Refresh() }
     [void]Refresh() {
         $this.LocalUser = Get-LocalUser -Name "Administrator"
         $this.StatusText = if ($this.LocalUser.Enabled) { "aktiviert" } else { "deaktiviert" }
         $this.StatusColor = if ($this.LocalUser.Enabled) { "Green" } else { "Red" }
         $this.Rights = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
-        $this.RightsText = if ($this.Rights) { "vorhanden" } else { "keine" }
-        $this.RightsColor = if ($this.Rights) { "Green" } else { "Red" }
     }
 
     [void]MissingRights(){
@@ -72,9 +66,9 @@ class AdminManager {
     }
     [void]Restart(){
         $pe = "`n" + " " * 6
-        Write-Host $pe"Das Skript startet sich selber als Administrator neu."
+        Write-Host $pe"Starte als Administrator neu..."
         Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-        Exit
+        [System.Environment]::Exit(0)
     }
     [bool]GetStatus(){
         return $this.LocalUser.Enabled
@@ -298,19 +292,24 @@ class TimeServerManager {
     }
 }
 
-# PowerShell-Konsole
+$Admin = [AdminManager]::new()
+# PowerShell-Konsole anpassen
 $host.UI.RawUI.WindowTitle      = "$Name starten..."
 $host.UI.RawUI.BackgroundColor  = "Black"
 $host.UI.RawUI.ForegroundColor  = "White"
 $host.UI.RawUI.WindowSize       = New-Object Management.Automation.Host.Size (50, 20)
 $host.UI.RawUI.BufferSize       = New-Object System.Management.Automation.Host.Size (50, 20)
 
-# Administrator
+# Start der Überprüfungen
 Write-Host $pe"Administrator-Rechte: " -NoNewline
-$Admin = [AdminManager]::new()
-Write-Host $Admin.RightsText -ForegroundColor $Admin.RightsColor
-If (!$Admin.Rights -and $RunAsAdmin) { $Admin.Restart() }
-
+if ($Admin.Rights) { 
+    Write-Host "vorhanden" -ForegroundColor "Green" 
+} elseif ($RunAsAdmin) {
+    Write-Host "fehlen" -ForegroundColor "Yellow"
+    $Admin.Restart()
+} else {
+    Write-Host "keine" -ForegroundColor "Red"
+}
 
 Write-Host $pe"Produktkey ermitteln..."
 $ProductKey = (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey
@@ -1369,5 +1368,5 @@ $Main.Add_Shown({ $Main.Activate() })
 ## Skript-Neustart
 if ($global:restartScript) {
     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-    Exit
+    [System.Environment]::Exit(0)
 }

@@ -448,12 +448,15 @@ function createFont {
 }
 function createForm {
     param (
+        [hashtable]$config,
         # Größe & Position
         [int]$Width,                                  # Breite des Fensters
         [int]$Height,                                 # Höhe des Fensters
+        [int[]]$Padding = 10,                              # Innenabstand (links, oben, rechts, unten)
+        [int[]]$Size,                                 # Größe des Fensters (Breite, Höhe)
+        
+        # Fensterdarstellung
         [string]$StartPosition = 'CenterScreen',      # Startposition (CenterScreen, Manual, WindowsDefaultLocation)
-
-        # Darstellung
         [string]$Text = "Fenstertitel",               # Fenstertitel
         [string]$BackColor = $AccentColor,            # Hintergrundfarbe (HTML oder Name)
         [string]$FormBorderStyle = 'FixedSingle',     # Rahmenstil (None, FixedSingle, Fixed3D, Sizable, etc.)
@@ -466,9 +469,19 @@ function createForm {
         [bool]$MaximizeBox = $false                   # Maximieren-Schaltfläche
     )
 
+
     # Formular erstellen und Eigenschaften setzen
     $form = New-Object System.Windows.Forms.Form
-    $form.ClientSize        = New-Object System.Drawing.Size($Width, $Height)
+    if ($Size) { $form.ClientSize = New-Object System.Drawing.Size($Size[0], $Size[1]) } 
+    if ($Width -and $Height) { $form.ClientSize = New-Object System.Drawing.Size($Width, $Height) }
+    if ($Padding) { 
+        $PadLeft    = if ($Padding.Length -ge 1) { $Padding[0] } else { 0 }
+        $PadTop     = if ($Padding.Length -ge 2) { $Padding[1] } else { $PadLeft }
+        $PadRight   = if ($Padding.Length -ge 3) { $Padding[2] } else { $PadLeft }
+        $PadBottom  = if ($Padding.Length -ge 4) { $Padding[3] } else { $PadTop }
+
+        $form.Padding = New-Object System.Windows.Forms.Padding($PadLeft, $PadTop, $PadRight, $PadBottom) 
+    }
     $form.StartPosition     = $StartPosition
     $form.FormBorderStyle   = $FormBorderStyle
     $form.MinimizeBox       = $MinimizeBox
@@ -571,9 +584,9 @@ function createLabel {
 function createButton {
     param (
         # Position und Größe
-        [int]$Width,                                # Breite (Pflichtparameter)
+        [int]$Width = 200,                          # Breite (Pflichtparameter)
         [int]$Height = 25,                          # Höhe
-        [string]$Location = $ButtonLocation,        # Position im Format "x,y"
+        [string]$Location,                          # Position im Format "x,y"
 
         # Text und Schrift
         [string]$Text = 'Button',                   # Button-Text
@@ -584,27 +597,29 @@ function createButton {
         # Darstellung
         [string]$BackColor = $DarkColor,            # Hintergrundfarbe (HTML oder Name)
         [string]$FlatStyle = 'Flat',                # Stil (Flat, Standard)
-        [string]$Anchor = 'Top,Right,Left',         # Anker (Top, Left, Right, Bottom)
+        [string]$Dock,                              # Andockverhalten (Top, Bottom, Left, Right, Fill)
         [string]$Cursor = "Default"                 # Mauszeiger ändern (Default, Hand, AppStarting)
     )
 
     # Extrahiere X- und Y-Koordinaten aus dem Location-String
-    $coords = $Location -split ','
-    $x = [int]$coords[0]
-    $y = [int]$coords[1]
     
     # Erstelle den Button und setze Eigenschaften
     $button = New-Object System.Windows.Forms.Button
     $button.Text        = $Text
     $button.Width       = $Width
     $button.Height      = $Height
-    $button.Anchor      = $Anchor
     $button.FlatStyle   = $FlatStyle
-    $button.Location    = New-Object System.Drawing.Point($x, $y)
     $button.Font        = createFont -FontFamily $FontFamily -FontSize $FontSize # New-Object System.Drawing.Font($FontFamily, $FontSize)
     $button.ForeColor   = [System.Drawing.ColorTranslator]::FromHtml($ForeColor)
     $button.BackColor   = [System.Drawing.ColorTranslator]::FromHtml($BackColor)
     $button.Cursor      = $Cursors::$Cursor
+    if ($Location) {
+        $coords = $Location -split ','
+        $x = [int]$coords[0]
+        $y = [int]$coords[1]
+        $button.Location    = New-Object System.Drawing.Point($x, $y)
+    }
+    if ($Dock) { $button.Dock = $Dock }
 
     return $button
 
@@ -822,6 +837,17 @@ function createDropDownList {
     
     return $dropDownList
 }
+function createSpace {
+    param (
+        [int]$Height = 10,
+        [string]$Dock = 'Top'
+    )
+
+    $space = New-Object System.Windows.Forms.Panel
+    $space.Height = $Height
+    $space.Dock = $Dock
+    return $space
+}
 
 # change-Funktion
 function changeCursor {
@@ -842,18 +868,19 @@ function changeFont {
     return createFont -FontFamily $FontFamily -FontSize $FontSize -FontStyle $FontStyle
 }
 
+$Space = createSpace
 
 <# MAIN ##################################################################################>
 $MainHeight     = 0
 $MainWidth      = 400
 $MainPadding    = 10
-$Main           = createForm -Width $MainWidth -Height $MainHeight -Text "$Name - $env:USERNAME" -Base64 $Icons['Main']
+$Main           = createForm -Size 400,$MainHeight -Text "$Name - $env:USERNAME" -Base64 $Icons['Main']
 
 <# HEADER ################################################################################>
-$PanelTop       = $MainPadding
-$PanelLeft      = $MainPadding + 5
+$PanelTop       = 10
+$PanelLeft      = 15
 $PanelHeight    = 35
-$PanelWidth     = $MainWidth - 2 * $MainPadding
+$PanelWidth     = 380
 
 $HeaderPanel    = createPanel -BackColor $AccentColor -Left $PanelLeft -Top $PanelTop -Height $PanelHeight -Width $MainWidth
 $HeaderTitle    = createLabel -BackColor $AccentColor -ForeColor $DarkColor -Text "WINDOWS SETUP HELPER" -FontSize 24 -Location "0,0" -FontStyle "Bold"
@@ -862,10 +889,10 @@ $AddHeaderPanel = @($HeaderTitle)
 $HeaderPanel.controls.AddRange($AddHeaderPanel)
 
 <# SYSTEMINFO ############################################################################>
-$PanelTop          += $PanelHeight + $MainPadding
-$PanelLeft          = $MainPadding
+$PanelTop           = 55
+$PanelLeft          = 10
 $PanelHeight        = 100
-$PanelWidth         = $PanelWidth
+$PanelWidth         = 380
 
 $SystemInfoPanel    = createPanel -Top $PanelTop -Left $PanelLeft -Height $PanelHeight -Width $PanelWidth
 
@@ -886,10 +913,10 @@ $AddSystemInfoPanel = @(
 $SystemInfoPanel.controls.AddRange($AddSystemInfoPanel)
 
 <# CHOCOLATEY ############################################################################>
-$PanelTop          += $PanelHeight + $MainPadding
-$PanelLeft          = $MainPadding
+$PanelTop           = 165
+$PanelLeft          = 10
 $PanelHeight        = 340
-$PanelWidth         = $PanelWidth
+$PanelWidth         = 380
 
 $ChocoPanel         = createPanel -Top $PanelTop -Left $PanelLeft -Height $PanelHeight -Width $PanelWidth
 
@@ -928,12 +955,12 @@ $ChocoPanel.controls.AddRange($AddChocoPanel)
 
 
 <# FOOTER ################################################################################>
-$PanelTop       = $PanelTop + $PanelHeight  # 215 + 300 = 515
-$PanelLeft      = $MainPadding
+$PanelTop       = 505
+$PanelLeft      = 10
 $PanelHeight    = 50
-$PanelWidth     = $PanelWidth
+$PanelWidth     = 380
 
-$Footer         = createPanel -Top $PanelTop -Left $PanelLeft -Height $PanelHeight -Width $PanelWidth -BackColor $AccentColor
+$Footer         = createPanel -Top 505 -Left 10 -Height 50 -Width 380 -BackColor $AccentColor
 
 $AboutLink      = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "ABOUT"    -Location "5,3"                         -Hand -Description "Informationen über das Skript"
 $VersionText    = createLabel -BackColor $AccentColor -FontStyle "Bold,Italic" -FontSize 8 -ForeColor $DarkColor -Text "$Version" -Location "$($PanelWidth / 2 - 40),3"
@@ -943,7 +970,7 @@ $AddFooter      = @($AboutLink, $VersionText, $MoreLink)
 $Footer.controls.AddRange($AddFooter)
 
 <# ADD & CALCULATE #######################################################################>
-$Main.Height = $PanelTop + $PanelHeight + $MainPadding
+$Main.Height = 565
 $Main.controls.AddRange(@($HeaderPanel, $SystemInfoPanel, $ChocoPanel, $Footer))
 HideShell
 
@@ -1359,15 +1386,19 @@ $AboutLink.Add_Click({
 })
 # More-Label
 $MoreLink.Add_Click({
-        $ButtonCount    = 1
-        $ButtonsHeight  = 25
-        $MoreForm       = createForm    -Height $($ButtonsHeight * $ButtonCount + $MainPadding * ($ButtonCount + 1) + $MainPadding * 2) -Width 240 -Text 'Weitere Optionen'
-        $MorePanel      = createPanel   -Height $($ButtonsHeight * $ButtonCount + $MainPadding * ($ButtonCount + 1)) -Width 220 -Left 10 -Top 10
+        $MoreForm = createForm -Width 240 -Height 100 -Text "Weitere Optionen" -Base64 $Icons['More']
+        $MoreForm.Padding = New-Object System.Windows.Forms.Padding(10)
 
-        $RemoveOnedriveButton =    createButton -Text 'OneDrive entfernen' -Height $ButtonsHeight -Width 200 -Location "$MainPadding,$MainPadding"
-        
-        $MoreForm.Controls.AddRange(@($MorePanel))
-        $MorePanel.Controls.AddRange(@($RemoveOnedriveButton))
+        $MorePanel = createPanel -Width 220 -Height 80 -BackColor $DarkColor
+        $MorePanel.Dock = "Fill"
+        $MorePanel.Padding = New-Object System.Windows.Forms.Padding(10)
+ 
+        $RemoveOnedriveButton =    createButton -Text "OneDrive entfernen" -Dock "Top"
+        $UnpinStartMenuIconButton = createButton -Text "Startmenü-Icons entfernen" -Dock "Top"
+
+        $MorePanel.Controls.AddRange(@($UnpinStartMenuIconButton, $Space, $RemoveOnedriveButton))
+
+        $MoreForm.Controls.Add($MorePanel)
 
         $RemoveOnedriveButton.Add_Click({
             # OneDrive deinstallieren

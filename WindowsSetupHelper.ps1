@@ -2,7 +2,7 @@
 *   
 *    Name:          Windows Setup Helper
 *    Beschreibung:  Hilft dem Benutzer beim Windows Setup
-*    Version:       0.4.10
+*    Version:       0.5
 *    Entwickler:    jonnilius
 *    Lizenz:        MIT
 *    Codierung:     UTF-8 with BOM
@@ -11,7 +11,7 @@
 
 # Informationen
 $Name       = "Windows Setup Helper"
-$Version    = "Version 0.4.10"
+$Version    = "Version 0.5"
 $Author     = "jonnilius"
 
 # Farben

@@ -24,7 +24,7 @@ $DefaultFont = "Consolas"
 # Variablen
 $RunAsAdmin = $true
 $ErrorActionPreference = "SilentlyContinue"
-$pe = "`n" + " " * 6
+$pe = "`n" + " " * 4
 
 # Funktionen
 function HideShell {
@@ -34,6 +34,13 @@ function HideShell {
 '
     $consolePtr = [Console.Win]::GetConsoleWindow()
     [Console.Win]::ShowWindow($consolePtr, 0)  # 0 = SW_HIDE
+}
+function Write-Text {
+    param (
+        [string]$Text,
+        [string]$Color = $WhiteColor
+    )
+    Write-Host $Text -ForegroundColor $Color
 }
 
 # Klassen
@@ -293,12 +300,13 @@ class TimeServerManager {
 }
 
 $Admin = [AdminManager]::new()
+
 # PowerShell-Konsole anpassen
 $host.UI.RawUI.WindowTitle      = "$Name starten..."
 $host.UI.RawUI.BackgroundColor  = "Black"
 $host.UI.RawUI.ForegroundColor  = "White"
-$host.UI.RawUI.WindowSize       = New-Object Management.Automation.Host.Size (50, 20)
-$host.UI.RawUI.BufferSize       = New-Object System.Management.Automation.Host.Size (50, 20)
+$host.UI.RawUI.WindowSize       = New-Object Management.Automation.Host.Size (60, 20)
+$host.UI.RawUI.BufferSize       = New-Object System.Management.Automation.Host.Size (60, 20)
 
 # Start der Überprüfungen
 Write-Host $pe"Administrator-Rechte: " -NoNewline
@@ -311,17 +319,37 @@ if ($Admin.Rights) {
     Write-Host "keine" -ForegroundColor "Red"
 }
 
-Write-Host $pe"Produktkey ermitteln..."
-$ProductKey = (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey
+Write-Host $pe"Produktkey ermitteln..." -NoNewline
+$ProductKeys = @(
+    (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey,
+    (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey,
+    (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault
+)
+foreach ($key in $ProductKeys) {
+    if ($key) {
+        Write-Host $key -ForegroundColor "DarkCyan"
+        $ProductKey = $key
+        break
+    }
+}
 
-
-Write-Host $pe"Aktuellen Zeitserver ermitteln..."
+Write-Host $pe"Aktuellen Zeitserver ermitteln..." -NoNewline
 $TimeServer = [TimeServerManager]::new()
-$CurrentTimeServer = $TimeServer.GetCurrentTimeServer()     
+if ($TimeServer.IsCurrentServerInList()) {
+    $CurrentTimeServer = $TimeServer.GetCurrentTimeServer()
+    Write-Host $CurrentTimeServer -ForegroundColor "DarkCyan"
+} else {
+    Write-Host "Keine Zeitquelle" -ForegroundColor "Red"
+}
 
 
-Write-Host $pe"Chocolatey wird initialisiert..."
+Write-Host $pe"Chocolatey wird initialisiert..." -NoNewline
 $Choco = [ChocoManager]::new()
+if ($Choco.Installed) {
+    Write-Host "Version $($Choco.Version)" -ForegroundColor "Yellow"
+} else {
+    Write-Host "nicht gefunden" -ForegroundColor "Red"
+}
 $ProgramList = [ordered]@{
     # Packagename bei Chocolatey | Anzeigename
     "7zip"              = "7-Zip"

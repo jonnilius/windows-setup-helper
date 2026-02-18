@@ -306,52 +306,36 @@ $host.UI.RawUI.BackgroundColor  = "Black"
 $host.UI.RawUI.ForegroundColor  = "White"
 $host.UI.RawUI.WindowSize       = New-Object Management.Automation.Host.Size (60, 20)
 $host.UI.RawUI.BufferSize       = New-Object System.Management.Automation.Host.Size (60, 20)
-
-# Start der Überprüfungen
-Write-Host $pe"Administrator-Rechte: " -NoNewline
-if ($Admin.Rights) { 
-    Write-Host "vorhanden" -ForegroundColor "Green" 
-} elseif ($RunAsAdmin) {
-    Write-Host "fehlen" -ForegroundColor "Yellow"
-    $Admin.Restart()
-} else {
-    Write-Host "keine" -ForegroundColor "Red"
-}
-
-Write-Host $pe"Produktkey auslesen..." -NoNewline
-$ProductKeys = @(
-    (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey,
-    (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey,
-    (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault
-)
-foreach ($key in $ProductKeys) {
-    if ($key) {
-        Write-Host "gefunden" -ForegroundColor "DarkCyan"
-        $ProductKey = $key
-        break
-    }
-}
-if (-not $ProductKey) {
-    Write-Host "nicht gefunden" -ForegroundColor "Red"
-}
-
-Write-Host $pe"Aktuellen Zeitserver ermitteln..." -NoNewline
-$TimeServer = [TimeServerManager]::new()
-if ($TimeServer.IsCurrentServerInList()) {
-    Write-Host $CurrentTimeServer -ForegroundColor "DarkCyan"
-} else {
-    Write-Host "Keine Zeitquelle" -ForegroundColor "Red"
-}
-$CurrentTimeServer = $TimeServer.GetCurrentTimeServer()
-
-
-Write-Host $pe"Auf Chocolatey prüfen..." -NoNewline
 $Choco = [ChocoManager]::new()
-if ($Choco.Installed) {
-    Write-Host "installiert" -ForegroundColor "Green"
-} else {
-    Write-Host "nicht installiert" -ForegroundColor "Yellow"
+$TimeServer = [TimeServerManager]::new()
+
+function StartForm {
+
+    # Administrator-Rechte überprüfen
+    Write-Host "`n  Administrator-Rechte: " -NoNewline
+    if ($Admin.Rights) { Write-Host "vorhanden" -ForegroundColor "Green" }
+    elseif ($RunAsAdmin) { Write-Host "fehlen" -ForegroundColor "Yellow"; $Admin.Restart() }
+    else { Write-Host "keine" -ForegroundColor "Red" }
+
+    # Produktkey auslesen
+    Write-Host "`n  Produktkey: " -NoNewline
+    if (GetProductKey) { Write-Host "gefunden" -ForegroundColor "DarkCyan" }
+    else { Write-Host "nicht gefunden" -ForegroundColor "Red" }
+
+    # Aktuellen Zeitserver ermitteln
+    Write-Host "`n  Zeitserver: " -NoNewline
+    if ($TimeServer.IsCurrentServerInList()) { Write-Host ($TimeServer.GetCurrentTimeServer()) -ForegroundColor "DarkCyan" } 
+    else { Write-Host "Keine Zeitquelle" -ForegroundColor "Red" }
+
+    # Auf Chocolatey prüfen
+    Write-Host "`n  Chocolatey: " -NoNewline
+    if ($Choco.Installed) { Write-Host "installiert" -ForegroundColor "Green" }
+    else { Write-Host "nicht installiert" -ForegroundColor "Yellow" }
 }
+
+
+
+
 $ProgramList = [ordered]@{
     # Packagename bei Chocolatey | Anzeigename
     "7zip"              = "7-Zip"
@@ -987,6 +971,121 @@ function ChangeDeviceNameForm {
 
     $Form.ShowDialog()
 }
+function AboutForm {
+    # Erstelle das Formular
+    $Form = New-Object System.Windows.Forms.Form
+    $Form.ClientSize = New-Object System.Drawing.Size(350,400)
+    $Form.Padding = New-Object System.Windows.Forms.Padding(10)
+    $Form.StartPosition = "CenterScreen"
+    $Form.Text = "About - Windows Setup Helper"
+    $Form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $Form.KeyPreview = $true
+    $Form.ShowIcon = $true
+    $Form.Add_KeyDown({ 
+        param ($s, $e) 
+        if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape){ $s.Close() } 
+    })
+    $Form.Icon = Get-Icon "About"
+
+    # Erstelle das Panel
+    $Panel = New-Object System.Windows.Forms.Panel
+    $Panel.Size = New-Object System.Drawing.Size(320,380)
+    $Panel.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $Panel.Dock = "Fill"
+    $Panel.Padding = New-Object System.Windows.Forms.Padding(10)
+    $Form.Controls.Add($Panel)
+
+    # Erstelle das FlowLayoutPanel
+    $FlowPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+    $FlowPanel.Dock = "Fill"
+    $FlowPanel.BackColor = "Transparent"
+    $FlowPanel.FlowDirection = "TopDown"
+    $FlowPanel.WrapContents = $false
+    $Panel.Controls.Add($FlowPanel)
+
+    # Erstelle die Header-Label
+    $Header = New-Object System.Windows.Forms.Label
+    $Header.Text = "Windows Setup Helper"
+    $Header.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $Header.Dock = "Fill"
+    $Header.TextAlign = "MiddleCenter"
+    $Header.Margin = New-Object System.Windows.Forms.Padding(0,10,0,10)
+    $Header.Font = New-Object System.Drawing.Font("Consolas", 19)
+    $FlowPanel.Controls.Add($Header)
+
+    # Erstelle die Textbox
+    $Text = New-Object System.Windows.Forms.RichTextBox
+    $Text.Font = New-Object System.Drawing.Font("Consolas", 10)
+    $Text.Size = New-Object System.Drawing.Size(310,305)
+    $Text.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#ECF0F1")
+    $Text.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $Text.BorderStyle = "None"
+    $Text.ReadOnly = $true
+    $Text.Text = @"
+Windows Setup Shelper ist ein PowerShell-Skript, das die Einrichtung und Grundkonfiguration eines Windows-Systems deutlich vereinfacht.`n
+Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
+Das Skript richtet sich an alle, die Windows-PCs effizient und wiederholbar einrichten möchten - egal ob für den privaten Gebrauch, im Unternehmen oder in Bildungseinrichtungen.`n
+Durch die Integration von Automatisierung und Benutzerfreundlichkeit spart der Windows Setup Helper Zeit und reduziert Fehlerquellen bei der Systemeinrichtung.`n
+Version: $global:Version
+Entwickler: $global:Author
+Lizenz: MIT
+"@
+    $FlowPanel.Controls.Add($Text)
+
+    # Zeige das Formular an
+    $Form.ShowDialog()
+}
+function DebloatForm {
+    # Erstelle das Formular
+    $Form = New-Object System.Windows.Forms.Form
+    $Form.ClientSize = New-Object System.Drawing.Size(245,100)
+    $Form.Padding = New-Object System.Windows.Forms.Padding(10)
+    $Form.StartPosition = "CenterScreen"
+    $Form.Text = "Debloater"
+    $Form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $Form.ShowIcon = $true
+    $Form.Icon = Get-Icon "Debloat"
+
+    # Erstelle das Panel
+    $Panel = New-Object System.Windows.Forms.Panel
+    $Panel.Size = New-Object System.Drawing.Size(220,80)
+    $Panel.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $Panel.Dock = "Fill"
+    $Panel.Padding = New-Object System.Windows.Forms.Padding(10)
+    $Form.Controls.Add($Panel)
+
+    # Erstelle das FlowLayoutPanel
+    $FlowPanel = New-Object System.Windows.Forms.FlowLayoutPanel
+    $FlowPanel.Dock = "Fill"
+    $FlowPanel.BackColor = "Transparent"
+    $FlowPanel.FlowDirection = "TopDown"
+    $FlowPanel.WrapContents = $false
+    $Panel.Controls.Add($FlowPanel)
+
+    # Erstelle die Buttons
+    $RemoveOneDriveButton = New-Object System.Windows.Forms.Button
+    $RemoveOneDriveButton.Text = "OneDrive entfernen"
+    $RemoveOneDriveButton.Size = New-Object System.Drawing.Size(200,25)
+    $RemoveOneDriveButton.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $RemoveOneDriveButton.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $RemoveOneDriveButton.FlatStyle = "Flat"
+    $FlowPanel.Controls.Add($RemoveOneDriveButton)
+
+    $UnpinStartMenuButton = New-Object System.Windows.Forms.Button
+    $UnpinStartMenuButton.Text = "Startmenü-Icons entfernen"
+    $UnpinStartMenuButton.Size = New-Object System.Drawing.Size(200,25)
+    $UnpinStartMenuButton.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $UnpinStartMenuButton.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $UnpinStartMenuButton.FlatStyle = "Flat"
+    $FlowPanel.Controls.Add($UnpinStartMenuButton)
+
+    # Button-Eventhandler hinzufügen
+    $RemoveOneDriveButton.Add_Click( { RemoveOneDrive } )
+    $UnpinStartMenuButton.Add_Click( { UnpinStartMenuIcons } )
+
+    # Zeige das Formular an
+    $Form.ShowDialog()
+}
 
 
 
@@ -1005,6 +1104,17 @@ function ChangeDeviceName {
         [System.Windows.Forms.MessageBox]::Show("Der Gerätename wurde erfolgreich geändert! `nIhr neuer Gerätename: $NewName", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
         [System.Windows.Forms.MessageBox]::Show("Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!", "Neustart erforderlich", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
     }
+}
+function GetProductKey {
+    $ProductKeys = @(
+        (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey,
+        (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey,
+        (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault
+    )
+    foreach ($key in $ProductKeys) {
+        if ($key) { return $key }
+    }
+    $null
 }
 function RemoveOneDrive {
     # Erstelle das Formular
@@ -1210,125 +1320,10 @@ function UnpinStartMenuIcons {
     $Form.Dispose()
 
 }
-function AboutForm {
-    # Erstelle das Formular
-    $Form = New-Object System.Windows.Forms.Form
-    $Form.ClientSize = New-Object System.Drawing.Size(350,400)
-    $Form.Padding = New-Object System.Windows.Forms.Padding(10)
-    $Form.StartPosition = "CenterScreen"
-    $Form.Text = "About - Windows Setup Helper"
-    $Form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
-    $Form.KeyPreview = $true
-    $Form.ShowIcon = $true
-    $Form.Add_KeyDown({ 
-        param ($s, $e) 
-        if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape){ $s.Close() } 
-    })
-    $Form.Icon = Get-Icon "About"
-
-    # Erstelle das Panel
-    $Panel = New-Object System.Windows.Forms.Panel
-    $Panel.Size = New-Object System.Drawing.Size(320,380)
-    $Panel.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
-    $Panel.Dock = "Fill"
-    $Panel.Padding = New-Object System.Windows.Forms.Padding(10)
-    $Form.Controls.Add($Panel)
-
-    # Erstelle das FlowLayoutPanel
-    $FlowPanel = New-Object System.Windows.Forms.FlowLayoutPanel
-    $FlowPanel.Dock = "Fill"
-    $FlowPanel.BackColor = "Transparent"
-    $FlowPanel.FlowDirection = "TopDown"
-    $FlowPanel.WrapContents = $false
-    $Panel.Controls.Add($FlowPanel)
-
-    # Erstelle die Header-Label
-    $Header = New-Object System.Windows.Forms.Label
-    $Header.Text = "Windows Setup Helper"
-    $Header.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
-    $Header.Dock = "Fill"
-    $Header.TextAlign = "MiddleCenter"
-    $Header.Margin = New-Object System.Windows.Forms.Padding(0,10,0,10)
-    $Header.Font = New-Object System.Drawing.Font("Consolas", 19)
-    $FlowPanel.Controls.Add($Header)
-
-    # Erstelle die Textbox
-    $Text = New-Object System.Windows.Forms.RichTextBox
-    $Text.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $Text.Size = New-Object System.Drawing.Size(310,305)
-    $Text.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#ECF0F1")
-    $Text.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
-    $Text.BorderStyle = "None"
-    $Text.ReadOnly = $true
-    $Text.Text = @"
-Windows Setup Shelper ist ein PowerShell-Skript, das die Einrichtung und Grundkonfiguration eines Windows-Systems deutlich vereinfacht.`n
-Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
-Das Skript richtet sich an alle, die Windows-PCs effizient und wiederholbar einrichten möchten - egal ob für den privaten Gebrauch, im Unternehmen oder in Bildungseinrichtungen.`n
-Durch die Integration von Automatisierung und Benutzerfreundlichkeit spart der Windows Setup Helper Zeit und reduziert Fehlerquellen bei der Systemeinrichtung.`n
-Version: $global:Version
-Entwickler: $global:Author
-Lizenz: MIT
-"@
-    $FlowPanel.Controls.Add($Text)
-
-    # Zeige das Formular an
-    $Form.ShowDialog()
-}
-function DebloatForm {
-    # Erstelle das Formular
-    $Form = New-Object System.Windows.Forms.Form
-    $Form.ClientSize = New-Object System.Drawing.Size(245,100)
-    $Form.Padding = New-Object System.Windows.Forms.Padding(10)
-    $Form.StartPosition = "CenterScreen"
-    $Form.Text = "Debloater"
-    $Form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
-    $Form.ShowIcon = $true
-    $Form.Icon = Get-Icon "Debloat"
-
-    # Erstelle das Panel
-    $Panel = New-Object System.Windows.Forms.Panel
-    $Panel.Size = New-Object System.Drawing.Size(220,80)
-    $Panel.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
-    $Panel.Dock = "Fill"
-    $Panel.Padding = New-Object System.Windows.Forms.Padding(10)
-    $Form.Controls.Add($Panel)
-
-    # Erstelle das FlowLayoutPanel
-    $FlowPanel = New-Object System.Windows.Forms.FlowLayoutPanel
-    $FlowPanel.Dock = "Fill"
-    $FlowPanel.BackColor = "Transparent"
-    $FlowPanel.FlowDirection = "TopDown"
-    $FlowPanel.WrapContents = $false
-    $Panel.Controls.Add($FlowPanel)
-
-    # Erstelle die Buttons
-    $RemoveOneDriveButton = New-Object System.Windows.Forms.Button
-    $RemoveOneDriveButton.Text = "OneDrive entfernen"
-    $RemoveOneDriveButton.Size = New-Object System.Drawing.Size(200,25)
-    $RemoveOneDriveButton.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
-    $RemoveOneDriveButton.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
-    $RemoveOneDriveButton.FlatStyle = "Flat"
-    $FlowPanel.Controls.Add($RemoveOneDriveButton)
-
-    $UnpinStartMenuButton = New-Object System.Windows.Forms.Button
-    $UnpinStartMenuButton.Text = "Startmenü-Icons entfernen"
-    $UnpinStartMenuButton.Size = New-Object System.Drawing.Size(200,25)
-    $UnpinStartMenuButton.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
-    $UnpinStartMenuButton.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
-    $UnpinStartMenuButton.FlatStyle = "Flat"
-    $FlowPanel.Controls.Add($UnpinStartMenuButton)
-
-    # Button-Eventhandler hinzufügen
-    $RemoveOneDriveButton.Add_Click( { RemoveOneDrive } )
-    $UnpinStartMenuButton.Add_Click( { UnpinStartMenuIcons } )
-
-    # Zeige das Formular an
-    $Form.ShowDialog()
-}
 
 
 
-
+StartForm
 <# MAIN ##################################################################################>
 # $Main           = createForm -Size 400,0 -Text "$Name - $env:USERNAME"
 $Main = New-Object System.Windows.Forms.Form
@@ -1357,7 +1352,8 @@ $ProductKeyLabel    = createLabel -Text "Produktkey:" -Location "10,70" -FontSiz
 
 $AdministratorText  = createLabel -Text $Admin.StatusText  -Location "108,10" -Description "Status verändern"  -FontSize 10 -ForeColor $Admin.StatusColor -FontStyle "Bold" -Hand 
 $DeviceNameText     = createLabel -Text $env:COMPUTERNAME  -Location "88,30" -Description "Gerätenamen ändern"  -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand 
-$TimeServerText     = createLabel -Text $CurrentTimeServer -Location "88,50" -Description "Zeitserver ändern"   -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
+$TimeServerText     = createLabel -Text $TimeServer.GetCurrentTimeServer() -Location "88,50" -Description "Zeitserver ändern"   -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
+$ProductKey       = GetProductKey
 $ProductKeyText     = createLabel -Text $ProductKey        -Location "88,70" -Description "Produktkey kopieren" -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
 
 $DeviceNameText.Add_Click({ ChangeDeviceNameForm })

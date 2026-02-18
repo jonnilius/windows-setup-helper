@@ -145,7 +145,7 @@ class ChocoManager {
         return $appList
     }
 }
-$Choco = [ChocoManager]::new()
+
 $ProgramList = [ordered]@{
     # Packagename bei Chocolatey | Anzeigename
     "7zip"              = "7-Zip"

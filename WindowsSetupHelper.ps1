@@ -1,6 +1,6 @@
 ﻿# Informationen
 $Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.6.7"
+$global:Version    = "Version 0.6.8"
 $global:Author     = "jonnilius"
 $global:License    = "MIT License"
 
@@ -338,11 +338,11 @@ if (-not $ProductKey) {
 Write-Host $pe"Aktuellen Zeitserver ermitteln..." -NoNewline
 $TimeServer = [TimeServerManager]::new()
 if ($TimeServer.IsCurrentServerInList()) {
-    $CurrentTimeServer = $TimeServer.GetCurrentTimeServer()
     Write-Host $CurrentTimeServer -ForegroundColor "DarkCyan"
 } else {
     Write-Host "Keine Zeitquelle" -ForegroundColor "Red"
 }
+$CurrentTimeServer = $TimeServer.GetCurrentTimeServer()
 
 
 Write-Host $pe"Auf Chocolatey prüfen..." -NoNewline
@@ -1457,7 +1457,6 @@ $AdministratorText.Add_Click({
     }
 })
 # DeviceName-Label
-
 $DeviceNameText.Add_MouseEnter({
     $DeviceNameText.Text = "Ändern"
     $DeviceNameText.Font = changeFont -Object $DeviceNameText -FontStyle "Italic"

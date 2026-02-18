@@ -1,6 +1,6 @@
 ﻿# Informationen
 $Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.6.5"
+$global:Version    = "Version 0.6.6"
 $global:Author     = "jonnilius"
 $global:License    = "MIT License"
 
@@ -943,40 +943,35 @@ function showMessageBox {
 $Space = createSpace
 
 <# MAIN ##################################################################################>
-$MainHeight     = 0
-$MainWidth      = 400
-$MainPadding    = 10
-$Main           = createForm -Size 400,$MainHeight -Text "$Name - $env:USERNAME" -Base64 $Icons['Main']
+# $Main           = createForm -Size 400,0 -Text "$Name - $env:USERNAME"
+$Main = New-Object System.Windows.Forms.Form
+$Main.ClientSize = New-Object System.Drawing.Size(400, 600)
+$Main.BackColor = [System.Drawing.ColorTranslator]::FromHtml($AccentColor)
+$Main.Text = "$Name - $env:USERNAME"
+$Main.StartPosition = 'CenterScreen'
+$Main.Icon = Get-Icon "Main"
 
 <# HEADER ################################################################################>
-$PanelTop       = 10
-$PanelLeft      = 15
-$PanelHeight    = 35
-$PanelWidth     = 380
 
-$HeaderPanel    = createPanel -BackColor $AccentColor -Left $PanelLeft -Top $PanelTop -Height $PanelHeight -Width $MainWidth
+$HeaderPanel    = createPanel -BackColor $AccentColor -Left 15 -Top 10 -Height 35 -Width 400
 $HeaderTitle    = createLabel -BackColor $AccentColor -ForeColor $DarkColor -Text "WINDOWS SETUP HELPER" -FontSize 24 -Location "0,0" -FontStyle "Bold"
 
 $AddHeaderPanel = @($HeaderTitle)
 $HeaderPanel.controls.AddRange($AddHeaderPanel)
 
 <# SYSTEMINFO ############################################################################>
-$PanelTop           = 55
-$PanelLeft          = 10
-$PanelHeight        = 100
-$PanelWidth         = 380
 
-$SystemInfoPanel    = createPanel -Top $PanelTop -Left $PanelLeft -Height $PanelHeight -Width $PanelWidth
+$SystemInfoPanel    = createPanel -Top 55 -Left 10 -Height 100 -Width 380
 
-$AdministratorLabel = createLabel -Text "Administrator:" -Location "$MainPadding,$($MainPadding+00)" -FontSize 9
-$DeviceNameLabel    = createLabel -Text "Gerätename:" -Location "$MainPadding,$($MainPadding+20)" -FontSize 9
-$TimeServerLabel    = createLabel -Text "Zeitserver:" -Location "$MainPadding,$($MainPadding+40)" -FontSize 9
-$ProductKeyLabel    = createLabel -Text "Produktkey:" -Location "$MainPadding,$($MainPadding+60)" -FontSize 9
+$AdministratorLabel = createLabel -Text "Administrator:" -Location "10,10" -FontSize 9
+$DeviceNameLabel    = createLabel -Text "Gerätename:" -Location "10,30" -FontSize 9
+$TimeServerLabel    = createLabel -Text "Zeitserver:" -Location "10,50" -FontSize 9
+$ProductKeyLabel    = createLabel -Text "Produktkey:" -Location "10,70" -FontSize 9
 
-$AdministratorText  = createLabel -Text $Admin.StatusText  -Location "108,$($MainPadding+00)" -Description "Status verändern"  -FontSize 10 -ForeColor $Admin.StatusColor -FontStyle "Bold" -Hand 
-$DeviceNameText     = createLabel -Text $env:COMPUTERNAME  -Location "88,$($MainPadding+20)" -Description "Gerätenamen ändern"  -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand 
-$TimeServerText     = createLabel -Text $CurrentTimeServer -Location "88,$($MainPadding+40)" -Description "Zeitserver ändern"   -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
-$ProductKeyText     = createLabel -Text $ProductKey        -Location "88,$($MainPadding+60)" -Description "Produktkey kopieren" -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
+$AdministratorText  = createLabel -Text $Admin.StatusText  -Location "108,10" -Description "Status verändern"  -FontSize 10 -ForeColor $Admin.StatusColor -FontStyle "Bold" -Hand 
+$DeviceNameText     = createLabel -Text $env:COMPUTERNAME  -Location "88,30" -Description "Gerätenamen ändern"  -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand 
+$TimeServerText     = createLabel -Text $CurrentTimeServer -Location "88,50" -Description "Zeitserver ändern"   -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
+$ProductKeyText     = createLabel -Text $ProductKey        -Location "88,70" -Description "Produktkey kopieren" -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
 
 $AddSystemInfoPanel = @(
     $AdministratorLabel, $DeviceNameLabel, $TimeServerLabel, $ProductKeyLabel,
@@ -985,20 +980,15 @@ $AddSystemInfoPanel = @(
 $SystemInfoPanel.controls.AddRange($AddSystemInfoPanel)
 
 <# CHOCOLATEY ############################################################################>
-$PanelTop           = 165
-$PanelLeft          = 10
-$PanelHeight        = 340
-$PanelWidth         = 380
-
-$ChocoPanel         = createPanel -Top $PanelTop -Left $PanelLeft -Height $PanelHeight -Width $PanelWidth
+$ChocoPanel         = createPanel -Top 165 -Left 10 -Height 340 -Width 380
 
 # Chocolatey-Installed
 $ChocoPanelTitle    = createLabel           -FontSize 15 -Text "Chocolatey-Packages" -ForeColor $AccentColor -FontStyle "Bold"
-$ChocoCheckBox      = createCheckedListBox  -FontSize 9 -Location "$MainPadding,40" -Width $($PanelWidth - $MainPadding * 2) -Height $($PanelHeight - 100) 
-$InstallCheckBox    = createButton          -FontSize 9 -Location "$MainPadding,$($PanelHeight - 50)"        -Text "Installieren" -Width $($PanelWidth - 2 * $MainPadding)   
-$MoreChocoLink      = createLabel -Hand     -FontSize 7 -Location "$($PanelWidth/2-80),$($PanelHeight - 20)" -Text "Aktualisieren / Deinstallieren" -ForeColor $AccentColor
+$ChocoCheckBox      = createCheckedListBox  -FontSize 9 -Location "10,40" -Width 360 -Height 240
+$InstallCheckBox    = createButton          -FontSize 9 -Location "10,290"        -Text "Installieren" -Width 360
+$MoreChocoLink      = createLabel -Hand     -FontSize 7 -Location "110,320" -Text "Aktualisieren / Deinstallieren" -ForeColor $AccentColor
 
-$InstallProcessText = createLabel -Width $PanelWidth -Location "$MainPadding ,$($PanelHeight - 30)" -Text "" -FontSize 9 -ForeColor $AccentColor -FontStyle 'Italic' -Visible $false
+$InstallProcessText = createLabel -Width 380 -Location "10 ,310" -Text "" -FontSize 9 -ForeColor $AccentColor -FontStyle 'Italic'
 
 
 if ($Choco.Installed) {
@@ -1012,12 +1002,12 @@ if ($Choco.Installed) {
     $AddPanel = @($ChocoPanelTitle, $ChocoCheckBox, $InstallCheckBox, $MoreChocoLink)
 } else {
     # "Chocolatey nicht installiert"-Hinweis
-    $NoChocoMessageTop  = $PanelHeight / 2 - $MainPadding * 2
-    $NoChocoMessageLeft = $PanelWidth / 2 - 125
-    $NoChocoMessage     = createLabel -Text "Chocolatey ist nicht installiert!" -Location "$NoChocoMessageLeft,$NoChocoMessageTop" -FontStyle "Italic" -FontSize 10
+    $NoChocoMessageTop  = 150
+    $NoChocoMessageLeft = 65
+    $NoChocoMessage     = createLabel -Text "Chocolatey ist nicht installiert!" -Location "65,150" -FontStyle "Italic" -FontSize 10
 
     # Button 'Installieren'
-    $InstallChocoButton = createLabel -Location "$($NoChocoMessageLeft + 80),$($NoChocoMessageTop + 20)" -Text "INSTALLIEREN" -FontStyle "Bold" -ForeColor $AccentColor -FontSize 8 -Hand
+    $InstallChocoButton = createLabel -Location "145,170" -Text "INSTALLIEREN" -FontStyle "Bold" -ForeColor $AccentColor -FontSize 8 -Hand
     $AddPanel = @($NoChocoMessage, $InstallChocoButton)
 
 }
@@ -1027,16 +1017,11 @@ $ChocoPanel.controls.AddRange($AddChocoPanel)
 
 
 <# FOOTER ################################################################################>
-$PanelTop       = 505
-$PanelLeft      = 10
-$PanelHeight    = 50
-$PanelWidth     = 380
-
 $Footer         = createPanel -Top 505 -Left 10 -Height 50 -Width 380 -BackColor $AccentColor
 
 $AboutLink      = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "ABOUT"    -Location "5,3"                         -Hand -Description "Informationen über das Skript"
-$VersionText    = createLabel -BackColor $AccentColor -FontStyle "Bold,Italic" -FontSize 8 -ForeColor $DarkColor -Text "$Version" -Location "$($PanelWidth / 2 - 40),3"
-$MoreLink       = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "DEBLOAT"  -Location "$($PanelWidth - 50),3"       -Hand -Description "Mehr Optionen" -Width 40
+$VersionText    = createLabel -BackColor $AccentColor -FontStyle "Bold,Italic" -FontSize 8 -ForeColor $DarkColor -Text "$Version" -Location "150,3"
+$MoreLink       = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "DEBLOAT"  -Location "330,3"       -Hand -Description "Mehr Optionen" -Width 40
 
 $AddFooter      = @($AboutLink, $VersionText, $MoreLink)
 $Footer.controls.AddRange($AddFooter)
@@ -1224,8 +1209,8 @@ $InstallCheckBox.Add_Click({
         }
         else {
             choco feature enable -n allowGlobalConfirmation
-            $InstallCheckBox.Visible = $false
-            $InstallProcessText.Visible = $true
+            $ChocoPanel.Controls.Remove($InstallCheckBox)
+            $ChocoPanel.Controls.Remove($MoreChocoLink)
             $InstallProcessText.Text = "Installiere ausgewählte Programme..."
             $Main.Cursor = [System.Windows.Forms.Cursors]::AppStarting
             foreach ($program in $selectedPrograms) {
@@ -1855,7 +1840,6 @@ $MoreLink.Add_Click({ DebloatForm })
 $Main.Add_Shown({ $Main.Activate() })
 # SHOW
 [void]$Main.ShowDialog()
-
 
 
 ## Skript-Neustart

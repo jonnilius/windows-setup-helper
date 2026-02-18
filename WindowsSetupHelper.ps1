@@ -1,4 +1,7 @@
-﻿# Informationen
+﻿using namespace System.Windows.Forms
+using namespace System.Drawing
+
+# Informationen
 $Name       = "Windows Setup Helper"
 $global:Version    = "Version 0.6.8"
 $global:Author     = "jonnilius"

@@ -1,4 +1,6 @@
-﻿Add-Type -AssemblyName System.Windows.Forms
+﻿using namespace System.Windows.Forms
+
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $global:Name       = "Windows Setup Helper"
@@ -189,8 +191,35 @@ $ProgramList = [ordered]@{
     "winfsp"            = "WinFsp"
     "winscp"            = "WinSCP"
 }
+class App {
+    [Form]$Form
 
-function MainForm {
+    App() {
+        $this.Form()
+    }
+    Form() {
+        $this.Form = New-Object Form
+        $this.Form.ClientSize = New-Object System.Drawing.Size(400,565)
+        $this.Form.Padding = New-Object System.Windows.Forms.Padding(10,5,10,5)
+        $this.Form.StartPosition = "CenterScreen"
+        $this.Form.Text = "$Name - $env:USERNAME"
+        $this.Form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+        $this.Form.MaximizeBox = $false
+        $this.Form.FormBorderStyle = "FixedSingle"
+    }
+    TabControl() {
+        $Tabs = New-Object System.Windows.Forms.TabControl
+        $Tabs.Dock = "Fill"
+        $Tabs.Font = New-Object System.Drawing.Font("Consolas", 10, [System.Drawing.FontStyle]::Regular)
+        $this.Form.Controls.Add($Tabs)
+    }
+
+    [void]Show() {
+        $this.Form.ShowDialog()
+    }
+}
+
+function Use-Form {
     $Form = New-Object System.Windows.Forms.Form
     $Form.ClientSize = New-Object System.Drawing.Size(400,565)
     $Form.Padding = New-Object System.Windows.Forms.Padding(10,5,10,5)
@@ -199,21 +228,26 @@ function MainForm {
     $Form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
     $Form.MaximizeBox = $false
     $Form.FormBorderStyle = "FixedSingle"
+    
+    return $Form
+}
+
+function MainForm {
+    $Main = Use-Form
 
     
     <################################# Content #################################>
     $Tabs = New-Object System.Windows.Forms.TabControl
     $Tabs.Dock = "Fill"
     $Tabs.Font = New-Object System.Drawing.Font("Consolas", 10, [System.Drawing.FontStyle]::Regular)
-    # $Tabs.Alignment = "Left" # Wo die Reiter angezeigt werden
-    $Form.Controls.Add($Tabs)
+    $Main.Controls.Add($Tabs)
     
     $ChocoPage = New-Object System.Windows.Forms.TabPage
     $ChocoPage.Text = "Chocolatey"
     $ChocoPage.Padding = New-Object System.Windows.Forms.Padding(10)
     # Title
     $ChocoTitle = New-Object System.Windows.Forms.Label
-    $ChocoTitle.Text = "Chocolatey-Packages"
+    $ChocoTitle.Text = "Packages installieren"
     $ChocoTitle.Font = New-Object System.Drawing.Font("Consolas", 14, [System.Drawing.FontStyle]::Bold)
     $ChocoTitle.Dock = "Top"
     $ChocoTitle.TextAlign = "MiddleCenter"
@@ -238,7 +272,7 @@ function MainForm {
     $Footer.Dock = "Bottom"
     $Footer.Height = 20
     $Footer.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
-    $Form.Controls.Add($Footer)
+    $Main.Controls.Add($Footer)
     # About
     $AboutLabel = New-Object System.Windows.Forms.Label
     $AboutLabel.Text = "ABOUT"
@@ -271,10 +305,10 @@ function MainForm {
     $Header.Dock = "Top"
     $Header.TextAlign = "MiddleCenter"
     $Header.Font = New-Object System.Drawing.Font("Consolas",24,[System.Drawing.FontStyle]::Bold)
-    $Form.Controls.Add($Header)
+    $Main.Controls.Add($Header)
     
     
     # Fenster anzeigen
-    $Form.ShowDialog()
+    $Main.ShowDialog()
 }
 MainForm

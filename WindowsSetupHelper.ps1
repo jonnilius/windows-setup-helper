@@ -1002,8 +1002,6 @@ if ($Choco.Installed) {
     $AddPanel = @($ChocoPanelTitle, $ChocoCheckBox, $InstallCheckBox, $MoreChocoLink)
 } else {
     # "Chocolatey nicht installiert"-Hinweis
-    $NoChocoMessageTop  = 150
-    $NoChocoMessageLeft = 65
     $NoChocoMessage     = createLabel -Text "Chocolatey ist nicht installiert!" -Location "65,150" -FontStyle "Italic" -FontSize 10
 
     # Button 'Installieren'
@@ -1065,6 +1063,7 @@ $AdministratorText.Add_Click({
     }
 })
 # DeviceName-Label
+
 $DeviceNameText.Add_MouseEnter({
     $DeviceNameText.Text = "Ändern"
     $DeviceNameText.Font = changeFont -Object $DeviceNameText -FontStyle "Italic"
@@ -1073,28 +1072,69 @@ $DeviceNameText.Add_MouseLeave({
     $DeviceNameText.Text = "$env:COMPUTERNAME"
     $DeviceNameText.Font = changeFont -Object $DeviceNameText -FontStyle "Bold"
 })
-$DeviceNameText.Add_Click({
-        # 'Gerätename ändern' 
-        $ChangeNameForm = createForm -Height 70 -Width 370 -Text 'Gerätename ändern'
-        $ChangeNamePanel = createPanel -Height 50 -Width 352 -Left 10 -Top 10 -BackColor $AccentColor
-        $ChangeNameTextBox = createTextBox -Height 25 -Width 200 -Location '10,10' -Text "$env:COMPUTERNAME"
-        $changeNameButton = createButton -Height 25 -Width 125 -Location '220,10' -Text 'Ändern'
+function ChangeDeviceName {
+    param (
+        [string]$NewName
+    )
+    if ($NewName -eq "") {
+        [System.Windows.Forms.MessageBox]::Show("Der Gerätename wurde nicht geändert!", "Fehler", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+    }
+    else {
+        Rename-Computer -NewName $NewName -Force
+        [System.Windows.Forms.MessageBox]::Show("Der Gerätename wurde erfolgreich geändert! `nIhr neuer Gerätename: $NewName", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        [System.Windows.Forms.MessageBox]::Show("Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!", "Neustart erforderlich", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    }
+}
+function ChangeDeviceNameForm {
+    $Form = New-Object System.Windows.Forms.Form
+    $Form.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $Form.ClientSize = New-Object System.Drawing.Size(360, 60)
+    $Form.Padding = New-Object System.Windows.Forms.Padding(5)
+    $Form.Text = "Gerätename ändern"
+    $Form.StartPosition = 'CenterScreen'
+    $Form.FormBorderStyle = 'FixedSingle'
+    $Form.MaximizeBox = $false
+    $Form.Add_Shown({ $Button.Focus() })
 
-        $ChangeNameForm.Controls.AddRange(@($ChangeNamePanel))
-        $ChangeNamePanel.Controls.AddRange(@($ChangeNameLabel, $ChangeNameTextBox, $ChangeNameButton))
+    # Panel
+    $Panel = New-Object System.Windows.Forms.Panel
+    $Panel.Dock = 'Fill'
+    $Panel.Padding = New-Object System.Windows.Forms.Padding(10)
+    $Panel.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $Form.Controls.Add($Panel)
 
-        $ChangeNameButton.Add_Click({
-                $NewName = $ChangeNameTextBox.Text
-                if ($NewName -eq "") {
-                    [System.Windows.Forms.MessageBox]::Show("Der Gerätename wurde nicht geändert!", "Fehler", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
-                }
-                else {
-                    Rename-Computer -NewName $NewName -Force -Restart
-                    [System.Windows.Forms.MessageBox]::Show("Der Gerätename wurde erfolgreich geändert! Ihr neuer Gerätename: $NewName", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-                }
-            })
-        [void]$ChangeNameForm.ShowDialog()
-})
+    # Textbox
+    $TextBox = New-Object System.Windows.Forms.TextBox
+    $TextBox.Text = $env:COMPUTERNAME
+    $TextBox.Font = New-Object System.Drawing.Font("Consolas", 15, [System.Drawing.FontStyle]::Regular)
+    $TextBox.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $TextBox.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $TextBox.BorderStyle = "None"
+    $TextBox.TextAlign = "Center"
+    $TextBox.Dock = "Fill"
+    $TextBox.AutoSize = $false
+    $Panel.Controls.Add($TextBox)
+
+    # Space
+    $Space = New-Object System.Windows.Forms.Panel
+    $Space.Dock = "Right"
+    $Space.Width = 10
+    $Panel.Controls.Add($Space)
+    
+    # Button 
+    $Button = New-Object System.Windows.Forms.Button
+    $Button.Text = "Ändern"
+    $Button.Size = New-Object System.Drawing.Size(120, 25)
+    $Button.Dock = "Right"
+    $Button.FlatStyle = "Flat"
+    $Button.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $Button.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $Panel.Controls.Add($Button)
+    $Button.Add_Click({ ChangeDeviceName -NewName $TextBox.Text })
+
+    $Form.ShowDialog()
+}
+$DeviceNameText.Add_Click({ ChangeDeviceNameForm })
 # TimeServer-Label
 $TimeServerText.Add_MouseEnter({
     $TimeServerText.Text = "Ändern"
@@ -1451,8 +1491,8 @@ function About {
     $Form.KeyPreview = $true
     $Form.ShowIcon = $true
     $Form.Add_KeyDown({ 
-        param ($sender, $e) 
-        if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape){ $sender.Close() } })
+        param ($s, $e) 
+        if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape){ $s.Close() } })
 
     $Base64Icon = $global:Icons["About"]
     $Bytes = [Convert]::FromBase64String($Base64Icon)
@@ -1520,8 +1560,8 @@ function AboutForm {
     $Form.KeyPreview = $true
     $Form.ShowIcon = $true
     $Form.Add_KeyDown({ 
-        param ($sender, $e) 
-        if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape){ $sender.Close() } 
+        param ($s, $e) 
+        if ($e.KeyCode -eq [System.Windows.Forms.Keys]::Escape){ $s.Close() } 
     })
     $Form.Icon = Get-Icon "About"
 

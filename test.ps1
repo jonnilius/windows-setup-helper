@@ -204,6 +204,7 @@ function MainForm {
     <################################# Content #################################>
     $Tabs = New-Object System.Windows.Forms.TabControl
     $Tabs.Dock = "Fill"
+    $Tabs.Font = New-Object System.Drawing.Font("Consolas", 10, [System.Drawing.FontStyle]::Regular)
     # $Tabs.Alignment = "Left" # Wo die Reiter angezeigt werden
     $Form.Controls.Add($Tabs)
     

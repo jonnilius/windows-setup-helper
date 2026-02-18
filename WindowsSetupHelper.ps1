@@ -1325,6 +1325,10 @@ function UnpinStartMenuIcons {
 
 StartForm
 <# MAIN ##################################################################################>
+$Space = New-Object System.Windows.Forms.Panel
+$Space.Dock = "Top"
+$Space.Height = 10
+
 # $Main           = createForm -Size 400,0 -Text "$Name - $env:USERNAME"
 $Main = New-Object System.Windows.Forms.Form
 $Main.ClientSize = New-Object System.Drawing.Size(400, 600)
@@ -1340,7 +1344,6 @@ $Main.Icon = Get-Icon "Main"
 $HeaderPanel = New-Object System.Windows.Forms.Panel
 $HeaderPanel.Height = 35
 $HeaderPanel.Dock = "Top"
-$Main.Controls.Add($HeaderPanel)
 # Text
 $HeaderTitle = New-Object System.Windows.Forms.Label
 $HeaderTitle.Text = "WINDOWS SETUP HELPER"
@@ -1354,8 +1357,14 @@ $HeaderPanel.Controls.Add($HeaderTitle)
 
 
 <# SYSTEMINFO ############################################################################>
-
-$SystemInfoPanel    = createPanel -Top 55 -Left 10 -Height 100 -Width 380
+$SystemInfoPanel = New-Object System.Windows.Forms.Panel
+$SystemInfoPanel.Height = 100
+$SystemInfoPanel.Dock = "Top"
+$SystemInfoPanel.BackColor = [System.Drawing.ColorTranslator]::FromHtml($DarkColor)
+$SystemInfoPanel.Margin = New-Object System.Windows.Forms.Padding(0,10,0,10)
+# $Main.Controls.Add($SystemInfoPanel)
+# $Main.Controls.Add($HeaderPanel)
+# $SystemInfoPanel    = createPanel -Top 55 -Left 10 -Height 100 -Width 380
 
 $AdministratorLabel = createLabel -Text "Administrator:" -Location "10,10" -FontSize 9
 $DeviceNameLabel    = createLabel -Text "Gerätename:" -Location "10,30" -FontSize 9
@@ -1428,7 +1437,7 @@ $Footer.controls.AddRange($AddFooter)
 
 <# ADD & CALCULATE #######################################################################>
 $Main.Height = 565
-$Main.controls.AddRange(@( $SystemInfoPanel, $ChocoPanel, $Footer))
+$Main.controls.AddRange(@($SystemInfoPanel, $Space, $HeaderPanel, $ChocoPanel, $Footer))
 HideShell
 
 <# EVENTLISTENER #########################################################################>

@@ -1,6 +1,6 @@
 ﻿# Informationen
 $Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.6.2"
+$global:Version    = "Version 0.6.3"
 $global:Author     = "jonnilius"
 $global:License    = "MIT License"
 
@@ -1033,7 +1033,7 @@ $Footer         = createPanel -Top 505 -Left 10 -Height 50 -Width 380 -BackColor
 
 $AboutLink      = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "ABOUT"    -Location "5,3"                         -Hand -Description "Informationen über das Skript"
 $VersionText    = createLabel -BackColor $AccentColor -FontStyle "Bold,Italic" -FontSize 8 -ForeColor $DarkColor -Text "$Version" -Location "$($PanelWidth / 2 - 40),3"
-$MoreLink       = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "DEBLOAT"  -Location "$($PanelWidth - 30),3"       -Hand -Description "Mehr Optionen" -Width 40
+$MoreLink       = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "DEBLOAT"  -Location "$($PanelWidth - 50),3"       -Hand -Description "Mehr Optionen" -Width 40
 
 $AddFooter      = @($AboutLink, $VersionText, $MoreLink)
 $Footer.controls.AddRange($AddFooter)

@@ -1328,18 +1328,30 @@ StartForm
 # $Main           = createForm -Size 400,0 -Text "$Name - $env:USERNAME"
 $Main = New-Object System.Windows.Forms.Form
 $Main.ClientSize = New-Object System.Drawing.Size(400, 600)
+$Main.Padding = New-Object System.Windows.Forms.Padding(10)
 $Main.BackColor = [System.Drawing.ColorTranslator]::FromHtml($AccentColor)
 $Main.Text = "$Name - $env:USERNAME"
 $Main.StartPosition = 'CenterScreen'
 $Main.Icon = Get-Icon "Main"
 
+
 <# HEADER ################################################################################>
+# Panel
+$HeaderPanel = New-Object System.Windows.Forms.Panel
+$HeaderPanel.Height = 35
+$HeaderPanel.Dock = "Top"
+$Main.Controls.Add($HeaderPanel)
+# Text
+$HeaderTitle = New-Object System.Windows.Forms.Label
+$HeaderTitle.Text = "WINDOWS SETUP HELPER"
+$HeaderTitle.ForeColor = [System.Drawing.ColorTranslator]::FromHtml($DarkColor)
+$HeaderTitle.BackColor = [System.Drawing.ColorTranslator]::FromHtml($AccentColor)
+$HeaderTitle.Font = New-Object System.Drawing.Font("Consolas", 24, [System.Drawing.FontStyle]::Bold)
+$HeaderTitle.Dock = "Fill"
+$HeaderTitle.TextAlign = "MiddleCenter"
+$HeaderTitle.AutoSize = $false
+$HeaderPanel.Controls.Add($HeaderTitle)
 
-$HeaderPanel    = createPanel -BackColor $AccentColor -Left 15 -Top 10 -Height 35 -Width 400
-$HeaderTitle    = createLabel -BackColor $AccentColor -ForeColor $DarkColor -Text "WINDOWS SETUP HELPER" -FontSize 24 -Location "0,0" -FontStyle "Bold"
-
-$AddHeaderPanel = @($HeaderTitle)
-$HeaderPanel.controls.AddRange($AddHeaderPanel)
 
 <# SYSTEMINFO ############################################################################>
 
@@ -1416,7 +1428,7 @@ $Footer.controls.AddRange($AddFooter)
 
 <# ADD & CALCULATE #######################################################################>
 $Main.Height = 565
-$Main.controls.AddRange(@($HeaderPanel, $SystemInfoPanel, $ChocoPanel, $Footer))
+$Main.controls.AddRange(@( $SystemInfoPanel, $ChocoPanel, $Footer))
 HideShell
 
 <# EVENTLISTENER #########################################################################>

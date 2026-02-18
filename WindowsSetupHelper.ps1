@@ -1,6 +1,13 @@
 ﻿using namespace System.Windows.Forms
 using namespace System.Drawing
 
+# Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')){
+    Write-Host $pe"Starte als Administrator neu..."
+    Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
+    [System.Environment]::Exit(0)
+}
+
 # Informationen
 $Name       = "Windows Setup Helper"
 $global:Version    = "Version 0.6.8"
@@ -15,7 +22,6 @@ $WhiteColor  = "#eeeeee"
 $DefaultFont = "Consolas"
 
 # Variablen
-$RunAsAdmin = $true
 $ErrorActionPreference = "SilentlyContinue"
 $pe = "`n" + " " * 4
 
@@ -224,82 +230,6 @@ class ChocoManager {
         return $appList
     }
 }
-class TimeServerManager {
-    # Liste bekannter und empfohlener NTP-Zeitserver
-    [string[]]$ServerList
-
-    # Konstruktor - Initialisiert die Liste mit voreingestellten Zeitservern
-    TimeServerManager() {
-        $this.ServerList = @(
-            "time.windows.com",        # Microsoft-Standard-Zeitserver
-            "de.pool.ntp.org",         # Deutscher NTP-Pool-Server
-            "europe.pool.ntp.org",     # Europäischer Poolserver
-            "time.google.com",         # Google-Zeitserver
-            "time.cloudflare.com",     # Cloudflare-Zeitserver mit NTS
-            "ntp1.ptb.de",             # PTB - offizieller deutscher Zeitserver
-            "ntp2.ptb.de",
-            "ntp3.ptb.de",
-            "ntp1.fau.de",             # Öffentlicher Uni-Zeitserver der FAU Erlangen
-            "ntp.uni-stuttgart.de"     # Uni Stuttgart - zuverlässiger Zeitserver
-        )
-    }
-
-    # Gibt den aktuell verwendeten Zeitserver des Systems zurück
-    [string] GetCurrentTimeServer() {
-        try {
-            $sourceLine = w32tm /query /status | Select-String -Pattern 'Quelle'
-
-            if ($sourceLine) {
-                $server = ($sourceLine.ToString() -replace '^.*?:\s*(.+?)(,0x9)?\s*$', '$1').Trim()
-
-                if ($server -eq "Local CMOS Clock") {
-                    return "Lokale CMOS-Uhr - keine Synchronisation mit einem Netzwerk-Zeitserver"
-                }
-
-                return $server
-            } else {
-                return "Unbekannt - keine Zeitquelle gefunden"
-            }
-        } catch {
-            return "Fehler beim Abrufen des Zeitservers: $_"
-        }
-    }
-
-
-    # Gibt alle in der Liste enthaltenen Zeitserver in der Konsole aus
-    [void] ShowAllServers() {
-        $this.ServerList | ForEach-Object { Write-Output $_ }
-    }
-
-    # Prüft, ob der aktuell verwendete Zeitserver in der bekannten Liste enthalten ist
-    [bool] IsCurrentServerInList() {
-        $current = $this.GetCurrentTimeServer()
-        return $this.ServerList -contains $current
-    }
-
-    [void] SetTimeServer([string]$serverName) {
-        if (-not $this.ServerList -contains $serverName) {
-            Write-Warning "Der angegebene Server '$serverName' ist nicht in der bekannten Liste enthalten."
-        }
-
-        try {
-            # Setze den neuen NTP-Server (inkl. 0x8-Flag für manuelle Quelle)
-            w32tm /config /manualpeerlist:"$serverName,0x8" /syncfromflags:manual /reliable:no /update
-
-            # Zeitdienst neu starten
-            Restart-Service w32time -Force
-
-            Start-Sleep -Seconds 2  # Kurze Pause
-
-            # Zeit sofort synchronisieren
-            w32tm /resync
-
-            Write-Output "Zeitserver erfolgreich auf '$serverName' gesetzt und synchronisiert."
-        } catch {
-            Write-Error "Fehler beim Setzen des Zeitservers: $_"
-        }
-    }
-}
 
 $Admin = [AdminManager]::new()
 
@@ -310,31 +240,22 @@ $host.UI.RawUI.ForegroundColor  = "White"
 $host.UI.RawUI.WindowSize       = New-Object Management.Automation.Host.Size (60, 20)
 $host.UI.RawUI.BufferSize       = New-Object System.Management.Automation.Host.Size (60, 20)
 $Choco = [ChocoManager]::new()
-$TimeServer = [TimeServerManager]::new()
 
-function StartForm {
 
-    # Administrator-Rechte überprüfen
-    Write-Host "`n  Administrator-Rechte: " -NoNewline
-    if ($Admin.Rights) { Write-Host "vorhanden" -ForegroundColor "Green" }
-    elseif ($RunAsAdmin) { Write-Host "fehlen" -ForegroundColor "Yellow"; $Admin.Restart() }
-    else { Write-Host "keine" -ForegroundColor "Red" }
-
-    # Produktkey auslesen
-    Write-Host "`n  Produktkey: " -NoNewline
-    if (GetProductKey) { Write-Host "gefunden" -ForegroundColor "DarkCyan" }
-    else { Write-Host "nicht gefunden" -ForegroundColor "Red" }
-
-    # Aktuellen Zeitserver ermitteln
-    Write-Host "`n  Zeitserver: " -NoNewline
-    if ($TimeServer.IsCurrentServerInList()) { Write-Host ($TimeServer.GetCurrentTimeServer()) -ForegroundColor "DarkCyan" } 
-    else { Write-Host "Keine Zeitquelle" -ForegroundColor "Red" }
-
-    # Auf Chocolatey prüfen
-    Write-Host "`n  Chocolatey: " -NoNewline
-    if ($Choco.Installed) { Write-Host "installiert" -ForegroundColor "Green" }
-    else { Write-Host "nicht installiert" -ForegroundColor "Yellow" }
+# Produktkey auslesen
+$ProductKeys = @(
+    (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey,
+    (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey,
+    (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault
+)
+foreach ($key in $ProductKeys) {
+    if ($key) {
+        $global:ProductKey = $key
+        break
+     }
 }
+
+
 
 
 
@@ -1108,17 +1029,6 @@ function ChangeDeviceName {
         [System.Windows.Forms.MessageBox]::Show("Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!", "Neustart erforderlich", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
     }
 }
-function GetProductKey {
-    $ProductKeys = @(
-        (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey,
-        (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey,
-        (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault
-    )
-    foreach ($key in $ProductKeys) {
-        if ($key) { return $key }
-    }
-    $null
-}
 function RemoveOneDrive {
     # Erstelle das Formular
     $Form = New-Object System.Windows.Forms.Form
@@ -1326,7 +1236,6 @@ function UnpinStartMenuIcons {
 
 
 
-StartForm
 <# MAIN ##################################################################################>
 $Space = New-Object System.Windows.Forms.Panel
 $Space.Dock = "Top"
@@ -1371,20 +1280,18 @@ $SystemInfoPanel.Margin = New-Object System.Windows.Forms.Padding(0,10,0,10)
 
 $AdministratorLabel = createLabel -Text "Administrator:" -Location "10,10" -FontSize 9
 $DeviceNameLabel    = createLabel -Text "Gerätename:" -Location "10,30" -FontSize 9
-$TimeServerLabel    = createLabel -Text "Zeitserver:" -Location "10,50" -FontSize 9
 $ProductKeyLabel    = createLabel -Text "Produktkey:" -Location "10,70" -FontSize 9
 
 $AdministratorText  = createLabel -Text $Admin.StatusText  -Location "108,10" -Description "Status verändern"  -FontSize 10 -ForeColor $Admin.StatusColor -FontStyle "Bold" -Hand 
 $DeviceNameText     = createLabel -Text $env:COMPUTERNAME  -Location "88,30" -Description "Gerätenamen ändern"  -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand 
-$TimeServerText     = createLabel -Text $TimeServer.GetCurrentTimeServer() -Location "88,50" -Description "Zeitserver ändern"   -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
 $ProductKey       = GetProductKey
 $ProductKeyText     = createLabel -Text $ProductKey        -Location "88,70" -Description "Produktkey kopieren" -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
 
 $DeviceNameText.Add_Click({ ChangeDeviceNameForm })
 
 $AddSystemInfoPanel = @(
-    $AdministratorLabel, $DeviceNameLabel, $TimeServerLabel, $ProductKeyLabel,
-    $AdministratorText, $DeviceNameText,  $TimeServerText,  $ProductKeyText
+    $AdministratorLabel, $DeviceNameLabel, $ProductKeyLabel,
+    $AdministratorText, $DeviceNameText,  $ProductKeyText
 )
 $SystemInfoPanel.controls.AddRange($AddSystemInfoPanel)
 

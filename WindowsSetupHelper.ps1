@@ -962,7 +962,7 @@ Lizenz: MIT
 function DebloatForm {
     # Erstelle das Formular
     $Form = New-Object System.Windows.Forms.Form
-    $Form.ClientSize = New-Object System.Drawing.Size(245,100)
+    $Form.ClientSize = New-Object System.Drawing.Size(245,125)
     $Form.Padding = New-Object System.Windows.Forms.Padding(10)
     $Form.StartPosition = "CenterScreen"
     $Form.Text = "Debloater"
@@ -972,10 +972,10 @@ function DebloatForm {
 
     # Erstelle das Panel
     $Panel = New-Object System.Windows.Forms.Panel
-    $Panel.Size = New-Object System.Drawing.Size(220,80)
+    $Panel.Size = New-Object System.Drawing.Size(220,105)
     $Panel.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
     $Panel.Dock = "Fill"
-    $Panel.Padding = New-Object System.Windows.Forms.Padding(10)
+    $Panel.Padding = New-Object System.Windows.Forms.Padding(10,5,10,5)
     $Form.Controls.Add($Panel)
 
     # Erstelle das FlowLayoutPanel
@@ -1003,9 +1003,18 @@ function DebloatForm {
     $UnpinStartMenuButton.FlatStyle = "Flat"
     $FlowPanel.Controls.Add($UnpinStartMenuButton)
 
+    $ChangeDeviceNameButton = New-Object System.Windows.Forms.Button
+    $ChangeDeviceNameButton.Text = "Gerätename ändern"
+    $ChangeDeviceNameButton.Size = New-Object System.Drawing.Size(200,25)
+    $ChangeDeviceNameButton.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
+    $ChangeDeviceNameButton.BackColor = [System.Drawing.ColorTranslator]::FromHtml("#2D3436")
+    $ChangeDeviceNameButton.FlatStyle = "Flat"
+    $FlowPanel.Controls.Add($ChangeDeviceNameButton)
+
     # Button-Eventhandler hinzufügen
     $RemoveOneDriveButton.Add_Click( { RemoveOneDrive } )
     $UnpinStartMenuButton.Add_Click( { UnpinStartMenuIcons } )
+    $ChangeDeviceNameButton.Add_Click( { ChangeDeviceNameForm } )
 
     # Zeige das Formular an
     $Form.ShowDialog()
@@ -1566,7 +1575,7 @@ $Main.Add_Shown({ $Main.Activate() })
 [void]$Main.ShowDialog()
 
 
-## Skript-Neustart
+# Skript-Neustart
 if ($global:restartScript) {
     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
     [System.Environment]::Exit(0)

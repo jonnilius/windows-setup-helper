@@ -1,18 +1,8 @@
-﻿<########################################################################################
-*   
-*    Name:          Windows Setup Helper
-*    Beschreibung:  Hilft dem Benutzer beim Windows Setup
-*    Version:       0.5
-*    Entwickler:    jonnilius
-*    Lizenz:        MIT
-*    Codierung:     UTF-8 with BOM
-*   
-#########################################################################################>
-
-# Informationen
+﻿# Informationen
 $Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.5"
+$global:Version    = "Version 0.6"
 $global:Author     = "jonnilius"
+$global:License    = "MIT License"
 
 # Farben
 $AccentColor = "#c0393b"

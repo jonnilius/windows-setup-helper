@@ -1,6 +1,6 @@
 ﻿# Informationen
 $Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.6.3"
+$global:Version    = "Version 0.6.5"
 $global:Author     = "jonnilius"
 $global:License    = "MIT License"
 
@@ -71,7 +71,7 @@ class AdminManager {
         $this.Refresh()
     }
     [void]Restart(){
-        $pe = "`n" + " " * 6
+        $pe = "`n" + " " * 4
         Write-Host $pe"Starte als Administrator neu..."
         Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
         [System.Environment]::Exit(0)
@@ -318,7 +318,7 @@ if ($Admin.Rights) {
     Write-Host "keine" -ForegroundColor "Red"
 }
 
-Write-Host $pe"Produktkey ermitteln..." -NoNewline
+Write-Host $pe"Produktkey auslesen..." -NoNewline
 $ProductKeys = @(
     (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey,
     (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey,
@@ -326,10 +326,13 @@ $ProductKeys = @(
 )
 foreach ($key in $ProductKeys) {
     if ($key) {
-        Write-Host $key -ForegroundColor "DarkCyan"
+        Write-Host "gefunden" -ForegroundColor "DarkCyan"
         $ProductKey = $key
         break
     }
+}
+if (-not $ProductKey) {
+    Write-Host "nicht gefunden" -ForegroundColor "Red"
 }
 
 Write-Host $pe"Aktuellen Zeitserver ermitteln..." -NoNewline
@@ -342,12 +345,12 @@ if ($TimeServer.IsCurrentServerInList()) {
 }
 
 
-Write-Host $pe"Chocolatey wird initialisiert..." -NoNewline
+Write-Host $pe"Auf Chocolatey prüfen..." -NoNewline
 $Choco = [ChocoManager]::new()
 if ($Choco.Installed) {
-    Write-Host "Version $($Choco.Version)" -ForegroundColor "Yellow"
+    Write-Host "installiert" -ForegroundColor "Green"
 } else {
-    Write-Host "nicht gefunden" -ForegroundColor "Red"
+    Write-Host "nicht installiert" -ForegroundColor "Yellow"
 }
 $ProgramList = [ordered]@{
     # Packagename bei Chocolatey | Anzeigename

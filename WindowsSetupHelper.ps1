@@ -10,7 +10,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 # Informationen
 $Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.7.0"
+$global:Version    = "Version 0.7.1"
 $global:Author     = "jonnilius"
 $global:License    = "MIT License"
 
@@ -203,24 +203,6 @@ $host.UI.RawUI.ForegroundColor  = "White"
 $host.UI.RawUI.WindowSize       = New-Object Management.Automation.Host.Size (60, 20)
 $host.UI.RawUI.BufferSize       = New-Object System.Management.Automation.Host.Size (60, 20)
 $Choco = [ChocoManager]::new()
-
-
-# Produktkey auslesen
-$ProductKeys = @(
-    (Get-WmiObject -query 'select * from SoftwareLicensingService').OA3xOriginalProductKey,
-    (Get-CimInstance -ClassName SoftwareLicensingService).OA3xOriginalProductKey,
-    (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault
-)
-foreach ($key in $ProductKeys) {
-    if ($key) {
-        $global:ProductKey = $key
-        break
-     }
-}
-
-
-
-
 
 
 $ProgramList = [ordered]@{
@@ -440,57 +422,6 @@ function createButton {
 
     return $button
 
-}
-function createCheckedListBox {
-    param (
-        # Größe & Position
-        [int]$Width,            # Breite des CheckedListBox
-        [int]$Height,           # Höhe des CheckedListBox
-        [string]$Location,      # Position des CheckedListBox (x,y)
-
-        # Verhalten
-        [bool]$CheckOnClick = $true,    # Aktiviert Checkbox direkt beim Klicken
-        
-        # Darstellung
-        [string]$BackColor = $DarkColor,        # Hintergrundfarbe
-        [string]$ForeColor = $WhiteColor,       # Schriftfarbe
-        [string]$FontFamily = $DefaultFont,     # Schriftart
-        [int]$FontSize = 11,                    # Schriftgröße
-        [string]$BorderColor = $AccentColor,    # Rahmenfarbe 
-        
-        # Zusätzliche Eigenschaften
-        [bool]$AutoScroll = $true,              # Ermöglicht vertikales Schrollen
-        [string]$FlatStyle = 'Flat',            # Stil des Steuerelements (Flat, Standard)
-        [string]$BorderStyle = 'None',          # Rahmenstil (None, FixedSingle, Fixed3D)
-        [string]$Anchor = 'Top,Right,Left',     # Verankerung innerhalb des Containers
-        [string]$SelectionMode = 'MultiSimple', # Auswahlmodus des Listbox (None, One, MultiSimple, MultiExtended)
-        
-        [bool]$MultiColumn = $false,    # Mehrere Spalten aktivieren
-        [int]$ColumnWidth = 200,        # Breite der Spalten
-        [int]$ItemHeight = 20           # Höhe der Listeneinträge
-    )
-
-    $checkedListBox = New-Object System.Windows.Forms.CheckedListBox
-    $checkedListBox.FlatStyle       = $FlatStyle
-    $checkedListBox.Height          = $Height
-    $checkedListBox.Width           = $Width
-    $checkedListBox.Anchor          = $Anchor
-    $checkedListBox.AutoScroll      = $AutoScroll
-
-    $coords = $Location -split ',' # Location Koordinaten extrahieren
-    $checkedListBox.Location        = New-Object System.Drawing.Point($coords[0], $coords[1])
-    $checkedListBox.Font            = createFont -FontFamily $FontFamily -FontSize $FontSize # New-Object System.Drawing.Font($FontFamily, $FontSize)
-    $checkedListBox.ForeColor       = [System.Drawing.ColorTranslator]::FromHtml($ForeColor)
-    $checkedListBox.BackColor       = [System.Drawing.ColorTranslator]::FromHtml($BackColor)
-    $checkedListBox.BorderStyle     = $BorderStyle
-    $checkedListBox.SelectionMode   = $SelectionMode
-    $checkedListBox.CheckOnClick    = $CheckOnClick
-    $checkedListBox.MultiColumn     = $MultiColumn
-    $checkedListBox.ColumnWidth     = $ColumnWidth
-    $checkedListBox.ItemHeight      = $ItemHeight
-    $checkedListBox.DisplayMember   = 'Name' # Standard-Anzeigeeigenschaft für Objekte
-
-    return $checkedListBox
 }
 
 

@@ -10,7 +10,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 
 # Informationen
 $Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.6.8"
+$global:Version    = "Version 0.7.0"
 $global:Author     = "jonnilius"
 $global:License    = "MIT License"
 
@@ -52,43 +52,6 @@ function Confirm {
 }
 
 # Klassen
-class AdminManager {
-    [System.Object]$LocalUser
-    [string]$StatusText
-    [string]$StatusColor
-    [bool]$Rights
-
-    AdminManager() { $this.Refresh() }
-    [void]Refresh() {
-        $this.LocalUser = Get-LocalUser -Name "Administrator"
-        $this.StatusText = if ($this.LocalUser.Enabled) { "aktiviert" } else { "deaktiviert" }
-        $this.StatusColor = if ($this.LocalUser.Enabled) { "Green" } else { "Red" }
-        $this.Rights = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')
-    }
-
-    [void]MissingRights(){
-        if (!$this.Rights){
-            showDialog -Title "Administrator-Rechte fehlen" -Text "Nur mit Administrator-Rechten möglich."
-        }
-    }
-    [void]Enable(){
-        Enable-LocalUser $this.LocalUser
-        $this.Refresh()
-    }
-    [void]Disable(){
-        Disable-LocalUser $this.LocalUser
-        $this.Refresh()
-    }
-    [void]Restart(){
-        $pe = "`n" + " " * 4
-        Write-Host $pe"Starte als Administrator neu..."
-        Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-        [System.Environment]::Exit(0)
-    }
-    [bool]GetStatus(){
-        return $this.LocalUser.Enabled
-    }
-}
 class ChocoManager {                                                                    
     [bool]$Installed
     [string]$Version
@@ -231,7 +194,7 @@ class ChocoManager {
     }
 }
 
-$Admin = [AdminManager]::new()
+
 
 # PowerShell-Konsole anpassen
 $host.UI.RawUI.WindowTitle      = "$Name starten..."
@@ -385,98 +348,6 @@ function createFont {
 
     return New-Object System.Drawing.Font($FontFamily, $FontSize, [System.Drawing.FontStyle]$styleFlags)
 }
-function createForm {
-    param (
-        [hashtable]$config,
-        # Größe & Position
-        [int]$Width,                                  # Breite des Fensters
-        [int]$Height,                                 # Höhe des Fensters
-        [int[]]$Padding = 10,                              # Innenabstand (links, oben, rechts, unten)
-        [int[]]$Size,                                 # Größe des Fensters (Breite, Höhe)
-        
-        # Fensterdarstellung
-        [string]$StartPosition = 'CenterScreen',      # Startposition (CenterScreen, Manual, WindowsDefaultLocation)
-        [string]$Text = "Fenstertitel",               # Fenstertitel
-        [string]$BackColor = $AccentColor,            # Hintergrundfarbe (HTML oder Name)
-        [string]$FormBorderStyle = 'FixedSingle',     # Rahmenstil (None, FixedSingle, Fixed3D, Sizable, etc.)
-
-        # Fensterverhalten
-        [bool]$TopMost = $false,                      # Immer im Vordergrund
-        [bool]$ShowIcon = $false,                     # Icon anzeigen
-        [string]$Base64,                              # Base64-Icon
-        [bool]$MinimizeBox = $false,                  # Minimieren-Schaltfläche
-        [bool]$MaximizeBox = $false                   # Maximieren-Schaltfläche
-    )
-
-
-    # Formular erstellen und Eigenschaften setzen
-    $form = New-Object System.Windows.Forms.Form
-    if ($Size) { $form.ClientSize = New-Object System.Drawing.Size($Size[0], $Size[1]) } 
-    if ($Width -and $Height) { $form.ClientSize = New-Object System.Drawing.Size($Width, $Height) }
-    if ($Padding) { 
-        $PadLeft    = if ($Padding.Length -ge 1) { $Padding[0] } else { 0 }
-        $PadTop     = if ($Padding.Length -ge 2) { $Padding[1] } else { $PadLeft }
-        $PadRight   = if ($Padding.Length -ge 3) { $Padding[2] } else { $PadLeft }
-        $PadBottom  = if ($Padding.Length -ge 4) { $Padding[3] } else { $PadTop }
-
-        $form.Padding = New-Object System.Windows.Forms.Padding($PadLeft, $PadTop, $PadRight, $PadBottom) 
-    }
-    $form.StartPosition     = $StartPosition
-    $form.FormBorderStyle   = $FormBorderStyle
-    $form.MinimizeBox       = $MinimizeBox
-    $form.MaximizeBox       = $MaximizeBox
-    $form.ShowIcon          = $ShowIcon
-    $form.Text              = $Text
-    $form.TopMost           = $TopMost
-    $form.BackColor         = [System.Drawing.ColorTranslator]::FromHtml($BackColor)
-
-    # Base64-Icon
-    if ($Base64){
-        $form.ShowIcon = $true
-        $Bytes = [Convert]::FromBase64String($Base64)   # Byte-Array dekodieren
-        $Stream = New-Object System.IO.MemoryStream(,$Bytes) # Stream erzeugen
-        $Icon = [System.Drawing.Icon]::FromHandle(([System.Drawing.Bitmap]::FromStream($Stream)).GetHicon())
-        $form.Icon = $Icon
-    }
-
-    return $form
-}
-function createPanel {
-    param (
-        # Größe
-        [int]$Height,                                       # Höhe des Panels
-        [int]$Width,                                        # Breite des Panels
-        [int[]]$Size,                                       # Größe des Panels (Breite, Höhe)
-
-        # Position
-        [int]$Padding,                                      # Innenabstand
-        [string]$Location,                                  # Position des Panels (x,y)
-        [int]$Left,
-        [int]$Top,
-
-        # Darstellung
-        [string]$BackColor = $DarkColor,                    # Hintergrundfarbe des Panels
-        [string]$FlatStyle = 'Flat',                        # Stil des Panels (Flat, Standard)
-        [string]$Anchor = 'Top,Right,Left',                 # Ankerposition des Panels (Top, Left, Right, Bottom)
-        [string]$Dock,                                      # Andockverhalten des Panels (Top, Bottom, Left, Right, Fill)
-        
-        # Verhalten
-        [bool]$AutoScroll = $false                          # Automatisches Scrollen
-    )
-
-    $panel = New-Object System.Windows.Forms.Panel
-    $panel.FlatStyle    = $FlatStyle
-    if ( $Dock ) { $panel.Dock = $Dock }
-    if ( $Size ) { $panel.Size = New-Object System.Drawing.Size($Size[0], $Size[1]) }
-    if ( $Width -and $Height ) { $panel.Size = New-Object System.Drawing.Size($Width, $Height) }
-    if ( $Padding) { $panel.Padding = New-Object System.Windows.Forms.Padding($Padding) }
-    $panel.Anchor       = $Anchor
-    $panel.Location     = New-Object System.Drawing.Point($Left, $Top)
-    $panel.BackColor    = [System.Drawing.ColorTranslator]::FromHtml($BackColor)
-    $panel.AutoScroll   = $AutoScroll
-
-    return $panel
-}
 function createLabel {
     param (
         # Größe & Position
@@ -621,49 +492,8 @@ function createCheckedListBox {
 
     return $checkedListBox
 }
-function createDropDownList {
-    param (
-        # Größe & Position
-        [int]$Height,                       # Höhe der ComboBox
-        [int]$Width,                        # Breite der ComboBox
-        [string]$Location,                  # Position im Format (x,y)
-        [string]$Anchor = 'Top,Right,Left', # Ankerposition
 
-        # Schrift & Farben
-        [int]$FontSize = 11,                # Schriftgröße
-        [string]$FontFamily = $DefaultFont,   # Schriftart
-        [string]$ForeColor = $WhiteColor,   # Schriftfarbe
-        [string]$BackColor = $DarkColor     # Hintergrundfarbe
-    )
 
-    $dropDownList = New-Object System.Windows.Forms.ComboBox
-    $dropDownList.Height        = $Height
-    $dropDownList.Width         = $Width
-    $dropDownList.Anchor        = $Anchor
-
-    # Koordinaten extrahieren und setzen
-    $coords = $Location -split ','  # Kommentar ergänzt: Location Koordinaten extrahieren
-    $dropDownList.Location = New-Object System.Drawing.Point($coords[0], $coords[1])
-
-    # Schrift & Farben setzen
-    $dropDownList.Font      = createFont -FontFamily $FontFamily -FontSize $FontSize # New-Object System.Drawing.Font($FontFamily, $FontSize)
-    $dropDownList.ForeColor = [System.Drawing.ColorTranslator]::FromHtml($ForeColor)
-    $dropDownList.BackColor = [System.Drawing.ColorTranslator]::FromHtml($BackColor)
-    
-    return $dropDownList
-}
-
-# change-Funktion
-function changeFont {
-    param (
-        [System.Windows.Forms.Control]$Object,
-        [string]$FontFamily = $Object.Font.FontFamily.Name,
-        [int]$FontSize = [int]$Object.Font.Size,
-        [string]$FontStyle = $Object.Font.Style.ToString()
-    )
-
-    return createFont -FontFamily $FontFamily -FontSize $FontSize -FontStyle $FontStyle
-}
 
 
 <# FUNKTIONEN ############################################################################>
@@ -743,6 +573,8 @@ function ChocolateyForm {
     $ProcessInfoLabel.ForeColor = [System.Drawing.ColorTranslator]::FromHtml("#C0393B")
     $ProcessInfoLabel.Padding = New-Object System.Windows.Forms.Padding(0,5,0,10)
     $ProcessInfoLabel.Dock = "Bottom"
+    $ProcessInfoLabel.Height = 30
+    $ProcessInfoLabel.AutoSize = $false
     $ProcessInfoLabel.TextAlign = "MiddleCenter"
     $PackagePanel.Controls.Add($ProcessInfoLabel)
 
@@ -1253,8 +1085,8 @@ $Space.Height = 10
 # $Main           = createForm -Size 400,0 -Text "$Name - $env:USERNAME"
 $Main = New-Object System.Windows.Forms.Form
 $Main.ClientSize = New-Object System.Drawing.Size(400, 600)
-$Main.Padding = New-Object System.Windows.Forms.Padding(10)
-$Main.BackColor = [System.Drawing.ColorTranslator]::FromHtml($AccentColor)
+$Main.Padding = New-Object System.Windows.Forms.Padding(10,5,10,5)
+$Main.BackColor = [ColorTranslator]::FromHtml($AccentColor)
 $Main.Text = "$Name - $env:USERNAME"
 $Main.StartPosition = 'CenterScreen'
 $Main.Icon = Get-Icon "Main"
@@ -1263,13 +1095,13 @@ $Main.Icon = Get-Icon "Main"
 <# HEADER ################################################################################>
 # Panel
 $HeaderPanel = New-Object System.Windows.Forms.Panel
-$HeaderPanel.Height = 35
+$HeaderPanel.Height = 50
 $HeaderPanel.Dock = "Top"
 # Text
 $HeaderTitle = New-Object System.Windows.Forms.Label
 $HeaderTitle.Text = "WINDOWS SETUP HELPER"
-$HeaderTitle.ForeColor = [System.Drawing.ColorTranslator]::FromHtml($DarkColor)
-$HeaderTitle.BackColor = [System.Drawing.ColorTranslator]::FromHtml($AccentColor)
+$HeaderTitle.ForeColor = [ColorTranslator]::FromHtml($DarkColor)
+$HeaderTitle.BackColor = [ColorTranslator]::FromHtml($AccentColor)
 $HeaderTitle.Font = New-Object System.Drawing.Font("Consolas", 24, [System.Drawing.FontStyle]::Bold)
 $HeaderTitle.Dock = "Fill"
 $HeaderTitle.TextAlign = "MiddleCenter"
@@ -1277,44 +1109,48 @@ $HeaderTitle.AutoSize = $false
 $HeaderPanel.Controls.Add($HeaderTitle)
 
 
-<# SYSTEMINFO ############################################################################>
-$SystemInfoPanel = New-Object System.Windows.Forms.Panel
-$SystemInfoPanel.Height = 100
-$SystemInfoPanel.Dock = "Top"
-$SystemInfoPanel.BackColor = [System.Drawing.ColorTranslator]::FromHtml($DarkColor)
-$SystemInfoPanel.Margin = New-Object System.Windows.Forms.Padding(0,10,0,10)
-# $Main.Controls.Add($SystemInfoPanel)
-# $Main.Controls.Add($HeaderPanel)
-# $SystemInfoPanel    = createPanel -Top 55 -Left 10 -Height 100 -Width 380
-
-$AdministratorLabel = createLabel -Text "Administrator:" -Location "10,10" -FontSize 9
-$DeviceNameLabel    = createLabel -Text "Gerätename:" -Location "10,30" -FontSize 9
-$ProductKeyLabel    = createLabel -Text "Produktkey:" -Location "10,70" -FontSize 9
-
-$AdministratorText  = createLabel -Text $Admin.StatusText  -Location "108,10" -Description "Status verändern"  -FontSize 10 -ForeColor $Admin.StatusColor -FontStyle "Bold" -Hand 
-$DeviceNameText     = createLabel -Text $env:COMPUTERNAME  -Location "88,30" -Description "Gerätenamen ändern"  -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand 
-$ProductKey       = GetProductKey
-$ProductKeyText     = createLabel -Text $ProductKey        -Location "88,70" -Description "Produktkey kopieren" -FontSize 10 -ForeColor $AccentColor -FontStyle "Bold" -Hand
-
-$DeviceNameText.Add_Click({ ChangeDeviceNameForm })
-
-$AddSystemInfoPanel = @(
-    $AdministratorLabel, $DeviceNameLabel, $ProductKeyLabel,
-    $AdministratorText, $DeviceNameText,  $ProductKeyText
-)
-$SystemInfoPanel.controls.AddRange($AddSystemInfoPanel)
 
 <# CHOCOLATEY ############################################################################>
-$ChocoPanel         = createPanel -Top 165 -Left 10 -Height 340 -Width 380
+$ChocoPanel = New-Object System.Windows.Forms.Panel
+$ChocoPanel.Dock = "Fill"
+$ChocoPanel.Padding = New-Object System.Windows.Forms.Padding(10)
+$ChocoPanel.ForeColor = [ColorTranslator]::FromHtml($AccentColor)
+$ChocoPanel.BackColor = [ColorTranslator]::FromHtml($DarkColor)
+$Main.Controls.Add($ChocoPanel)
 
 # Chocolatey-Installed
-$ChocoPanelTitle    = createLabel           -FontSize 15 -Text "Chocolatey-Packages" -ForeColor $AccentColor -FontStyle "Bold"
-$ChocoCheckBox      = createCheckedListBox  -FontSize 9 -Location "10,40" -Width 360 -Height 240
-$InstallCheckBox    = createButton          -FontSize 9 -Location "10,290"        -Text "Installieren" -Width 360
-$MoreChocoLink      = createLabel -Hand     -FontSize 7 -Location "110,320" -Text "Aktualisieren / Deinstallieren" -ForeColor $AccentColor
+$ChocoPanelTitle    = New-Object System.Windows.Forms.Label
+$ChocoPanelTitle.Text = "Chocolatey-Pakete"
+$ChocoPanelTitle.Font = New-Object System.Drawing.Font("Consolas", 15, [System.Drawing.FontStyle]::Bold)
+$ChocoPanelTitle.AutoSize = $false
+$ChocoPanelTitle.Dock = "Top"
+$ChocoPanelTitle.Height = 30
+$ChocoPanelTitle.TextAlign = "MiddleCenter"
+
+$ChocoCheckBox      = New-Object System.Windows.Forms.CheckedListBox
+$ChocoCheckBox.BackColor = [ColorTranslator]::FromHtml($DarkColor)
+$ChocoCheckBox.DisplayMember = "Name"
+$ChocoCheckBox.Font = New-Object System.Drawing.Font("Consolas", 9)
+$ChocoCheckBox.Dock = "Fill"
+
+$InstallCheckBox    = createButton          -FontSize 9       -Text "Installieren" -Width 360
+$InstallCheckBox.Dock = "Bottom"
+# Mehr-Optionen-Link
+$MoreChocoLink = New-Object System.Windows.Forms.Label
+$MoreChocoLink.Text = "Aktualisieren / Deinstallieren"
+$MoreChocoLink.Font = New-Object System.Drawing.Font("Consolas", 8)
+$MoreChocoLink.TextAlign = "BottomCenter"
+$MoreChocoLink.Height = 20
+$MoreChocoLink.AutoSize = $false
+$MoreChocoLink.Dock = "Bottom"
+$MoreChocoLink.Cursor = [Cursors]::Hand
 $MoreChocoLink.Add_Click({ ChocolateyForm })
 
-$InstallProcessText = createLabel -Width 380 -Location "10 ,310" -Text "" -FontSize 9 -ForeColor $AccentColor -FontStyle 'Italic'
+$InstallProcessText = createLabel -Text "Progress..." -FontSize 9 -ForeColor $AccentColor -FontStyle 'Italic'
+$InstallProcessText.AutoSize = $false
+$InstallProcessText.TextAlign = "MiddleCenter"
+$InstallProcessText.Dock = "Bottom"
+$InstallProcessText.Height = 30
 
 
 if ($Choco.Installed) {
@@ -1325,7 +1161,7 @@ if ($Choco.Installed) {
         }
         $ChocoCheckBox.Items.Add($item, $false) | Out-Null
     }
-    $AddPanel = @($ChocoPanelTitle, $ChocoCheckBox, $InstallCheckBox, $MoreChocoLink)
+    $AddPanel = @($ChocoCheckBox, $ChocoPanelTitle, $InstallCheckBox, $MoreChocoLink)
     
 } else {
     # "Chocolatey nicht installiert"-Hinweis
@@ -1336,13 +1172,16 @@ if ($Choco.Installed) {
     $AddPanel = @($NoChocoMessage, $InstallChocoButton)
 
 }
-$AddChocoPanel  = @($InstallProcessText)
 $AddChocoPanel += $AddPanel
 $ChocoPanel.controls.AddRange($AddChocoPanel)
 
 
 <# FOOTER ################################################################################>
-$Footer         = createPanel -Top 505 -Left 10 -Height 50 -Width 380 -BackColor $AccentColor
+$FooterPanel = New-Object System.Windows.Forms.Panel
+$FooterPanel.Height = 15
+$FooterPanel.Dock = "Bottom"
+
+# $Footer         = createPanel -Top 505 -Left 10 -Height 50 -Width 380 -BackColor $AccentColor
 
 $AboutLink      = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "ABOUT"    -Location "5,3"                         -Hand -Description "Informationen über das Skript"
 $VersionText    = createLabel -BackColor $AccentColor -FontStyle "Bold,Italic" -FontSize 8 -ForeColor $DarkColor -Text "$Version" -Location "150,3"
@@ -1352,11 +1191,11 @@ $AboutLink.Add_Click({ AboutForm })
 $MoreLink.Add_Click({ DebloatForm })
 
 $AddFooter      = @($AboutLink, $VersionText, $MoreLink)
-$Footer.controls.AddRange($AddFooter)
+$FooterPanel.controls.AddRange($AddFooter)
 
 <# ADD & CALCULATE #######################################################################>
 $Main.Height = 565
-$Main.controls.AddRange(@($SystemInfoPanel, $Space, $HeaderPanel, $ChocoPanel, $Footer))
+$Main.controls.AddRange(@($HeaderPanel, $FooterPanel))
 HideShell
 
 <# EVENTLISTENER #########################################################################>
@@ -1369,136 +1208,6 @@ $HeaderTitle.Add_DoubleClick({
         $Main.Close()
 })
 
-
-### SystemInfo-Panel
-# Administrator-Label
-$AdministratorText.Add_Click({
-    $AdministratorText.Font      = changeFont -Object $AdministratorText -FontStyle "Italic"
-    $AdministratorText.ForeColor = "Yellow"
-    if ($Admin.GetStatus()) {
-        $AdministratorText.Text      = "wird deaktiviert..."
-        $Admin.Disable()
-    } else {
-        $AdministratorText.Text      = "wird aktiviert..."
-        $Admin.Enable()
-    }
-    Start-Sleep -Seconds 2
-    $AdministratorText.Font      = changeFont -Object $AdministratorText -FontStyle "Regular"
-    if($Admin.GetStatus()){
-        $AdministratorText.Text = $Admin.StatusText
-        $AdministratorText.ForeColor = $Admin.StatusColor
-    } else {
-        $AdministratorText.Text = $Admin.StatusText
-        $AdministratorText.ForeColor = $Admin.StatusColor
-    }
-})
-# DeviceName-Label
-$DeviceNameText.Add_MouseEnter({
-    $DeviceNameText.Text = "Ändern"
-    $DeviceNameText.Font = changeFont -Object $DeviceNameText -FontStyle "Italic"
-})
-$DeviceNameText.Add_MouseLeave({
-    $DeviceNameText.Text = "$env:COMPUTERNAME"
-    $DeviceNameText.Font = changeFont -Object $DeviceNameText -FontStyle "Bold"
-})
-# TimeServer-Label
-$TimeServerText.Add_MouseEnter({
-    $TimeServerText.Text = "Ändern"
-    $TimeServerText.Font = changeFont -Object $TimeServerText -FontStyle "Italic"
-})
-$TimeServerText.Add_MouseLeave({
-    $TimeServerText.Text = "$CurrentTimeServer"
-    $TimeServerText.Font = changeFont -Object $TimeServerText -FontStyle "Bold"
-})
-$TimeServerText.Add_Click({
-        # Fenster 'Zeitserver ändern'
-        $ChangeTimeServer =     createForm -Height 90 -Width 370 -Text 'Zeitserver ändern'
-        $ChangeTimeServerPanel =    createPanel -Height 70 -Width 352 -Left 10 -Top 10
-
-        # Aktuellen Zeitserver anzeigen
-        $AddChangeTimeServerPanel =  @()
-        $ChangeTimeServerLabel =    createLabel -Location "10,10" -Text "Aktueller Zeitserver:" -FontSize 9 -ForeColor $AccentColor
-        $ChangeTimeServerText =     createLabel -Location "160,10" -Text "$CurrentTimeServer" -FontSize 9 -FontStyle "Bold"
-        $AddChangeTimeServerPanel += $ChangeTimeServerLabel, $ChangeTimeServerText
-
-        # Dropdown-Liste
-        $TimeServerDropDownList =   createDropDownList -Height 25 -Width 200 -Location '10,35' -Text "$CurrentTimeServer" -FontSize $TextFontSize
-        $ChangeTimeServerButton =   createButton -Height 25 -Width 125 -Location '220,35' -Text 'Ändern'
-        $AddChangeTimeServerPanel += $TimeServerDropDownList, $ChangeTimeServerButton
-        
-        # Dropdown-Liste befüllen
-        foreach ($server in $TimeServer.ServerList){ $TimeServerDropDownList.Items.Add($server) }
-        $TimeServerDropDownList.SelectedItem = $CurrentTimeServer
-
-        $ChangeTimeServer.Controls.AddRange(@($ChangeTimeServerPanel))
-        $ChangeTimeServerPanel.Controls.AddRange($AddChangeTimeServerPanel)
-
-        # Zeitserver ändern
-        $ChangeTimeServerButton.Add_Click({
-                $NewTimeServer = $TimeServerDropDownList.SelectedItem.Trim()
-                if ([string]::IsNullOrWhiteSpace($NewTimeServer)) {
-                    [System.Windows.Forms.MessageBox]::Show("Bitte wählen Sie einen Zeitserver aus.", "Fehler", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
-                }
-                else {
-                    # Konfiguration ändern
-                    $ChangeTimeServerText.Text = ""
-                    $ChangeTimeServerLabel.Text = "Zeitserver wird geändert..."
-                    $ChangeTimeServerLabel.Font = changeFont -Object $ChangeTimeServerLabel -FontStyle "Italic"
-                    powershell Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Services\W32Time\Parameters -Name NtpServer -Value "$NewTimeServer,0x8"
-                
-                    # Dienst neu starten
-                    powershell Restart-Service w32time
-    
-                    # Synchronisieren
-                    $ChangeTimeServerLabel.Text = "Zeitserver synchronisieren..."
-                    Start-Process -FilePath "w32tm.exe" -ArgumentList "/resync" -Verb RunAs -Wait
-    
-                    # Kurze Pause
-                    Start-Sleep -Seconds 3
-    
-                    # Zeitserver neu abfragen
-                    $ChangeTimeServerLabel.Text = "Zeitserver überprüfen..."
-                    $sourceLine = w32tm /query /status | Select-String -Pattern 'Quelle'
-                    $CurrentTimeServer = if ($sourceLine) {
-                        # Zeitserver überprüfen
-                        # Extrahiere den Zeitserver aus der Ausgabe
-                            ($sourceLine.ToString() -replace '^.*?:\s*(.+?)(,0x9)?\s*$', '$1').Trim() 
-                    }
-                    else { 
-                        "Unbekannt" 
-                    }
-    
-                    # Prüfen ob erfolgreich geändert
-                    if ($CurrentTimeServer -eq $NewTimeServer) {
-                        [System.Windows.Forms.MessageBox]::Show("Zeitserver erfolgreich geändert: $CurrentTimeServer", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-                    } 
-                    else {
-                        [System.Windows.Forms.MessageBox]::Show("Fehler: Zeitserver wurde nicht korrekt geändert (aktuell: $CurrentTimeServer)", "Fehler", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
-                    }
-    
-                    # Skript neustarten
-                    $global:restartScript = $true
-                    $ChangeTimeServer.Close()
-                    $Main.Close()
-                }
-            })
-    
-        [void]$ChangeTimeServer.ShowDialog()
-
-})
-# ProductKey-Label
-$ProductKeyText.Add_MouseEnter({
-    $ProductKeyText.Text = "kopieren"
-    $ProductKeyText.Font = changeFont -Object $ProductKeyText -FontStyle "Italic"
-})
-$ProductKeyText.Add_MouseLeave({
-    $ProductKeyText.Text = "$ProductKey"
-    $ProductKeyText.Font = changeFont -Object $ProductKeyText -FontStyle "Bold"
-})
-$ProductKeyText.Add_Click({
-        Set-Clipboard -Value $ProductKey
-        [System.Windows.Forms.MessageBox]::Show("Der Productkey wurde in die Zwischenablage kopiert!", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-})
 
 
 ### Choco-Panel
@@ -1517,6 +1226,7 @@ $InstallCheckBox.Add_Click({
             choco feature enable -n allowGlobalConfirmation
             $ChocoPanel.Controls.Remove($InstallCheckBox)
             $ChocoPanel.Controls.Remove($MoreChocoLink)
+            $ChocoPanel.Controls.Add($InstallProcessText)
             $InstallProcessText.Text = "Installiere ausgewählte Programme..."
             $Main.Cursor = [System.Windows.Forms.Cursors]::AppStarting
             foreach ($program in $selectedPrograms) {
@@ -1536,13 +1246,20 @@ $InstallCheckBox.Add_Click({
             $Main.Cursor = [System.Windows.Forms.Cursors]::Default
             # Fenster schließen
             Start-Sleep -Seconds 2
-            $InstallProcessText.Visible = $false
-            $InstallCheckBox.Visible = $true
+            $ChocoPanel.Controls.Remove($InstallProcessText)
+            $ChocoPanel.Controls.Add($InstallCheckBox)
+            $ChocoPanel.Controls.Add($MoreChocoLink)
 
-            $ChocoCheckBox.CheckedItems.Clear() # Auswahl zurücksetzen
             [System.Windows.Forms.MessageBox]::Show("Alle ausgewählten Programme wurden erfolgreich installiert!", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-            $global:restartScript = $true
-            $Main.Close()
+            $ChocoCheckBox.CheckedItems.Clear() # Auswahl zurücksetzen
+            $ChocoCheckBox.Items.Clear() # Liste leeren
+            foreach ($program in $ProgramList.GetEnumerator()) {
+                $item = [PSCustomObject]@{
+                    Id   = $program.Key
+                    Name = $program.Value
+                }
+                $ChocoCheckBox.Items.Add($item, $false) | Out-Null
+            }
         }
 })
 # InstallChoco-Button    

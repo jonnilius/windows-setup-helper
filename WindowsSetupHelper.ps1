@@ -145,6 +145,7 @@ class ChocoManager {
 }
 
 $ErrorActionPreference = "SilentlyContinue"
+$HideConsole = $false
 
 # Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
 if (-not ([WindowsPrincipal][WindowsIdentity]::GetCurrent()).IsInRole([WindowsBuiltInRole]'Administrator')){
@@ -152,15 +153,15 @@ if (-not ([WindowsPrincipal][WindowsIdentity]::GetCurrent()).IsInRole([WindowsBu
     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
     [System.Environment]::Exit(0)
 }
-
 # Blende die PowerShell-Konsole aus
-Add-Type -Name Win -Namespace Console -MemberDefinition '
+if ($HideConsole) {
+    Add-Type -Name Win -Namespace Console -MemberDefinition '
   [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 '
-$consolePtr = [Console.Win]::GetConsoleWindow()
-[Console.Win]::ShowWindow($consolePtr, 0)  # 0 = SW_HIDE
-
+    $consolePtr = [Console.Win]::GetConsoleWindow()
+    [Console.Win]::ShowWindow($consolePtr, 0)  # 0 = SW_HIDE
+}
 
 
 # Informationen
@@ -195,15 +196,6 @@ function Confirm {
     return $result -eq [System.Windows.Forms.DialogResult]::Yes
 }
 
-
-
-
-# PowerShell-Konsole anpassen
-$host.UI.RawUI.WindowTitle      = "$Name starten..."
-$host.UI.RawUI.BackgroundColor  = "Black"
-$host.UI.RawUI.ForegroundColor  = "White"
-$host.UI.RawUI.WindowSize       = New-Object Management.Automation.Host.Size (60, 20)
-$host.UI.RawUI.BufferSize       = New-Object System.Management.Automation.Host.Size (60, 20)
 $Choco = [ChocoManager]::new()
 
 
@@ -381,49 +373,6 @@ function createLabel {
     }
 
     return $label
-}
-function createButton {
-    param (
-        # Position und Größe
-        [int]$Width = 200,                          # Breite (Pflichtparameter)
-        [int]$Height = 25,                          # Höhe
-        [string]$Location,                          # Position im Format "x,y"
-
-        # Text und Schrift
-        [string]$Text = 'Button',                   # Button-Text
-        [int]$FontSize = 9,                         # Schriftgröße
-        [string]$FontFamily = $DefaultFont,         # Schriftart
-        [string]$ForeColor = $AccentColor,          # Schriftfarbe (HTML oder Name)
-
-        # Darstellung
-        [string]$BackColor = $DarkColor,            # Hintergrundfarbe (HTML oder Name)
-        [string]$FlatStyle = 'Flat',                # Stil (Flat, Standard)
-        [string]$Dock,                              # Andockverhalten (Top, Bottom, Left, Right, Fill)
-        [string]$Cursor = "Default"                 # Mauszeiger ändern (Default, Hand, AppStarting)
-    )
-
-    # Extrahiere X- und Y-Koordinaten aus dem Location-String
-    
-    # Erstelle den Button und setze Eigenschaften
-    $button = New-Object System.Windows.Forms.Button
-    $button.Text        = $Text
-    $button.Width       = $Width
-    $button.Height      = $Height
-    $button.FlatStyle   = $FlatStyle
-    $button.Font        = createFont -FontFamily $FontFamily -FontSize $FontSize # New-Object System.Drawing.Font($FontFamily, $FontSize)
-    $button.ForeColor   = [System.Drawing.ColorTranslator]::FromHtml($ForeColor)
-    $button.BackColor   = [System.Drawing.ColorTranslator]::FromHtml($BackColor)
-    $button.Cursor      = $Cursors::$Cursor
-    if ($Location) {
-        $coords = $Location -split ','
-        $x = [int]$coords[0]
-        $y = [int]$coords[1]
-        $button.Location    = New-Object System.Drawing.Point($x, $y)
-    }
-    if ($Dock) { $button.Dock = $Dock }
-
-    return $button
-
 }
 
 
@@ -1052,7 +1001,7 @@ $ChocoPanel.BackColor = [ColorTranslator]::FromHtml($DarkColor)
 $Main.Controls.Add($ChocoPanel)
 
 # Chocolatey-Installed
-$ChocoPanelTitle    = New-Object System.Windows.Forms.Label
+$ChocoPanelTitle = New-Object System.Windows.Forms.Label
 $ChocoPanelTitle.Text = "Chocolatey-Pakete"
 $ChocoPanelTitle.Font = New-Object System.Drawing.Font("Consolas", 15, [System.Drawing.FontStyle]::Bold)
 $ChocoPanelTitle.AutoSize = $false
@@ -1060,13 +1009,17 @@ $ChocoPanelTitle.Dock = "Top"
 $ChocoPanelTitle.Height = 30
 $ChocoPanelTitle.TextAlign = "MiddleCenter"
 
-$ChocoCheckBox      = New-Object System.Windows.Forms.CheckedListBox
+$ChocoCheckBox = New-Object System.Windows.Forms.CheckedListBox
 $ChocoCheckBox.BackColor = [ColorTranslator]::FromHtml($DarkColor)
 $ChocoCheckBox.DisplayMember = "Name"
 $ChocoCheckBox.Font = New-Object System.Drawing.Font("Consolas", 9)
 $ChocoCheckBox.Dock = "Fill"
 
-$InstallCheckBox    = createButton          -FontSize 9       -Text "Installieren" -Width 360
+$InstallCheckBox = New-Object System.Windows.Forms.Button
+$InstallCheckBox.Text = "Installieren"
+$InstallCheckBox.FlatStyle = "Flat"
+$InstallCheckBox.Width = 360
+$InstallCheckBox.Font = New-Object System.Drawing.Font("Consolas", 9, [System.Drawing.FontStyle]::Bold)
 $InstallCheckBox.Dock = "Bottom"
 # Mehr-Optionen-Link
 $MoreChocoLink = New-Object System.Windows.Forms.Label
@@ -1079,7 +1032,10 @@ $MoreChocoLink.Dock = "Bottom"
 $MoreChocoLink.Cursor = [Cursors]::Hand
 $MoreChocoLink.Add_Click({ ChocolateyForm })
 
-$InstallProcessText = createLabel -Text "Progress..." -FontSize 9 -ForeColor $AccentColor -FontStyle 'Italic'
+$InstallProcessText = New-Object System.Windows.Forms.Label
+$InstallProcessText.Text = "Progress..."
+$InstallProcessText.ForeColor = [ColorTranslator]::FromHtml($AccentColor)
+$InstallProcessText.Font = New-Object System.Drawing.Font("Consolas", 9, [System.Drawing.FontStyle]::Italic)
 $InstallProcessText.AutoSize = $false
 $InstallProcessText.TextAlign = "MiddleCenter"
 $InstallProcessText.Dock = "Bottom"

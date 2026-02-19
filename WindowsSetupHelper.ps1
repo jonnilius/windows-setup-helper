@@ -1,57 +1,7 @@
 ﻿using namespace System.Windows.Forms
 using namespace System.Drawing
-
-# Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')){
-    Write-Host $pe"Starte als Administrator neu..."
-    Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-    [System.Environment]::Exit(0)
-}
-
-# Informationen
-$Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.7.1"
-$global:Author     = "jonnilius"
-$global:License    = "MIT License"
-
-# Farben
-$AccentColor = "#c0393b"
-$DarkColor   = "#2d3436"
-$WhiteColor  = "#eeeeee"
-
-$DefaultFont = "Consolas"
-
-# Variablen
-$ErrorActionPreference = "SilentlyContinue"
-$pe = "`n" + " " * 4
-
-# Funktionen
-function HideShell {
-    Add-Type -Name Win -Namespace Console -MemberDefinition '
-  [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-'
-    $consolePtr = [Console.Win]::GetConsoleWindow()
-    [Console.Win]::ShowWindow($consolePtr, 0)  # 0 = SW_HIDE
-}
-function Write-Text {
-    param (
-        [string]$Text,
-        [string]$Color = $WhiteColor
-    )
-    Write-Host $Text -ForegroundColor $Color
-}
-function Confirm {
-    param (
-        [string]$Message,
-        [string]$Title = "Bestätigung erforderlich"
-    )
-
-    $result = [System.Windows.Forms.MessageBox]::Show($Message, $Title, [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
-    return $result -eq [System.Windows.Forms.DialogResult]::Yes
-}
-
-# Klassen
+using namespace Security.Principal
+using namespace Console
 class ChocoManager {                                                                    
     [bool]$Installed
     [string]$Version
@@ -193,6 +143,58 @@ class ChocoManager {
         return $appList
     }
 }
+
+$ErrorActionPreference = "SilentlyContinue"
+
+# Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
+if (-not ([WindowsPrincipal][WindowsIdentity]::GetCurrent()).IsInRole([WindowsBuiltInRole]'Administrator')){
+    Write-Host "Starte als Administrator neu..."
+    Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
+    [System.Environment]::Exit(0)
+}
+
+# Blende die PowerShell-Konsole aus
+Add-Type -Name Win -Namespace Console -MemberDefinition '
+  [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+'
+$consolePtr = [Console.Win]::GetConsoleWindow()
+[Console.Win]::ShowWindow($consolePtr, 0)  # 0 = SW_HIDE
+
+
+
+# Informationen
+$Name       = "Windows Setup Helper"
+$global:Version    = "Version 0.7.1"
+$global:Author     = "jonnilius"
+$global:License    = "MIT License"
+
+# Farben
+$AccentColor = "#c0393b"
+$DarkColor   = "#2d3436"
+$WhiteColor  = "#eeeeee"
+
+$DefaultFont = "Consolas"
+
+
+# Funktionen
+function Write-Text {
+    param (
+        [string]$Text,
+        [string]$Color = $WhiteColor
+    )
+    Write-Host $Text -ForegroundColor $Color
+}
+function Confirm {
+    param (
+        [string]$Message,
+        [string]$Title = "Bestätigung erforderlich"
+    )
+
+    $result = [System.Windows.Forms.MessageBox]::Show($Message, $Title, [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question)
+    return $result -eq [System.Windows.Forms.DialogResult]::Yes
+}
+
 
 
 
@@ -1127,7 +1129,6 @@ $FooterPanel.controls.AddRange($AddFooter)
 <# ADD & CALCULATE #######################################################################>
 $Main.Height = 565
 $Main.controls.AddRange(@($HeaderPanel, $FooterPanel))
-HideShell
 
 <# EVENTLISTENER #########################################################################>
 

@@ -2,31 +2,79 @@
 using namespace System.Drawing
 using namespace Security.Principal
 using namespace Console
-class ChocoManager {                                                                    
+
+class Chocolatey {
     [bool]$Installed
     [string]$Version
+    [array]$AppList
+    [System.Collections.Specialized.OrderedDictionary]$ProgramList
 
-    ChocoManager() {
+    # Konstruktor: Initialisiert die Klasse und aktualisiert den Installationsstatus
+    Chocolatey() { 
         $this.Refresh()
     }
 
+    # Aktualisiert den Installationsstatus und die Version von Chocolatey
     [void]Refresh() {
         $this.Installed = !([string]::IsNullOrWhiteSpace((Get-Command choco -ErrorAction SilentlyContinue).Source))
-        if ($this.Installed) {
-            $this.Version = (choco --version).Trim()
+        $this.Version   = if( $this.Installed ) { (choco --version).Trim() } else { $null }
+        $this.AppList   = if( $this.Installed ) { $this.GetAppList()       } else { @() }
+        $this.ProgramList = [ordered]@{
+            # Packagename bei Chocolatey | Anzeigename
+            "7zip"              = "7-Zip"
+            "adobereader"       = "Adobe Acrobat Reader DC"
+            "autocad"           = "AutoCAD 2026"
+            "autoruns"          = "Autoruns"
+            "boxcryptor"        = "Boxcryptor"
+            "discord"           = "Discord"
+            "dropbox"           = "Dropbox"
+            "filezilla"         = "FileZilla"
+            "firefox"           = "Mozilla Firefox"
+            "googlechrome"      = "Google Chrome"
+            "googeldrive"       = "Google Drive"
+            "greenshot"         = "Greenshot"
+            "kate"              = "Kate"
+            "keepassxc"         = "KeePassXC"
+            "libreoffice-fresh" = "LibreOffic Fresh"
+            "microsoft-teams"   = "Microsoft Teams (Classic Desktop App)"
+            "nextcloud-client"  = "Nextcloud Desktop Client"
+            "onedrive"          = "OneDrive"
+            "openvpn"           = "OpenVPN"
+            "openvpn-connect"   = "OpenVPN Connect"
+            "qbittorrent"       = "qBittorrent"
+            "pdf24"             = "PDF24 Creator"
+            "putty"             = "PuTTY"
+            "python3"           = "Python 3.x"
+            "rustdesk"          = "RustDesk"
+            "signal"            = "Signal"
+            "sshfs"             = "SSHFS-Win"
+            "steam"             = "Steam"
+            "teamspeak"         = "TeamSpeak 3"
+            "teamviewer"        = "Teamviewer"
+            "teamviewer-qs"     = "Teamviewer QuickSupport"
+            "thunderbird"       = "Mozilla Thunderbird"
+            "ventoy"            = "Ventoy"
+            "virtualbox"        = "VirtualBox"
+            "visualstudio2019community" = "Visual Studio 2019 Community"
+            "vlc"               = "VLC media player"
+            "vscode"            = "Visual Studio Code"
+            "winrar"            = "WinRAR"
+            "winfsp"            = "WinFsp"
+            "winscp"            = "WinSCP"
         }
     }
-
     [void]Install() {
-        Set-ExecutionPolicy Bypass -Scope Process -Force # Ausführunagsrichtlinien anpassen
+        # Ausführunagsrichtlinien anpassen
+        Set-ExecutionPolicy Bypass -Scope Process -Force
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072 # Sicherheitsprotokoll anpassen
         Invoke-WebRequest -Uri 'https://community.chocolatey.org/install.ps1' -UseBasicParsing | Invoke-Expression # Chocolatey laden und installieren
 
         # Ersatzweise:
         # Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-        $this.Installed()
+        $this.Refresh()
     }
 
+    # Deinstalliert Chocolatey
     [void]Uninstall() {
         # $VerbosePreference = 'Continue'
         if (-not $env:ChocolateyInstall) {
@@ -50,11 +98,11 @@ class ChocoManager {
         }
 
         <#
-    Using the .NET registry calls is necessary here in order to preserve environment variables embedded in PATH values;
-    Powershell's registry provider doesn't provide a method of preserving variable references, and we don't want to
-    accidentally overwrite them with absolute path values. Where the registry allows us to see "%SystemRoot%" in a PATH
-    entry, PowerShell's registry provider only sees "C:\Windows", for example.
-#>
+            Using the .NET registry calls is necessary here in order to preserve environment variables embedded in PATH values;
+            Powershell's registry provider doesn't provide a method of preserving variable references, and we don't want to
+            accidentally overwrite them with absolute path values. Where the registry allows us to see "%SystemRoot%" in a PATH
+            entry, PowerShell's registry provider only sees "C:\Windows", for example.
+        #>
         $userKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
         $userPath = $userKey.GetValue('PATH', [string]::Empty, 'DoNotExpandEnvironmentNames').ToString()
 
@@ -128,21 +176,23 @@ class ChocoManager {
         $this.Refresh()
     }
 
-    [array]AppList() {
+    # Gibt eine Liste der installierten Programme zurück
+    [array]GetAppList() {
         # Gibt eine Liste der installierten Programme zurück
         [array]$rawList = choco list --idonly
-        $appList = @()
+        $this.AppList = @()
         foreach ($line in $rawList) {
             if ($line -match '^\d+ packages installed\.$') {
                 break
             }
             if ($line -and $line -notmatch '^Chocolatey v') {
-                $appList += $line.Trim()
+                $this.AppList += $line.Trim()
             }
         }
-        return $appList
+        return $this.AppList
     }
 }
+
 
 $ErrorActionPreference = "SilentlyContinue"
 $HideConsole = $false
@@ -175,8 +225,6 @@ $AccentColor = "#c0393b"
 $DarkColor   = "#2d3436"
 $WhiteColor  = "#eeeeee"
 
-$DefaultFont = "Consolas"
-
 
 # Funktionen
 function Write-Text {
@@ -196,52 +244,8 @@ function Confirm {
     return $result -eq [System.Windows.Forms.DialogResult]::Yes
 }
 
-$Choco = [ChocoManager]::new()
-
-
-$ProgramList = [ordered]@{
-    # Packagename bei Chocolatey | Anzeigename
-    "7zip"              = "7-Zip"
-    "adobereader"       = "Adobe Acrobat Reader DC"
-    "autocad"           = "AutoCAD 2026"
-    "autoruns"          = "Autoruns"
-    "boxcryptor"        = "Boxcryptor"
-    "discord"           = "Discord"
-    "dropbox"           = "Dropbox"
-    "filezilla"         = "FileZilla"
-    "firefox"           = "Mozilla Firefox"
-    "googlechrome"      = "Google Chrome"
-    "googeldrive"       = "Google Drive"
-    "greenshot"         = "Greenshot"
-    "kate"              = "Kate"
-    "keepassxc"         = "KeePassXC"
-    "libreoffice-fresh" = "LibreOffic Fresh"
-    "microsoft-teams"   = "Microsoft Teams (Classic Desktop App)"
-    "nextcloud-client"  = "Nextcloud Desktop Client"
-    "onedrive"          = "OneDrive"
-    "openvpn"           = "OpenVPN"
-    "openvpn-connect"   = "OpenVPN Connect"
-    "qbittorrent"       = "qBittorrent"
-    "pdf24"             = "PDF24 Creator"
-    "putty"             = "PuTTY"
-    "python3"           = "Python 3.x"
-    "rustdesk"          = "RustDesk"
-    "signal"            = "Signal"
-    "sshfs"             = "SSHFS-Win"
-    "steam"             = "Steam"
-    "teamspeak"         = "TeamSpeak 3"
-    "teamviewer"        = "Teamviewer"
-    "teamviewer-qs"     = "Teamviewer QuickSupport"
-    "thunderbird"       = "Mozilla Thunderbird"
-    "ventoy"            = "Ventoy"
-    "virtualbox"        = "VirtualBox"
-    "visualstudio2019community" = "Visual Studio 2019 Community"
-    "vlc"               = "VLC media player"
-    "vscode"            = "Visual Studio Code"
-    "winrar"            = "WinRAR"
-    "winfsp"            = "WinFsp"
-    "winscp"            = "WinSCP"
-}
+$Choco = [Chocolatey]::new()
+$ProgramList = $Choco.ProgramList
 
 $global:Icons = @{
     "About" = @"
@@ -366,7 +370,7 @@ function ChocolateyForm {
     $PackageList.BorderStyle = "None"
     $PackageList.SelectionMode = "MultiSimple"
     $PackageList.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $appList = $Choco.AppList()
+    $appList = $Choco.GetAppList()
     foreach ($program in $appList) { $PackageList.Items.Add($program) | Out-Null }
     $PackageList.Add_Click({
         if ($null -eq $PackageList.SelectedItem) {
@@ -449,7 +453,7 @@ function ChocolateyForm {
         $ProcessInfoLabel.Text = "Aktualisierung abgeschlossen."
         $PackageList.SelectedItems.Clear()
         $PackageList.Items.Clear()
-        $appList = $Choco.AppList()
+        $appList = $Choco.GetAppList()
         foreach ($program in $appList) { $PackageList.Items.Add($program) | Out-Null }
         $SidebarPanel.Controls.Remove($UpdateButton)
         $SidebarPanel.Controls.Remove($UninstallButton)

@@ -3,17 +3,17 @@
 # - bibicadotnet – https://github.com/bibicadotnet/microsoft-edge-debloater
 #>
 
-# Remove Microsoft Edge (requires Admin)
+# Entferne Microsoft Edge (erfordert Administratorrechte)
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Write-Host "Run this script as Administrator!" -ForegroundColor Red; pause; exit
+    Write-Host "Dieses Skript muss als Administrator ausgeführt werden!" -ForegroundColor Red; pause; exit
 }
-Write-Host "`nRemoving Microsoft Edge v1.0..." -ForegroundColor Yellow
+Write-Host "`nEntferne Microsoft Edge v1.0..." -ForegroundColor Yellow
 
-# Stop Edge processes
+# Beende Edge-Prozesse
 "msedge", "MicrosoftEdgeUpdate", "edgeupdate", "edgeupdatem", "MicrosoftEdgeSetup" | 
     ForEach-Object { Get-Process -Name $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
 
-# Remove directories  
+# Entferne Dateien und Ordner
 @(
     "${env:ProgramFiles(x86)}\Microsoft\Edge",
     "${env:ProgramFiles(x86)}\Microsoft\Edge Beta", 
@@ -26,7 +26,7 @@ Write-Host "`nRemoving Microsoft Edge v1.0..." -ForegroundColor Yellow
     "${env:LOCALAPPDATA}\Microsoft\Edge SxS\Application"
 ) | ForEach-Object { if (Test-Path $_) { Remove-Item $_ -Recurse -Force -ErrorAction SilentlyContinue } }
 
-# Remove shortcuts
+# Entferne Verknüpfungen
 $edgeVariants = "Microsoft Edge", "Microsoft Edge Beta", "Microsoft Edge Dev", "Microsoft Edge Canary"
 $locations = @(
     [Environment]::GetFolderPath("Desktop"),

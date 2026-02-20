@@ -166,7 +166,7 @@ if ($HideConsole) {
 
 # Informationen
 $Name       = "Windows Setup Helper"
-$global:Version    = "Version 0.7.1"
+$global:Version    = "Version 0.7.2"
 $global:Author     = "jonnilius"
 $global:License    = "MIT License"
 
@@ -304,7 +304,7 @@ Add-Type -AssemblyName System.Windows.Forms.DataVisualization
 
 # global-Variablen
 $global:restartScript = $false
-$global:LabelToolTip = New-Object System.Windows.Forms.ToolTip # Tooltip für Labels
+$global:LabelToolTip = [ToolTip]::new() # Tooltip für Labels
 
 
 <# FUNKTIONEN ############################################################################>
@@ -1135,8 +1135,9 @@ $Main.Add_Shown({ $Main.Activate() })
 [void]$Main.ShowDialog()
 
 
-# Skript-Neustart
-if ($global:restartScript) {
+<# Skript-Neustart #>
+if ($global:restartScript) { 
     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
     [System.Environment]::Exit(0)
-}
+ }
+

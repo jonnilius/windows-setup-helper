@@ -324,56 +324,6 @@ function createFont {
 
     return New-Object System.Drawing.Font($FontFamily, $FontSize, [System.Drawing.FontStyle]$styleFlags)
 }
-function createLabel {
-    param (
-        # Größe & Position
-        [int]$Width,                            # Breite des Labels
-        [int]$Height,                           # Höhe des Labels
-        [string]$Location = "10,10",            # Position des Labels (x,y)
-
-        # Text & Schrift
-        [string]$Text = 'Label',                # Text des Labels
-        [string]$FontFamily = $DefaultFont,     # Schriftart des Labels
-        [int]$FontSize = 12,                    # Schriftgröße des Labels
-        [string]$FontStyle = 'Regular',         # Schriftstil des Labels (Regular, Bold, Italic)
-
-        # Darstellung
-        [bool]$AutoSize = $true,                # Automatische Größe des Labels
-        [string]$Anchor = 'Top,Right,Left',     # Ankerposition des Labels (Top, Left, Right, Bottom)
-        [string]$ForeColor = $WhiteColor,       # Schriftfarbe des Labels
-        [string]$BackColor = $DarkColor,        # Hintergrundfarbe des Labels
-
-        # Verhalten
-        [switch]$Hand = $false,                 # Hand-Cursor aktivieren
-        [string]$Visible = $true,               # Sichtbarkeit des Labels
-        [string]$Description = ''               # Beschreibung des Labels
-    )
-
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text         = $Text
-    $label.AutoSize     = $AutoSize
-    $label.Width        = $Width
-    $label.Height       = $Height
-    $label.Anchor       = $Anchor
-    $coords = $Location -split ','  # Location Koordinaten extrahieren
-    $label.Location     = New-Object System.Drawing.Point($coords[0], $coords[1])
-    $label.Font         = createFont -FontFamily $FontFamily -FontSize $FontSize -FontStyle $FontStyle
-    $label.ForeColor    = [System.Drawing.ColorTranslator]::FromHtml($ForeColor)
-    $label.BackColor    = [System.Drawing.ColorTranslator]::FromHtml($BackColor)
-    $label.Visible      = $Visible
-
-    # Tooltip setzen, falls vorhanden
-    if ($Description) {
-        $global:LabelToolTip.SetToolTip($label, $Description)
-    }
-
-    # Cursor ändern, falls Hand gewünscht
-    if ($Hand) { 
-        $label.Cursor = [System.Windows.Forms.Cursors]::Hand 
-    }
-
-    return $label
-}
 
 
 
@@ -1054,10 +1004,17 @@ if ($Choco.Installed) {
     
 } else {
     # "Chocolatey nicht installiert"-Hinweis
-    $NoChocoMessage     = createLabel -Text "Chocolatey ist nicht installiert!" -Location "65,150" -FontStyle "Italic" -FontSize 10
+    $NoChocoMessage = [Label]::new()
+    $NoChocoMessage.Text = "Chocolatey ist nicht installiert!"
+    $NoChocoMessage.Font = [Font]::new("Consolas", 10, [System.Drawing.FontStyle]::Italic)
+    $NoChocoMessage.Location = [Point]::new(65,150)
 
     # Button 'Installieren'
-    $InstallChocoButton = createLabel -Location "145,170" -Text "INSTALLIEREN" -FontStyle "Bold" -ForeColor $AccentColor -FontSize 8 -Hand
+    $InstallChocoButton = [Label]::new()
+    $InstallChocoButton.Location = [Point]::new(145,170)
+    $InstallChocoButton.Text = "INSTALLIEREN"
+    $InstallChocoButton.Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
+    $InstallChocoButton.Cursor = [Cursors]::Hand
     $AddPanel = @($NoChocoMessage, $InstallChocoButton)
 
 }
@@ -1069,12 +1026,31 @@ $ChocoPanel.controls.AddRange($AddChocoPanel)
 $FooterPanel = New-Object System.Windows.Forms.Panel
 $FooterPanel.Height = 15
 $FooterPanel.Dock = "Bottom"
-
-# $Footer         = createPanel -Top 505 -Left 10 -Height 50 -Width 380 -BackColor $AccentColor
-
-$AboutLink      = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "ABOUT"    -Location "5,3"                         -Hand -Description "Informationen über das Skript"
-$VersionText    = createLabel -BackColor $AccentColor -FontStyle "Bold,Italic" -FontSize 8 -ForeColor $DarkColor -Text "$Version" -Location "150,3"
-$MoreLink       = createLabel -BackColor $AccentColor -FontStyle "Underline"   -FontSize 8 -ForeColor $DarkColor -Text "DEBLOAT"  -Location "330,3"       -Hand -Description "Mehr Optionen" -Width 40
+# About
+$AboutLink = New-Object System.Windows.Forms.Label
+$AboutLink.Text = "ABOUT"
+$AboutLink.Font = New-Object System.Drawing.Font("Consolas", 8, [System.Drawing.FontStyle]::Underline)
+$AboutLink.BackColor = [ColorTranslator]::FromHtml($AccentColor)
+$AboutLink.ForeColor = [ColorTranslator]::FromHtml($DarkColor)
+$AboutLink.Location = [Point]::New(5,3)
+$AboutLink.Cursor = [Cursors]::Hand
+$LabelToolTip.SetTooltip($AboutLink, "Informationen über das Skript")
+# Version
+$VersionText = [Label]::new()
+$VersionText.Text = "$Version"
+$VersionText.Font = New-Object System.Drawing.Font("Consolas", 8, [System.Drawing.FontStyle]::Italic)
+$VersionText.BackColor = [ColorTranslator]::FromHtml($AccentColor)
+$VersionText.ForeColor = [ColorTranslator]::FromHtml($DarkColor)
+$VersionText.Location = [Point]::New(150,3)
+# Debloat
+$MoreLink = [Label]::New()
+$MoreLink.Text = "DEBLOAT"
+$MoreLink.Font = New-Object System.Drawing.Font("Consolas", 8, [System.Drawing.FontStyle]::Underline)
+$MoreLink.BackColor = [ColorTranslator]::FromHtml($AccentColor)
+$MoreLink.ForeColor = [ColorTranslator]::FromHtml($DarkColor)
+$MoreLink.Location = [Point]::New(330,3)
+$MoreLink.Cursor = [Cursors]::Hand
+$LabelToolTip.SetTooltip($MoreLink, "Mehr Optionen")
 
 $AboutLink.Add_Click({ AboutForm })
 $MoreLink.Add_Click({ DebloatForm })

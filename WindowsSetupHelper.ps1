@@ -306,27 +306,6 @@ Add-Type -AssemblyName System.Windows.Forms.DataVisualization
 $global:restartScript = $false
 $global:LabelToolTip = New-Object System.Windows.Forms.ToolTip # Tooltip für Labels
 
-# create-Funktionen
-function createFont {
-    param (
-        [string]$FontFamily = $DefaultFont,
-        [int]$FontSize      = 12,
-        [string]$FontStyle  = "Regular"
-    )
-
-    # Mehrere Styles durch Komma getrennt verarbeiten
-    $styleFlags = 0
-    $FontStyle.Split(',') | ForEach-Object {
-        $style = $_.Trim()
-        $styleEnum = [System.Drawing.FontStyle]::$style
-        $styleFlags = $styleFlags -bor [int]$styleEnum
-    }
-
-    return New-Object System.Drawing.Font($FontFamily, $FontSize, [System.Drawing.FontStyle]$styleFlags)
-}
-
-
-
 
 <# FUNKTIONEN ############################################################################>
 function ChocolateyForm {

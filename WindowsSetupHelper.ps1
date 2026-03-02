@@ -2,7 +2,6 @@
 using namespace System.Drawing
 using namespace Security.Principal
 using namespace Console
-
 class Chocolatey {
     [bool]$Installed
     [string]$Version
@@ -193,6 +192,7 @@ class Chocolatey {
     }
 }
 $ErrorActionPreference = "SilentlyContinue"
+$env:PSModulePath += ";$PSScriptRoot\Modules"
 
 # Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
 if (-not ([WindowsPrincipal][WindowsIdentity]::GetCurrent()).IsInRole([WindowsBuiltInRole]'Administrator')){
@@ -201,14 +201,14 @@ if (-not ([WindowsPrincipal][WindowsIdentity]::GetCurrent()).IsInRole([WindowsBu
     [System.Environment]::Exit(0)
 }
 # Blende die PowerShell-Konsole aus
-& {
-    Add-Type -Name Win -Namespace Console -MemberDefinition '
-  [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
-  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-'
-    $consolePtr = [Console.Win]::GetConsoleWindow()
-    [Console.Win]::ShowWindow($consolePtr, 0)  # 0 = SW_HIDE
-}
+# & {
+#     Add-Type -Name Win -Namespace Console -MemberDefinition '
+#   [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+#   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+# '
+#     $consolePtr = [Console.Win]::GetConsoleWindow()
+#     [Console.Win]::ShowWindow($consolePtr, 0)  # 0 = SW_HIDE
+# }
 
 
 # Informationen
@@ -860,6 +860,7 @@ function DebloatForm {
     # Zeige das Formular an
     $Form.ShowDialog()
 }
+Import-Module Forms
 
 
 
@@ -890,148 +891,148 @@ $Main   = & {
 
     return $main
 }
-$ChocoPanel = & {
-    $panel = New-Object System.Windows.Forms.Panel
-    $panel.Dock = "Fill"
-    $panel.Padding = New-Object System.Windows.Forms.Padding(10)
-    $panel.ForeColor = [ColorTranslator]::FromHtml($AccentColor)
-    $panel.BackColor = [ColorTranslator]::FromHtml($DarkColor)
-    # AppList
-    $checkedListBox = New-Object System.Windows.Forms.CheckedListBox
-    $checkedListBox.ForeColor = [ColorTranslator]::FromHtml($WhiteColor)
-    $checkedListBox.BackColor = [ColorTranslator]::FromHtml($DarkColor)
-    $checkedListBox.DisplayMember = "Name"
-    $checkedListBox.Font = New-Object System.Drawing.Font("Consolas", 9)
-    $checkedListBox.BorderStyle = "None"
-    $checkedListBox.Dock = "Fill"
-    # Title
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text = "Chocolatey-Pakete"
-    $label.Font = New-Object System.Drawing.Font("Consolas", 15, [FontStyle]::Bold)
-    $label.AutoSize = $false
-    $label.Dock = "Top"
-    $label.Height = 30
-    $label.TextAlign = "MiddleCenter"
-    # Install-Button
-    $installButton = New-Object System.Windows.Forms.Button
-    $installButton.Text = "Installieren"
-    $installButton.FlatStyle = "Flat"
-    $installButton.Font = New-Object System.Drawing.Font("Consolas", 9, [FontStyle]::Bold)
-    $installButton.Dock = "Bottom"
-    $installButton.Add_Click({ 
-        # Ausgewählte Programme installieren
-        $selectedPrograms = @()
-        foreach ($item in $ChocoCheckBox.CheckedItems) {
-            $selectedPrograms += $item.Id
-        }
-        if ($selectedPrograms.Count -eq 0) {
-            [System.Windows.Forms.MessageBox]::Show("Bitte wählen Sie mindestens ein Programm aus!", "Fehler", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
-        }
-        else {
-            choco feature enable -n allowGlobalConfirmation
-            $ChocoPanel.Controls.Remove($InstallCheckBox)
-            $ChocoPanel.Controls.Remove($MoreChocoLink)
-            $ChocoPanel.Controls.Add($InstallProcessText)
-            $InstallProcessText.Text = "Installiere ausgewählte Programme..."
-            $Main.Cursor = [System.Windows.Forms.Cursors]::AppStarting
-            foreach ($program in $selectedPrograms) {
-                $InstallProcessText.Text = "Installiere $($ProgramList[$program])..."
-                Start-Sleep -Seconds 1
-                # Installationsprozess starten
-                choco install $program -y
-                if ($LASTEXITCODE -ne 0) {
-                    [System.Windows.Forms.MessageBox]::Show("Fehler bei der Installation von $($ProgramList[$program])!", "Fehler", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
-                    return
-                }
-                # Kurze Pause zwischen den Installationen
-                $InstallProcessText.Text = "Installation von $($ProgramList[$program]) abgeschlossen."
-                Start-Sleep -Seconds 2
-            }
-            $InstallProcessText.Text = "Alle ausgewählten Programme erfolgreich installiert!"
-            $Main.Cursor = [System.Windows.Forms.Cursors]::Default
-            # Fenster schließen
-            Start-Sleep -Seconds 2
-            $ChocoPanel.Controls.Remove($InstallProcessText)
-            $ChocoPanel.Controls.Add($InstallCheckBox)
-            $ChocoPanel.Controls.Add($MoreChocoLink)
 
-            [System.Windows.Forms.MessageBox]::Show("Alle ausgewählten Programme wurden erfolgreich installiert!", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-            $ChocoCheckBox.CheckedItems.Clear() # Auswahl zurücksetzen
-            $ChocoCheckBox.Items.Clear() # Liste leeren
-            foreach ($program in $ProgramList.GetEnumerator()) {
-                $item = [PSCustomObject]@{
-                    Id   = $program.Key
-                    Name = $program.Value
-                }
-                $ChocoCheckBox.Items.Add($item, $false) | Out-Null
-            }
-        }
-     })
-    # Mehr-Optionen-Link
-    $moreLink = New-Object System.Windows.Forms.Label
-    $moreLink.Text = "Aktualisieren / Deinstallieren"
-    $moreLink.Font = New-Object System.Drawing.Font("Consolas", 8)
-    $moreLink.TextAlign = "BottomCenter"
-    $moreLink.Height = 20
-    $moreLink.AutoSize = $false
-    $moreLink.Dock = "Bottom"
-    $moreLink.Cursor = [Cursors]::Hand
-    $moreLink.Add_Click({ ChocolateyForm })
-    # Installationsprozess-Info
-    $installProcessLabel = New-Object System.Windows.Forms.Label
-    $installProcessLabel.Text = "Installationsprozess..."
-    $installProcessLabel.Font = New-Object System.Drawing.Font("Consolas", 9, [FontStyle]::Italic)
-    $installProcessLabel.AutoSize = $false
-    $installProcessLabel.TextAlign = "MiddleCenter"
-    $installProcessLabel.Dock = "Bottom"
-    $installProcessLabel.Height = 30
-    # NoChoco-Hinweis
-    $noChocoLabel = New-Object System.Windows.Forms.Label
-    $noChocoLabel.Text = "Chocolatey ist nicht installiert!"
-    $noChocoLabel.Font = New-Object System.Drawing.Font("Consolas", 10, [FontStyle]::Italic)
-    $noChocoLabel.Location = New-Object System.Drawing.Point(65,150)
-    # Install-Chocolatey-Button
-    $installChocoButton = New-Object System.Windows.Forms.Label
-    $installChocoButton.Location = New-Object System.Drawing.Point(145,170)
-    $installChocoButton.Text = "INSTALLIEREN"
-    $installChocoButton.Font = New-Object System.Drawing.Font("Consolas", 8, [FontStyle]::Bold)
-    $installChocoButton.Cursor = [Cursors]::Hand
-    $installChocoButton.Add_Click({
+
+$ChocoPanel = New-Object System.Windows.Forms.Panel
+$ChocoPanel.Dock = "Fill"
+$ChocoPanel.Padding = New-Object System.Windows.Forms.Padding(10)
+$ChocoPanel.ForeColor = [ColorTranslator]::FromHtml($AccentColor)
+$ChocoPanel.BackColor = [ColorTranslator]::FromHtml($DarkColor)
+# AppList
+$ChocoListBox = New-Object System.Windows.Forms.CheckedListBox
+$ChocoListBox.ForeColor = [ColorTranslator]::FromHtml($WhiteColor)
+$ChocoListBox.BackColor = [ColorTranslator]::FromHtml($DarkColor)
+$ChocoListBox.DisplayMember = "Name"
+$ChocoListBox.Font = New-Object System.Drawing.Font("Consolas", 9)
+$ChocoListBox.BorderStyle = "None"
+$ChocoListBox.Dock = "Fill"
+# Title
+$ChocoLabel = New-Object System.Windows.Forms.Label
+$ChocoLabel.Text = "Chocolatey-Pakete"
+$ChocoLabel.Font = New-Object System.Drawing.Font("Consolas", 15, [FontStyle]::Bold)
+$ChocoLabel.AutoSize = $false
+$ChocoLabel.Dock = "Top"
+$ChocoLabel.Height = 30
+$ChocoLabel.TextAlign = "MiddleCenter"
+# Install-Button
+$ChocoInstallButton = New-Object System.Windows.Forms.Button
+$ChocoInstallButton.Text = "Installieren"
+$ChocoInstallButton.FlatStyle = "Flat"
+$ChocoInstallButton.Font = New-Object System.Drawing.Font("Consolas", 9, [FontStyle]::Bold)
+$ChocoInstallButton.Dock = "Bottom"
+$ChocoInstallButton.Add_Click({ 
+    $selectedPrograms = @()
+    foreach ($item in $ChocoListBox.CheckedItems) {
+        $selectedPrograms += $item.Id
+    }
+
+    
+    if ($selectedPrograms.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show("Bitte wählen Sie mindestens ein Programm aus!", "Fehler", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+    }
+    else {
+        choco feature enable -n allowGlobalConfirmation
+        $ChocoPanel.Controls.Remove($ChocoInstallButton)
+        $ChocoPanel.Controls.Remove($MoreChocoLink)
+        $ChocoPanel.Controls.Add($InstallProcessText)
+        $InstallProcessText.Text = "Installiere ausgewählte Programme..."
         $Main.Cursor = [System.Windows.Forms.Cursors]::AppStarting
-        $InstallProcessText.Visible = $true
-        $NoChocoMessage.ForeColor = $AccentColor
-        $NoChocoMessage.Text = "   Installiere Chocolatey..."
-        $InstallChocoButton.Visible = $false
-        Start-Sleep -Seconds 1
-        # Chocolatey installieren
-        $Choco.Install()
-        $NoChocoMessage.Text = "Chocolatey erfolgreich installiert!"
-        $InstallProcessText.Text = ""
-        $Main.Cursor = [System.Windows.Forms.Cursors]::Default
-        Start-Sleep -Seconds 2
-        # Fenster schließen
-        $global:restartScript = $true
-        $InstallChocoForm.Close()
-        $Main.Close()
-    })
-
-    # ListBox auffüllen
-    foreach ($program in $Choco.ProgramList.GetEnumerator()) {
-        $item = [PSCustomObject]@{
-            Id   = $program.Key
-            Name = $program.Value
+        foreach ($program in $selectedPrograms) {
+            $InstallProcessText.Text = "Installiere $($Choco.ProgramList[$program])..."
+            Start-Sleep -Seconds 1
+            # Installationsprozess starten
+            choco install $program -y
+            if ($LASTEXITCODE -ne 0) {
+                [System.Windows.Forms.MessageBox]::Show("Fehler bei der Installation von $($ProgramList[$program])!", "Fehler", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+                return
+            }
+            # Kurze Pause zwischen den Installationen
+            $InstallProcessText.Text = "Installation von $($ProgramList[$program]) abgeschlossen."
+            Start-Sleep -Seconds 2
         }
-        $checkedListBox.Items.Add($item, $false) | Out-Null
-    }
-    if ($Choco.Installed){
-        $panel.Controls.AddRange(@($checkedListBox, $label, $installButton, $moreLink))
-    } else {
-        $panel.Controls.AddRange(@($noChocoLabel, $installChocoButton))
-    }
+        $InstallProcessText.Text = "Alle ausgewählten Programme erfolgreich installiert!"
+        $Main.Cursor = [System.Windows.Forms.Cursors]::Default
+        # Fenster schließen
+        Start-Sleep -Seconds 2
+        $ChocoPanel.Controls.Remove($InstallProcessText)
+        $ChocoPanel.Controls.Add($ChocoInstallButton)
+        $ChocoPanel.Controls.Add($MoreChocoLink)
 
-    $Main.Controls.Add($panel)
-    return $panel
+        [System.Windows.Forms.MessageBox]::Show("Alle ausgewählten Programme wurden erfolgreich installiert!", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        $ChocoListBox.CheckedItems.Clear() # Auswahl zurücksetzen
+        $ChocoListBox.Items.Clear() # Liste leeren
+        foreach ($program in $Choco.ProgramList.GetEnumerator()) {
+            $item = [PSCustomObject]@{
+                Id   = $program.Key
+                Name = $program.Value
+            }
+            $ChocoListBox.Items.Add($item, $false) | Out-Null
+        }
+    }
+})
+# Mehr-Optionen-Link
+$MoreChocoLink = New-Object System.Windows.Forms.Label
+$MoreChocoLink.Text = "Aktualisieren / Deinstallieren"
+$MoreChocoLink.Font = New-Object System.Drawing.Font("Consolas", 8)
+$MoreChocoLink.TextAlign = "BottomCenter"
+$MoreChocoLink.Height = 20
+$MoreChocoLink.AutoSize = $false
+$MoreChocoLink.Dock = "Bottom"
+$MoreChocoLink.Cursor = [Cursors]::Hand
+$MoreChocoLink.Add_Click({ ChocolateyForm })
+# Installationsprozess-Info
+$InstallProcessText = New-Object System.Windows.Forms.Label
+$InstallProcessText.Text = "Installationsprozess..."
+$InstallProcessText.Font = New-Object System.Drawing.Font("Consolas", 9, [FontStyle]::Italic)
+$InstallProcessText.AutoSize = $false
+$InstallProcessText.TextAlign = "MiddleCenter"
+$InstallProcessText.Dock = "Bottom"
+$InstallProcessText.Height = 30
+
+# NoChoco-Hinweis
+$NoChocoMessage = New-Object System.Windows.Forms.Label
+$NoChocoMessage.Text = "Chocolatey ist nicht installiert!"
+$NoChocoMessage.Font = New-Object System.Drawing.Font("Consolas", 10, [FontStyle]::Italic)
+$NoChocoMessage.Location = New-Object System.Drawing.Point(65,150)
+# Install-Chocolatey-Button
+$InstallChocoButton = New-Object System.Windows.Forms.Label
+$InstallChocoButton.Text = "INSTALLIEREN"
+$InstallChocoButton.Font = New-Object System.Drawing.Font("Consolas", 8, [FontStyle]::Bold)
+$InstallChocoButton.Cursor = [Cursors]::Hand
+$InstallChocoButton.Add_Click({
+    $Main.Cursor = [System.Windows.Forms.Cursors]::AppStarting
+    $InstallProcessText.Visible = $true
+    $NoChocoMessage.ForeColor = $AccentColor
+    $NoChocoMessage.Text = "   Installiere Chocolatey..."
+    $InstallChocoButton.Visible = $false
+    Start-Sleep -Seconds 1
+    # Chocolatey installieren
+    $Choco.Install()
+    $NoChocoMessage.Text = "Chocolatey erfolgreich installiert!"
+    $InstallProcessText.Text = ""
+    $Main.Cursor = [System.Windows.Forms.Cursors]::Default
+    Start-Sleep -Seconds 2
+    # Fenster schließen
+    $global:restartScript = $true
+    $InstallChocoForm.Close()
+    $Main.Close()
+})
+
+# ListBox auffüllen
+foreach ($program in $Choco.ProgramList.GetEnumerator()) {
+    $item = [PSCustomObject]@{
+        Id   = $program.Key
+        Name = $program.Value
+    }
+    $ChocoListBox.Items.Add($item, $false) | Out-Null
 }
+if ($Choco.Installed){
+    $ChocoPanel.Controls.AddRange(@($ChocoListBox, $ChocoLabel, $ChocoInstallButton, $MoreChocoLink))
+} else {
+    $ChocoPanel.Controls.AddRange(@($NoChocoMessage, $InstallChocoButton))
+}
+$Main.Controls.Add($ChocoPanel)
+
 $Header = & {
     # Label
     $label = New-Object System.Windows.Forms.Label

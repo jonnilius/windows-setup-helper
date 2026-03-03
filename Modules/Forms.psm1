@@ -1,6 +1,7 @@
-﻿using namespace System.Drawing
-using namespace System.Windows.Forms
+﻿using namespace System.Windows.Forms
+using namespace System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
 <### Georgia11 ##########################################################################
 *                                                                                       *
 *                 `7MM"""YMM                                                            *
@@ -37,74 +38,248 @@ function Get-Icon {
     $stream = New-Object System.IO.MemoryStream(,$bytes)
     [Icon]::FromHandle(([Bitmap]::FromStream($stream)).GetHicon())
 }
-
 <# FORM ERSTELLEN #>
+function New-Button {
+    param( [string]$ButtonName )
+
+    # Button-Daten für verschiedene Buttons definieren
+    $ButtonData = @{
+        "ChocoListInstall" = @{
+            Text = "Installieren"
+            FlatStyle = "Flat"
+            Font = [Font]::new("Consolas", 9, [FontStyle]::Bold)
+            Dock = "Bottom"
+        }
+        "ChocoUpdate"   = @{}
+        "UninstallChoco"= @{ 
+            Text = "Chocolatey entfernen"
+            Size = [Size]::new(190,25)
+            Location = [Point]::new(10,35)
+            FlatStyle = "Flat"
+            BackColor = [ColorTranslator]::FromHtml("#2D3436")
+            ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+            Add_Click = { 
+                $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Chocolatey wirklich entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+                if ($confirm -eq [System.Windows.Forms.DialogResult]::Yes) { return }
+                
+                # $Form.Cursor = [Cursors]::AppStarting
+                
+                Start-Sleep -Seconds 1
+                Uninstall-Chocolatey | Out-Null
+                # $Main.Cursor = [Cursors]::Default
+                Start-Sleep -Seconds 1
+                [System.Windows.Forms.MessageBox]::Show("Chocolatey wurde erfolgreich entfernt.", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+             }
+         }
+    }
+    $Data = if ($ButtonData.ContainsKey($ButtonName)) { $ButtonData[$ButtonName] } else { @{} }
+
+    # Button erstellen und Eigenschaften setzen
+    $button = [Button]::new()
+    if ($Data.ContainsKey("Dock"))      { $button.Dock = $Data.Dock }
+    if ($Data.ContainsKey("Size"))      { $button.Size = $Data.Size }
+    if ($Data.ContainsKey("Font"))      { $button.Font = $Data.Font }
+    if ($Data.ContainsKey("Text"))      { $button.Text = $Data.Text }
+    if ($Data.ContainsKey("Location"))  { $button.Location = $Data.Location }
+    if ($Data.ContainsKey("FlatStyle")) { $button.FlatStyle = $Data.FlatStyle }
+    if ($Data.ContainsKey("BackColor")) { $button.BackColor = $Data.BackColor }
+    if ($Data.ContainsKey("ForeColor")) { $button.ForeColor = $Data.ForeColor }
+
+
+
+    if ($Data.ContainsKey("Add_Click")) { $button.Add_Click($Data.Add_Click) }
+
+    return $button
+}
+function New-CheckedListBox {
+    param ( [string]$CheckedListBoxName )
+    $CheckedListBoxData = @{
+        "ChocoListBox" = @{
+            Font = [Font]::new("Consolas", 9)
+            ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
+            BackColor = [ColorTranslator]::FromHtml("#2D3436")
+            BorderStyle = "None"
+            DisplayMember = "Name"
+            CheckOnClick = $true
+            Dock = "Fill"
+        }
+    }
+    $Data = if ($CheckedListBoxData.ContainsKey($CheckedListBoxName)) { $CheckedListBoxData[$CheckedListBoxName] } else { @{} }
+
+    $checkedListBox = [CheckedListBox]::new()
+    $checkedListBox.ForeColor = if ($Data.ContainsKey("ForeColor")) { $Data.ForeColor } else { [ColorTranslator]::FromHtml("#EEEEEE") }
+    $checkedListBox.BackColor = if ($Data.ContainsKey("BackColor")) { $Data.BackColor } else { [ColorTranslator]::FromHtml("#2D3436") }
+    $checkedListBox.Font = if ($Data.ContainsKey("Font")) { $Data.Font } else { [Font]::new("Consolas", 9) }
+    $checkedListBox.BorderStyle = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle } else { "None" } # Fixed3D
+    $CheckedListBox.CheckOnClick = if ($Data.ContainsKey("CheckOnClick")) { $Data.CheckOnClick } # $false
+    $CheckedListBox.DisplayMember = if ($Data.ContainsKey("DisplayMember")) { $Data.DisplayMember } else { $null }
+    $CheckedListBox.Dock = if ($Data.ContainsKey("Dock")) { $Data.Dock } # None
+    
+
+    return $checkedListBox
+}
+function New-FlowLayoutPanel {
+    param( [string]$PanelName )
+
+    # FlowLayoutPanel-Daten für verschiedene Panels definieren
+    $Default = @{ 
+        Dock = "Fill"
+        BackColor = "Transparent"
+        FlowDirection = "TopDown"
+        WrapContents = $true
+    }
+    $FlowLayoutPanelData = @{ 
+        "About"     = @{}
+        "Debloat"   = @{} 
+    }
+    $Data = if ($FlowLayoutPanelData.ContainsKey($PanelName)) { $FlowLayoutPanelData[$PanelName] } else { $Default }
+
+    # FlowLayoutPanel erstellen und Eigenschaften setzen
+    $flowPanel = [FlowLayoutPanel]::new()
+    $flowPanel.Dock          = if ($Data.ContainsKey("Dock"))           { $Data.Dock }          else { $Default.Dock }
+    $flowPanel.BackColor     = if ($Data.ContainsKey("BackColor"))      { $Data.BackColor }     else { $Default.BackColor }
+    $flowPanel.WrapContents  = if ($Data.ContainsKey("WrapContents"))   { $Data.WrapContents }  else { $Default.WrapContents }
+    $flowPanel.FlowDirection = if ($Data.ContainsKey("FlowDirection"))  { $Data.FlowDirection } else { $Default.FlowDirection }
+
+    return $flowPanel
+}
 function New-Form {
     param( [string]$FormName )
-
-    # Form-Daten für verschiedene Formulare definieren
-    $Default = @{ 
-        Size    = [Size]::new(400,300)
-        Title   = "keine Überschrift angegeben"
-        Icon    = Get-Icon "Default"
-        Padding = [Padding]::new(10)
-        KeyPreview = $false
-    }
     $FormData = @{
-        "About"      = @{ 
+        "Main" = @{
+            ClientSize  = [Size]::new(400,565)
+            Padding     = [Padding]::new(10,5,10,5)
+            ForeColor   = [ColorTranslator]::FromHtml("#2D3436")
+            Text        = "Windows Setup Helper - $env:USERNAME"
+            Icon        = Get-Icon "Main"
+        }
+        "Chocolatey" = @{ 
+            Size    = [Size]::new(600,300)
+            Text    = "Chocolatey - Windows Setup Helper"
+            Icon    = Get-Icon "Choco" 
+        }
+        "About" = @{ 
             Size        = [Size]::new(350,400)
-            Title       = "About - Windows Setup Helper"
+            Text       = "About - Windows Setup Helper"
             Icon        = Get-Icon "About" 
             KeyPreview  = $true
             Add_KeyDown = { if ($_.KeyCode -eq [Keys]::Escape) { $form.Close() } }
         }
-        "Chocolatey" = @{ 
-            Size    = [Size]::new(600,300)
-            Title   = "Chocolatey - Windows Setup Helper"
-            Icon    = Get-Icon "Choco" 
-        }
-        "Debloat"    = @{ 
+        "Debloat" = @{ 
             Size    = [Size]::new(245,125)
-            Title   = "Debloat - Windows Setup Helper"
+            Text    = "Debloat - Windows Setup Helper"
             Icon    = Get-Icon "Debloat" 
         }
         "DeviceName" = @{ 
             Size    = [Size]::new(300,60)
-            Title   = "Gerätename ändern - Windows Setup Helper"
-            Icon    = Get-Icon "DeviceName"
             Padding = [Padding]::new(10,5,10,5) 
-        }
-        "Main"       = @{ 
-            Size    = [Size]::new(400,565)
-            Title   = "Windows Setup Helper - $env:USERNAME"
-            Icon    = Get-Icon "Main"
-            Padding = [Padding]::new(10,5,10,5)
-            ForeColor = [ColorTranslator]::FromHtml("#2D3436")
+            Text    = "Gerätename ändern - Windows Setup Helper"
+            Icon    = Get-Icon "DeviceName"
         }
     }
-    $Data = if ($FormData.ContainsKey($FormName)) { $FormData[$FormName] } else { $Default }
+    # Initialisierung der Form-Daten für verschiedene Forms
+    $Data = if ($FormData.ContainsKey($FormName)) { $FormData[$FormName] } else { @{} }
 
-    # Form-Vorlage erstellen
+    # Form-Vorlage 
     $form = [Form]::new()
-    $form.ShowIcon = $true
-    $form.StartPosition = "CenterScreen"
-    $form.BackColor = [ColorTranslator]::FromHtml("#C0393B")
     $form.MaximizeBox = $false
+    $form.StartPosition = "CenterScreen"
     $form.FormBorderStyle = "FixedSingle"
+    $form.BackColor = [ColorTranslator]::FromHtml("#C0393B")
+    $form.ForeColor = if ($Data.ContainsKey("ForeColor")) { $Data.ForeColor } else { [ColorTranslator]::FromHtml("#2D3436") }
+    $form.Padding = if ($Data.ContainsKey("Padding")) { $Data.Padding } else { [Padding]::new(10) }
+    $form.Text = if ($Data.ContainsKey("Text")) { $Data.Text } else { "fehlende Überschrift" }
+    $form.Icon = if ($Data.ContainsKey("Icon")) { $Data.Icon } else { Get-Icon "Default" }
+    
+    # Form-Erweiterte Eigenschaften
+    if ($Data.ContainsKey("KeyPreview")) { $form.KeyPreview = $Data.KeyPreview }
+    if ($Data.ContainsKey("ClientSize")) { $form.ClientSize = $Data.ClientSize }
+    if ($Data.ContainsKey("Size"))       { $form.ClientSize = $Data.Size }
 
-    # Form-Grunddaten setzen
-    $form.Text          = $Data.Title
-    $form.Icon          = $Data.Icon
-    $form.ClientSize    = $Data.Size
-
-    # Form-Erweiterte Eigenschaften setzen
-    $form.Padding    = if ($Data.ContainsKey("Padding"))    { $Data.Padding }    else { $Default.Padding }
-    $form.KeyPreview = if ($Data.ContainsKey("KeyPreview")) { $Data.KeyPreview } else { $Default.KeyPreview }
-    if ($Data.ContainsKey("ForeColor")) { $form.ForeColor = $Data.ForeColor }
+    # Form-Events 
     if ($Data.ContainsKey("Add_KeyDown")) { $form.Add_KeyDown($Data.Add_KeyDown) }
-
-
+    
     return $form
+}
+function New-Label {
+    param( [string]$LabelName )
+
+    # Label-Daten für verschiedene Labels definieren
+    $LabelData = @{
+        "ChocoListLabel" = @{
+            Text = "Chocolatey-Pakete"
+            AutoSize = $false
+            TextAlign = "MiddleCenter"
+            Dock = "Top"
+            Font = [Font]::new("Consolas", 15, [FontStyle]::Bold)
+            # Height = 30
+        }
+        "ChocoListMore" = @{
+            Text = "Aktualisieren / Deinstallieren"
+            Font = [Font]::new("Consolas", 8)
+            TextAlign = "BottomCenter"
+            Height = 20
+            AutoSize = $false
+            Dock = "Bottom"
+            Cursor = [Cursors]::Hand
+        }
+    }
+    $Data = if ($LabelData.ContainsKey($LabelName)) { $LabelData[$LabelName] } else { @{} }
+
+    # Mindestanforderungen für Label-Eigenschaften
+    $label = [Label]::new()
+    $label.Text = if ($Data.ContainsKey("Text")) { $Data.Text } else { "Text fehlt" }
+
+    # Erweiterte Eigenschaften für Label
+    if ($Data.ContainsKey("Dock")) { $label.Dock = $Data.Dock } # None
+    if ($Data.ContainsKey("Font")) { $label.Font = $Data.Font } # geerbt
+    if ($Data.ContainsKey("Width")) { $label.Width = $Data.Width }
+    if ($Data.ContainsKey("Margin")) { $label.Margin = $Data.Margin } # 3,3,3,3
+    if ($Data.ContainsKey("Cursor")) { $label.Cursor = $Data.Cursor } # Default
+    if ($Data.ContainsKey("Height")) { $label.Height = $Data.Height } # 23
+    if ($Data.ContainsKey("AutoSize")) { $label.AutoSize = $Data.AutoSize } # False
+    if ($Data.ContainsKey("FlatStyle")) { $label.FlatStyle = $Data.FlatStyle } # Standard
+    if ($Data.ContainsKey("TextAlign")) { $label.TextAlign = $Data.TextAlign } # TopLeft
+
+    return $label
+}
+function New-ListBox {
+    param ( [string]$ListBoxName )
+
+    # ListBox-Daten für verschiedene ListBoxen definieren
+    $Default = @{
+        Font = [Font]::new("Consolas", 10)
+        Size = [Size]::new(310,305)
+        ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
+        BackColor = [ColorTranslator]::FromHtml("#2D3436")
+        BorderStyle = "None"
+    }
+    $ListBoxData = @{
+        "Chocolatey"    = @{
+            BorderStyle     = "None"
+            SelectionMode   = "MultiSimple"
+            Location        = [Point]::new(10,35)
+            Size            = [Size]::new(350,200)
+            Font            = [Font]::new("Consolas", 10)
+            ForeColor       = [ColorTranslator]::FromHtml("#EEEEEE")
+            BackColor       = [ColorTranslator]::FromHtml("#2D3436")
+        }
+    }
+    $Data = if ($ListBoxData.ContainsKey($ListBoxName)) { $ListBoxData[$ListBoxName] } else { $Default }
+
+    # ListBox-Vorlage erstellen
+    $listBox = [ListBox]::new()
+    $listBox.Font        = if ($Data.ContainsKey("Font"))        { $Data.Font }        else { $Default.Font }
+    $listBox.Size        = if ($Data.ContainsKey("Size"))        { $Data.Size }        else { $Default.Size }
+    $listBox.ForeColor   = if ($Data.ContainsKey("ForeColor"))   { $Data.ForeColor }   else { $Default.ForeColor }
+    $listBox.BackColor   = if ($Data.ContainsKey("BackColor"))   { $Data.BackColor }   else { $Default.BackColor }
+    $listBox.BorderStyle = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle } else { $Default.BorderStyle }
+
+    # ListBox-Erweiterte Eigenschaften setzen
+    if ($Data.ContainsKey("SelectionMode")) { $listBox.SelectionMode = $Data.SelectionMode }
+    if ($Data.ContainsKey("Location")) { $listBox.Location = $Data.Location }
+
+    return $listBox
 }
 function New-Panel {
     param( [string]$PanelName )
@@ -220,279 +395,4 @@ function New-TextBox {
     $textbox.BorderStyle    = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle }   else { $Default.BorderStyle }
 
     return $textbox
-}
-
-<# FERTIGE FORMS #>
-function ChocolateyForm {
-    $Form = New-Form "Chocolatey"
-    $PackagePanel = New-Panel "Package"
-    $Form.Controls.Add($PackagePanel)
-
-    ## Label INSTALLIERT
-    $PackageLabel = New-Object System.Windows.Forms.Label
-    $PackageLabel.Text = "INSTALLIERT"
-    $PackageLabel.ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
-    $PackageLabel.AutoSize = $true
-    $PackageLabel.Location = New-Object System.Drawing.Point(10,10)
-    $PackageLabel.Font = New-Object System.Drawing.Font("Consolas", 13, ([FontStyle]::Bold -bor [FontStyle]::Underline))
-    $PackagePanel.Controls.Add($PackageLabel)
-    $SelectAllLabel = New-Object System.Windows.Forms.Label
-    ## Label ALLE AUSWÄHLEN
-    $SelectAllLabel.Text = "Alle auswählen"
-    $SelectAllLabel.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $SelectAllLabel.AutoSize = $true
-    $SelectAllLabel.Location = New-Object System.Drawing.Point(280,10)
-    $SelectAllLabel.Font = New-Object System.Drawing.Font("Consolas", 8)
-    $SelectAllLabel.Cursor = [System.Windows.Forms.Cursors]::Hand
-    $PackagePanel.Controls.Add($SelectAllLabel)
-    $SelectAllLabel.Add_Click({
-        if ($PackageList.SelectedItems.Count -eq $PackageList.Items.Count) {
-            $SidebarPanel.Controls.Remove($UpdateButton)
-            $SidebarPanel.Controls.Remove($UninstallButton)
-            $PackageList.SelectedItems.Clear()
-            $SelectAllLabel.Text = "Alle auswählen"
-        } else {
-            $SidebarPanel.Controls.Add($UpdateButton)
-            $SidebarPanel.Controls.Add($UninstallButton)
-            for ($i = 0; $i -lt $PackageList.Items.Count; $i++) {
-                $PackageList.SelectedItems.Add($PackageList.Items[$i])
-            }
-            $SelectAllLabel.Text = "Alle abwählen"
-        }
-    })
-    # Listbox
-    $PackageList = New-Object System.Windows.Forms.ListBox
-    $PackageList.Location = New-Object System.Drawing.Point(10,35)
-    $PackageList.Size = New-Object System.Drawing.Size(350,200)
-    $PackageList.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $PackageList.ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
-    $PackageList.BorderStyle = "None"
-    $PackageList.SelectionMode = "MultiSimple"
-    $PackageList.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $appList = Read-Chocolatey -AppList
-    foreach ($program in $appList) { $PackageList.Items.Add($program) | Out-Null }
-    $PackageList.Add_Click({
-        if ($null -eq $PackageList.SelectedItem) {
-            $SidebarPanel.Controls.Remove($UpdateButton)
-            $SidebarPanel.Controls.Remove($UninstallButton)
-        } else {
-            $SidebarPanel.Controls.Add($UpdateButton)
-            $SidebarPanel.Controls.Add($UninstallButton)
-        }
-    })
-    $PackagePanel.Controls.Add($PackageList)
-    # Prozess-Info
-    $ProcessInfoLabel = New-Object System.Windows.Forms.Label
-    $ProcessInfoLabel.Text = ""
-    $ProcessInfoLabel.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $ProcessInfoLabel.Padding = New-Object System.Windows.Forms.Padding(0,5,0,10)
-    $ProcessInfoLabel.Dock = "Bottom"
-    $ProcessInfoLabel.Height = 30
-    $ProcessInfoLabel.AutoSize = $false
-    $ProcessInfoLabel.TextAlign = "MiddleCenter"
-    $PackagePanel.Controls.Add($ProcessInfoLabel)
-
-    ### Sidebar
-    $SidebarPanel = New-Panel "Sidebar"
-    # Version
-    $VersionLabel = New-Object System.Windows.Forms.Label
-    $VersionLabel.Text = "Version: $(Read-Chocolatey -Version)"
-    $VersionLabel.Dock = "Top"
-    $VersionLabel.ForeColor = [ColorTranslator]::FromHtml("#2D3436")
-    $VersionLabel.TextAlign = "MiddleCenter"
-    $VersionLabel.Font = New-Object System.Drawing.Font("Consolas", 11,[FontStyle]::Bold)
-    $SidebarPanel.Controls.Add($VersionLabel)
-    # Remove Button
-    $RemoveButton = New-Object System.Windows.Forms.Button
-    $RemoveButton.Text = "Chocolatey entfernen"
-    $RemoveButton.Size = New-Object System.Drawing.Size(190,25)
-    $RemoveButton.Location = New-Object System.Drawing.Point(10,35)
-    $RemoveButton.FlatStyle = "Flat"
-    $RemoveButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $RemoveButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $RemoveButton.Add_Click({
-        $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Chocolatey wirklich entfernen? Alle über Chocolatey installierten Programme müssen danach manuell deinstalliert werden.", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
-        if ($confirm -eq [System.Windows.Forms.DialogResult]::Yes) { return }
-
-        $Form.Cursor = [System.Windows.Forms.Cursors]::AppStarting
-
-        # Chocolatey deinstallieren
-        Start-Sleep -Seconds 1 # Kurze Pause, damit der Cursorwechsel sichtbar ist
-        Uninstall-Chocolatey | Out-Null
-        $Main.Cursor = [System.Windows.Forms.Cursors]::Default
-        Start-Sleep -Seconds 1
-
-    })
-    $SidebarPanel.Controls.Add($RemoveButton)
-    # Update-Button
-    $UpdateButton = New-Object System.Windows.Forms.Button
-    $UpdateButton.Text = "Aktualisieren"
-    $UpdateButton.Size = New-Object System.Drawing.Size(190,25)
-    $UpdateButton.Location = New-Object System.Drawing.Point(10,215)
-    $UpdateButton.FlatStyle = "Flat"
-    $UpdateButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $UpdateButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $UpdateButton.Add_Click({
-        $selectedItems = @()
-        $Form.Cursor = [System.Windows.Forms.Cursors]::AppStarting
-        Start-Sleep -Seconds 1
-        foreach ($item in $PackageList.SelectedItems) {
-            $selectedItems += $item
-        }
-        foreach ($item in $selectedItems) {
-            $ProcessInfoLabel.Text = "Aktualisiere $item..."
-            choco upgrade $item -y | Out-Null
-            $PackageList.Items.Remove($item)
-            $PackageList.Items.Add($item) | Out-Null
-        }
-        $Form.Cursor = [System.Windows.Forms.Cursors]::Default
-        $ProcessInfoLabel.Text = "Aktualisierung abgeschlossen."
-        $PackageList.SelectedItems.Clear()
-        $PackageList.Items.Clear()
-        $appList = Get-ChocoAppList
-        foreach ($program in $appList) { $PackageList.Items.Add($program) | Out-Null }
-        $SidebarPanel.Controls.Remove($UpdateButton)
-        $SidebarPanel.Controls.Remove($UninstallButton)
-        $ProcessInfoLabel.Text = ""
-    })
-    # Uninstall-Button
-    $UninstallButton = New-Object System.Windows.Forms.Button
-    $UninstallButton.Text = "Deinstallieren"
-    $UninstallButton.Size = New-Object System.Drawing.Size(190,25)
-    $UninstallButton.Location = New-Object System.Drawing.Point(10,245)
-    $UninstallButton.FlatStyle = "Flat"
-    $UninstallButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $UninstallButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $UninstallButton.Add_Click({
-        $selectedPackages = @()
-        $Form.Cursor = [System.Windows.Forms.Cursors]::AppStarting
-        Start-Sleep -Seconds 1
-        foreach ($item in $PackageList.SelectedItems) {
-            $selectedPackages += $item
-        }
-        foreach ($item in $selectedPackages) {
-            $ProcessInfoLabel.Text = "Deinstalliere $item..."
-            choco uninstall $item -y | Out-Null
-            $PackageList.Items.Remove($item)
-            $ProcessInfoLabel.Text = "Deinstallation von $item abgeschlossen."
-            Start-Sleep -Seconds 1
-        }
-        $Form.Cursor = [System.Windows.Forms.Cursors]::Default
-        $ProcessInfoLabel.Text = "Deinstallation abgeschlossen."
-        $SidebarPanel.Controls.Remove($UpdateButton)
-        $SidebarPanel.Controls.Remove($UninstallButton)
-        $ProcessInfoLabel.Text = ""
-    })
-
-    $Form.Controls.Add($SidebarPanel)
-
-    # Fenster anzeigen
-    $Form.ShowDialog()
-}
-function DeviceName {
-    $Panel = New-Panel "DeviceName"
-
-    $Form = New-Form "DeviceName"
-    $Form.Add_Shown({ $Button.Focus() })
-    
-    $Form.Controls.Add($Panel)
-
-    # Textbox
-    $TextBox = New-TextBox "DeviceName"
-    $Panel.Controls.Add($TextBox)
-
-    # Space
-    $Space = New-Panel "Space"
-    $Panel.Controls.Add($Space)
-    
-    # Button 
-    $Button = New-Object System.Windows.Forms.Button
-    $Button.Text = "Ändern"
-    $Button.Size = New-Object System.Drawing.Size(120, 25)
-    $Button.Dock = "Right"
-    $Button.FlatStyle = "Flat"
-    $Button.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $Button.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $Panel.Controls.Add($Button)
-    $Button.Add_Click({ ChangeDeviceName -NewName $TextBox.Text })
-
-    $Form.ShowDialog()
-}
-function AboutForm {
-    $Form  = New-Form "About"
-    $Panel = New-Panel "About"
-    
-    $Form.Controls.Add($Panel)
-
-    # Erstelle das FlowLayoutPanel
-    $FlowPanel = New-Object System.Windows.Forms.FlowLayoutPanel
-    $FlowPanel.Dock = "Fill"
-    $FlowPanel.BackColor = "Transparent"
-    $FlowPanel.FlowDirection = "TopDown"
-    $FlowPanel.WrapContents = $false
-    $Panel.Controls.Add($FlowPanel)
-
-    # Erstelle die Header-Label
-    $Header = New-Object System.Windows.Forms.Label
-    $Header.Text = "Windows Setup Helper"
-    $Header.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $Header.Dock = "Fill"
-    $Header.TextAlign = "MiddleCenter"
-    $Header.Margin = New-Object System.Windows.Forms.Padding(0,10,0,10)
-    $Header.Font = New-Object System.Drawing.Font("Consolas", 19)
-    $FlowPanel.Controls.Add($Header)
-
-    # Erstelle die Textbox
-    $Text = New-RichTextBox "About"
-    $FlowPanel.Controls.Add($Text)
-
-    # Zeige das Formular an
-    $Form.ShowDialog()
-}
-function DebloatForm {
-    $Form = New-Form "Debloat"
-    $Panel = New-Panel "Debloat"
-    
-    $Form.Controls.Add($Panel)
-
-    # Erstelle das FlowLayoutPanel
-    $FlowPanel = New-Object System.Windows.Forms.FlowLayoutPanel
-    $FlowPanel.Dock = "Fill"
-    $FlowPanel.BackColor = "Transparent"
-    $FlowPanel.FlowDirection = "TopDown"
-    $FlowPanel.WrapContents = $false
-    $Panel.Controls.Add($FlowPanel)
-
-    # Erstelle die Buttons
-    $RemoveOneDriveButton = New-Object System.Windows.Forms.Button
-    $RemoveOneDriveButton.Text = "OneDrive entfernen"
-    $RemoveOneDriveButton.Size = New-Object System.Drawing.Size(200,25)
-    $RemoveOneDriveButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $RemoveOneDriveButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $RemoveOneDriveButton.FlatStyle = "Flat"
-    $FlowPanel.Controls.Add($RemoveOneDriveButton)
-
-    $UnpinStartMenuButton = New-Object System.Windows.Forms.Button
-    $UnpinStartMenuButton.Text = "Startmenü-Icons entfernen"
-    $UnpinStartMenuButton.Size = New-Object System.Drawing.Size(200,25)
-    $UnpinStartMenuButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $UnpinStartMenuButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $UnpinStartMenuButton.FlatStyle = "Flat"
-    $FlowPanel.Controls.Add($UnpinStartMenuButton)
-
-    $ChangeDeviceNameButton = New-Object System.Windows.Forms.Button
-    $ChangeDeviceNameButton.Text = "Gerätename ändern"
-    $ChangeDeviceNameButton.Size = New-Object System.Drawing.Size(200,25)
-    $ChangeDeviceNameButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $ChangeDeviceNameButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $ChangeDeviceNameButton.FlatStyle = "Flat"
-    $FlowPanel.Controls.Add($ChangeDeviceNameButton)
-
-    # Button-Eventhandler hinzufügen
-    $RemoveOneDriveButton.Add_Click( { RemoveOneDrive } )
-    $UnpinStartMenuButton.Add_Click( { UnpinStartMenuIcons } )
-    $ChangeDeviceNameButton.Add_Click( { DeviceName } )
-
-    # Zeige das Formular an
-    $Form.ShowDialog()
 }

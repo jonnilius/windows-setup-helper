@@ -1,185 +1,4 @@
-﻿<# CHOCOLATEY #>
-function Read-Chocolatey {
-    param ( 
-        [switch]$Installed,
-        [switch]$Version,
-        [switch]$AppList,
-        [switch]$SetupList
-    )
-    
-    if ($AppList)         {
-        Write-Verbose "Doppelter Variablename 'appList' in Funktion 'Read-Chocolatey' gefunden."
-
-        $appList = @()
-        $rawList = choco list --idonly
-
-        foreach ($line in $rawList) {
-            if ($line -match '^\d+ packages installed\.$') { break }
-            if ($line -and $line -notmatch '^Chocolatey v') { $appList += $line.Trim() }
-        }
-
-        return $appList
-    } elseif ($Installed) { return !([string]::IsNullOrWhiteSpace((Get-Command choco -ErrorAction SilentlyContinue).Source)) 
-    } elseif ($Version)   { return (choco --version).Trim() 
-    } elseif ($SetupList) { return [ordered]@{
-        # Packagename bei Chocolatey | Anzeigename
-        "7zip"                      = "7-Zip"
-        "adobereader"               = "Adobe Acrobat Reader DC"
-        "autocad"                   = "AutoCAD 2026"
-        "autoruns"                  = "Autoruns"
-        "boxcryptor"                = "Boxcryptor"
-        "discord"                   = "Discord"
-        "dropbox"                   = "Dropbox"
-        "filezilla"                 = "FileZilla"
-        "firefox"                   = "Mozilla Firefox"
-        "googlechrome"              = "Google Chrome"
-        "googledrive"               = "Google Drive"
-        "greenshot"                 = "Greenshot"
-        "kate"                      = "Kate"
-        "keepassxc"                 = "KeePassXC"
-        "libreoffice-fresh"         = "LibreOffice Fresh"
-        "microsoft-teams"           = "Microsoft Teams (Classic Desktop App)"
-        "nextcloud-client"          = "Nextcloud Desktop Client"
-        "onedrive"                  = "OneDrive"
-        "openvpn"                   = "OpenVPN"
-        "openvpn-connect"           = "OpenVPN Connect"
-        "qbittorrent"               = "qBittorrent"
-        "pdf24"                     = "PDF24 Creator"
-        "putty"                     = "PuTTY"
-        "python3"                   = "Python 3.x"
-        "rustdesk"                  = "RustDesk"
-        "signal"                    = "Signal"
-        "sshfs"                     = "SSHFS-Win"
-        "steam"                     = "Steam"
-        "teamspeak"                 = "TeamSpeak 3"
-        "teamviewer"                = "Teamviewer"
-        "teamviewer-qs"             = "Teamviewer QuickSupport"
-        "thunderbird"               = "Mozilla Thunderbird"
-        "ventoy"                    = "Ventoy"
-        "virtualbox"                = "VirtualBox"
-        "visualstudio2019community" = "Visual Studio 2019 Community"
-        "vlc"                       = "VLC media player"
-        "vscode"                    = "Visual Studio Code"
-        "winrar"                    = "WinRAR"
-        "winfsp"                    = "WinFsp"
-        "winscp"                    = "WinSCP"
-    }
-
-    }
-
-}
-function Install-Chocolatey {
-    # Ausführunagsrichtlinien anpassen (erlaubt für diesen Prozess unsignierte Skripte)
-    Set-ExecutionPolicy Bypass -Scope Process -Force
-
-    # Sicherheitsprotokoll anpassen (benötigt für TLS 1.2, das von Chocolatey-Servern verwendet wird)
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-
-    # Chocolatey laden und installieren (Setup durch Chocolatey-Installationsskript)
-    Invoke-WebRequest -Uri 'https://community.chocolatey.org/install.ps1' -UseBasicParsing | Invoke-Expression
-}
-function Uninstall-Chocolatey {
-    # Umgebungsvariable für Chocolatey-Installation überprüfen
-    if (-not $env:ChocolateyInstall) {
-        $message = @(
-            "Chocolatey ist nicht installiert oder die Umgebungsvariable fehlt."
-        ) -join "`n"
-
-        Write-Warning $message
-        return
-    }
-    if (-not (Test-Path $env:ChocolateyInstall)) {
-        $message = @(
-            "Keine Chocolatey-Installation unter '$env:ChocolateyInstall' gefunden."
-            "Keine weitere Verarbeitung notwendig."
-        ) -join "`n"
-
-        Write-Warning $message
-        return
-    }
-
-    <#
-        Hier werden bewusst die .NET-Registry-Aufrufe verwendet, um in PATH-Werten eingebettete
-        Umgebungsvariablen zu erhalten. Der PowerShell-Registry-Provider bietet keine Möglichkeit,
-        Variablenreferenzen unverändert beizubehalten. Wir möchten vermeiden, dass diese versehentlich
-        durch absolute Pfadangaben überschrieben werden.
-
-        Während die Registry beispielsweise "%SystemRoot%" in einem PATH-Eintrag anzeigt,
-        sieht der PowerShell-Registry-Provider lediglich "C:\Windows".
-    #>
-    $userKey  = [Registry]::CurrentUser.OpenSubKey('Environment', $true)
-    $userPath = $userKey.GetValue('PATH', [string]::Empty, 'DoNotExpandEnvironmentNames').ToString()
-
-    $machineKey  = [Registry]::LocalMachine.OpenSubKey('SYSTEM\ControlSet001\Control\Session Manager\Environment\', $true)
-    $machinePath = $machineKey.GetValue('PATH', [string]::Empty, 'DoNotExpandEnvironmentNames').ToString()
-    
-    $backupFile  = "C:\PATH_backups_ChocolateyUninstall.txt"
-    $backupPATHs = @(
-        "User PATH: $userPath"
-        "Machine PATH: $machinePath"
-    )
-    $backupPATHs | Set-Content -Path $backupFile -Encoding UTF8 -Force
-
-    $warningMessage = @"
-Dies kann nach einem Neustart zu Problemen führen, wenn bei der Änderung des PATH etwas schiefgeht.
-In diesem Fall findest du die ursprünglichen PATH-Werte in der Sicherungsdatei unter '$backupFile'.
-"@
-
-    # Chocolatey-Installationspfad aus PATH entfernen, falls vorhanden
-    if ($userPath -like "*$env:ChocolateyInstall*") {
-        Write-Verbose "Chocolatey-Installationspfad im Benutzer-PATH gefunden. Wird entfernt..."
-        Write-Warning $warningMessage
-
-        $newUserPATH = @(
-            $userPath -split [System.IO.Path]::PathSeparator |
-            Where-Object { $_ -and $_ -ne "$env:ChocolateyInstall\bin" }
-        ) -join [System.IO.Path]::PathSeparator
-
-        # NEVER use [Environment]::SetEnvironmentVariable() for PATH values; see https://github.com/dotnet/corefx/issues/36449
-        # This issue exists in ALL released versions of .NET and .NET Core as of 12/19/2019
-        $userKey.SetValue('PATH', $newUserPATH, 'ExpandString')
-    }
-    if ($machinePath -like "*$env:ChocolateyInstall*") {
-        Write-Verbose "Chocolatey-Installationspfad im System-PATH gefunden. Wird entfernt..."
-        Write-Warning $warningMessage
-
-        $newMachinePATH = @(
-            $machinePath -split [System.IO.Path]::PathSeparator |
-            Where-Object { $_ -and $_ -ne "$env:ChocolateyInstall\bin" }
-        ) -join [System.IO.Path]::PathSeparator
-
-        # NEVER use [Environment]::SetEnvironmentVariable() for PATH values; see https://github.com/dotnet/corefx/issues/36449
-        # This issue exists in ALL released versions of .NET and .NET Core as of 12/19/2019
-        $machineKey.SetValue('PATH', $newMachinePATH, 'ExpandString')
-    }
-
-    # Anpassung für Dienste, die in Unterordnern von ChocolateyInstall ausgeführt werden
-    $agentService = Get-Service -Name chocolatey-agent -ErrorAction SilentlyContinue
-    if ($agentService -and $agentService.Status -eq 'Running') {
-        $agentService.Stop()
-    }
-    # TODO: Weitere relevante Dienste hier ergänzen
-
-    Remove-Item -Path $env:ChocolateyInstall -Recurse -Force
-
-    'ChocolateyInstall', 'ChocolateyLastPathUpdate' | ForEach-Object {
-        foreach ($scope in 'User', 'Machine') { 
-            [Environment]::SetEnvironmentVariable($_, [string]::Empty, $scope)
-        }
-    }
-
-    $machineKey.Close()
-    $userKey.Close()
-    if ($env:ChocolateyToolsLocation -and (Test-Path $env:ChocolateyToolsLocation)) {
-        Remove-Item -Path $env:ChocolateyToolsLocation -Recurse -Force
-    }
-
-    foreach ($scope in 'User', 'Machine') {
-        [Environment]::SetEnvironmentVariable('ChocolateyToolsLocation', [string]::Empty, $scope)
-    }
-}
-
-<# TOOLS #>
+﻿<# TOOLS #>
 function ChangeDeviceName {
     param (
         [string]$NewName
@@ -396,4 +215,105 @@ function UnpinStartMenuIcons {
     $Form.Close()
     $Form.Dispose()
 
+}
+
+
+<# DIALOGE #>
+function DeviceName {
+    $Panel = New-Panel "DeviceName"
+
+    $Form = New-Form "DeviceName"
+    $Form.Add_Shown({ $Button.Focus() })
+    
+    $Form.Controls.Add($Panel)
+
+    # Textbox
+    $TextBox = New-TextBox "DeviceName"
+    $Panel.Controls.Add($TextBox)
+
+    # Space
+    $Space = New-Panel "Space"
+    $Panel.Controls.Add($Space)
+    
+    # Button 
+    $Button = New-Object System.Windows.Forms.Button
+    $Button.Text = "Ändern"
+    $Button.Size = New-Object System.Drawing.Size(120, 25)
+    $Button.Dock = "Right"
+    $Button.FlatStyle = "Flat"
+    $Button.BackColor = [ColorTranslator]::FromHtml("#2D3436")
+    $Button.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+    $Panel.Controls.Add($Button)
+    $Button.Add_Click({ ChangeDeviceName -NewName $TextBox.Text })
+
+    $Form.ShowDialog()
+}
+function AboutForm {
+    $Form  = New-Form "About"
+    $Panel = New-Panel "About"
+    
+    $Form.Controls.Add($Panel)
+
+    $FlowPanel = New-FlowLayoutPanel "About"
+    $Panel.Controls.Add($FlowPanel)
+
+    # Erstelle die Header-Label
+    $Header = New-Object System.Windows.Forms.Label
+    $Header.Text = "Windows Setup Helper"
+    $Header.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+    $Header.Dock = "Fill"
+    $Header.TextAlign = "MiddleCenter"
+    $Header.Margin = New-Object System.Windows.Forms.Padding(0,10,0,10)
+    $Header.Font = New-Object System.Drawing.Font("Consolas", 19)
+    $FlowPanel.Controls.Add($Header)
+
+    # Erstelle die Textbox
+    $Text = New-RichTextBox "About"
+    $FlowPanel.Controls.Add($Text)
+
+    # Zeige das Formular an
+    $Form.ShowDialog()
+}
+function DebloatForm {
+    $Form = New-Form "Debloat"
+    $Panel = New-Panel "Debloat"
+    
+    $Form.Controls.Add($Panel)
+
+    # Erstelle das FlowLayoutPanel
+    $FlowPanel = New-FlowLayoutPanel "Debloat"
+    $Panel.Controls.Add($FlowPanel)
+
+    # Erstelle die Buttons
+    $RemoveOneDriveButton = New-Object System.Windows.Forms.Button
+    $RemoveOneDriveButton.Text = "OneDrive entfernen"
+    $RemoveOneDriveButton.Size = New-Object System.Drawing.Size(200,25)
+    $RemoveOneDriveButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+    $RemoveOneDriveButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
+    $RemoveOneDriveButton.FlatStyle = "Flat"
+    $FlowPanel.Controls.Add($RemoveOneDriveButton)
+
+    $UnpinStartMenuButton = New-Object System.Windows.Forms.Button
+    $UnpinStartMenuButton.Text = "Startmenü-Icons entfernen"
+    $UnpinStartMenuButton.Size = New-Object System.Drawing.Size(200,25)
+    $UnpinStartMenuButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+    $UnpinStartMenuButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
+    $UnpinStartMenuButton.FlatStyle = "Flat"
+    $FlowPanel.Controls.Add($UnpinStartMenuButton)
+
+    $ChangeDeviceNameButton = New-Object System.Windows.Forms.Button
+    $ChangeDeviceNameButton.Text = "Gerätename ändern"
+    $ChangeDeviceNameButton.Size = New-Object System.Drawing.Size(200,25)
+    $ChangeDeviceNameButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+    $ChangeDeviceNameButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
+    $ChangeDeviceNameButton.FlatStyle = "Flat"
+    $FlowPanel.Controls.Add($ChangeDeviceNameButton)
+
+    # Button-Eventhandler hinzufügen
+    $RemoveOneDriveButton.Add_Click( { RemoveOneDrive } )
+    $UnpinStartMenuButton.Add_Click( { UnpinStartMenuIcons } )
+    $ChangeDeviceNameButton.Add_Click( { DeviceName } )
+
+    # Zeige das Formular an
+    $Form.ShowDialog()
 }

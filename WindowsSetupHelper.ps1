@@ -20,7 +20,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 # }
 $global:AppInfo = @{
     Name       = "Windows Setup Helper"
-    Version    = "0.7.3"
+    Version    = "0.9.2"
     Author     = "jonnilius"
     Company    = "BORINAS"
     License    = "MIT License"
@@ -34,7 +34,6 @@ $global:Color = @{
 
 # $ErrorActionPreference = "SilentlyContinue"
 $env:PSModulePath += ";$PSScriptRoot\Modules"
-Import-Module "$PSScriptRoot\Modules\Chocolatey.psm1"
 Import-Module "$PSScriptRoot\Modules\Utils.psm1"
 Import-Module "$PSScriptRoot\Modules\Forms.psm1"
 
@@ -69,24 +68,21 @@ $global:LabelToolTip = [ToolTip]::new() # Tooltip für Labels
 ########################################################################################> 
 $Main = New-Form "Main"
 $ChocoPanel = New-Panel "Chocolatey"
+$ChocoListBox = New-CheckedListBox "ChocoListBox"
 
-# AppList
-$ChocoListBox = New-Object System.Windows.Forms.CheckedListBox
-$ChocoListBox.ForeColor = [ColorTranslator]::FromHtml($Color.White)
-$ChocoListBox.BackColor = [ColorTranslator]::FromHtml($Color.Dark)
-$ChocoListBox.DisplayMember = "Name"
-$ChocoListBox.Font = New-Object System.Drawing.Font("Consolas", 9)
-$ChocoListBox.BorderStyle = "None"
-$ChocoListBox.CheckOnClick = $true
-$ChocoListBox.Dock = "Fill"
+
 # Title
-$ChocoLabel = New-Object System.Windows.Forms.Label
-$ChocoLabel.Text = "Chocolatey-Pakete"
-$ChocoLabel.Font = New-Object System.Drawing.Font("Consolas", 15, [FontStyle]::Bold)
-$ChocoLabel.AutoSize = $false
-$ChocoLabel.Dock = "Top"
-$ChocoLabel.Height = 30
-$ChocoLabel.TextAlign = "MiddleCenter"
+$ChocoLabel = &{
+    $label = New-Object System.Windows.Forms.Label
+    $label.Text = "Chocolatey-Pakete"
+    $label.Font = New-Object System.Drawing.Font("Consolas", 15, [FontStyle]::Bold)
+    $label.AutoSize = $false
+    $label.Dock = "Top"
+    $label.Height = 30
+    $label.TextAlign = "MiddleCenter"
+
+    return $label
+}
 # Install-Button
 $ChocoInstallButton = New-Object System.Windows.Forms.Button
 $ChocoInstallButton.Text = "Installieren"
@@ -163,14 +159,18 @@ $InstallProcessText.Height = 30
 
 # NoChoco-Hinweis
 $NoChocoMessage = New-Object System.Windows.Forms.Label
-$NoChocoMessage.Text = "Chocolatey ist nicht installiert!"
+$NoChocoMessage.Text = "Chocolatey ist nicht installiert."
 $NoChocoMessage.Font = New-Object System.Drawing.Font("Consolas", 10, [FontStyle]::Italic)
-$NoChocoMessage.Location = New-Object System.Drawing.Point(65,150)
+$NoChocoMessage.TextAlign = "MiddleCenter"
+$NoChocoMessage.Dock = "Fill"
 # Install-Chocolatey-Button
 $InstallChocoButton = New-Object System.Windows.Forms.Label
 $InstallChocoButton.Text = "INSTALLIEREN"
 $InstallChocoButton.Font = New-Object System.Drawing.Font("Consolas", 8, [FontStyle]::Bold)
 $InstallChocoButton.Cursor = [Cursors]::Hand
+$InstallChocoButton.TextAlign = "MiddleCenter"
+$InstallChocoButton.AutoSize = $false
+$InstallChocoButton.Dock = "Bottom"
 $InstallChocoButton.Add_Click({
     $Main.Cursor = [System.Windows.Forms.Cursors]::AppStarting
     $InstallProcessText.Visible = $true
@@ -204,7 +204,6 @@ if (Read-Chocolatey -Installed) {
 } else {
     $ChocoPanel.Controls.AddRange(@($NoChocoMessage, $InstallChocoButton))
 }
-$Main.Controls.Add($ChocoPanel)
 
 $Header = & {
     # Label
@@ -217,7 +216,6 @@ $Header = & {
     $label.TextAlign = "MiddleCenter"
     $label.Add_DoubleClick({
         # Neustart des Skripts
-        $MoreForm.Close()
         $global:restartScript = $true
         $Main.Close()
     })
@@ -225,7 +223,6 @@ $Header = & {
     $header = New-Panel "Header"
     $header.Controls.Add($label)
 
-    $Main.Controls.Add($header)
     return $header
 }
 $Footer = & {
@@ -270,7 +267,7 @@ $Footer = & {
 
     return $Panel
 }
-$Main.Controls.Add($Footer)
+$Main.Controls.AddRange(@($ChocoPanel, $Header, $Footer))
 $Main.Add_Shown({ $Main.Activate() })
 [void]$Main.ShowDialog()
 

@@ -152,6 +152,45 @@ function New-Panel {
     
     return $panel
 }
+function New-RichTextBox {
+    param ( [string]$RichTextBoxName )
+    $Default = @{
+        Font = [Font]::new("Consolas", 10)
+        Size = [Size]::new(310,305)
+        ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
+        BackColor = [ColorTranslator]::FromHtml("#2D3436")
+        BorderStyle = "None"
+        ReadOnly = $true
+        Text = "kein Text angegeben"
+    }
+    $RichTextBoxData = @{
+        "About"     = @{
+            Size        = [Size]::new(310,305)
+            Text        = @"
+Windows Setup Shelper ist ein PowerShell-Skript, das die Einrichtung und Grundkonfiguration eines Windows-Systems deutlich vereinfacht.`n
+Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
+Das Skript richtet sich an alle, die Windows-PCs effizient und wiederholbar einrichten möchten - egal ob für den privaten Gebrauch, im Unternehmen oder in Bildungseinrichtungen.`n
+Durch die Integration von Automatisierung und Benutzerfreundlichkeit spart der Windows Setup Helper Zeit und reduziert Fehlerquellen bei der Systemeinrichtung.`n
+Version: $Version
+Entwickler: $Author
+Lizenz: MIT
+"@
+        }
+    }
+    $Data = if ($RichTextBoxData.ContainsKey($RichTextBoxName)) { $RichTextBoxData[$RichTextBoxName] } else { $Default }
+
+    # RichTextBox-Vorlage erstellen
+    $richTextBox = [RichTextBox]::new()
+    $richTextBox.Font        = if ($Data.ContainsKey("Font"))        { $Data.Font }        else { $Default.Font }
+    $richTextBox.Size        = if ($Data.ContainsKey("Size"))        { $Data.Size }        else { $Default.Size }
+    $richTextBox.Text        = if ($Data.ContainsKey("Text"))        { $Data.Text }        else { $Default.Text }
+    $richTextBox.ReadOnly    = if ($Data.ContainsKey("ReadOnly"))    { $Data.ReadOnly }    else { $Default.ReadOnly }
+    $richTextBox.ForeColor   = if ($Data.ContainsKey("ForeColor"))   { $Data.ForeColor }   else { $Default.ForeColor }
+    $richTextBox.BackColor   = if ($Data.ContainsKey("BackColor"))   { $Data.BackColor }   else { $Default.BackColor }
+    $richTextBox.BorderStyle = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle } else { $Default.BorderStyle }
+
+    return $richTextBox
+}
 function New-TextBox {
     param ( [string]$TextBoxName )
     $Default = @{
@@ -404,22 +443,7 @@ function AboutForm {
     $FlowPanel.Controls.Add($Header)
 
     # Erstelle die Textbox
-    $Text = New-Object System.Windows.Forms.RichTextBox
-    $Text.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $Text.Size = New-Object System.Drawing.Size(310,305)
-    $Text.ForeColor = [ColorTranslator]::FromHtml("#ECF0F1")
-    $Text.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $Text.BorderStyle = "None"
-    $Text.ReadOnly = $true
-    $Text.Text = @"
-Windows Setup Shelper ist ein PowerShell-Skript, das die Einrichtung und Grundkonfiguration eines Windows-Systems deutlich vereinfacht.`n
-Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
-Das Skript richtet sich an alle, die Windows-PCs effizient und wiederholbar einrichten möchten - egal ob für den privaten Gebrauch, im Unternehmen oder in Bildungseinrichtungen.`n
-Durch die Integration von Automatisierung und Benutzerfreundlichkeit spart der Windows Setup Helper Zeit und reduziert Fehlerquellen bei der Systemeinrichtung.`n
-Version: $global:Version
-Entwickler: $global:Author
-Lizenz: MIT
-"@
+    $Text = New-RichTextBox "About"
     $FlowPanel.Controls.Add($Text)
 
     # Zeige das Formular an

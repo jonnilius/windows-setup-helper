@@ -195,7 +195,7 @@ function ChocolateyForm {
     $PackageList.BorderStyle = "None"
     $PackageList.SelectionMode = "MultiSimple"
     $PackageList.Font = New-Object System.Drawing.Font("Consolas", 10)
-    $appList = Get-ChocoAppList
+    $appList = Read-Chocolatey -AppList
     foreach ($program in $appList) { $PackageList.Items.Add($program) | Out-Null }
     $PackageList.Add_Click({
         if ($null -eq $PackageList.SelectedItem) {
@@ -222,7 +222,7 @@ function ChocolateyForm {
     $SidebarPanel = New-Panel "Sidebar"
     # Version
     $VersionLabel = New-Object System.Windows.Forms.Label
-    $VersionLabel.Text = "Version: $(Get-ChocoVersion)"
+    $VersionLabel.Text = "Version: $(Read-Chocolatey -Version)"
     $VersionLabel.Dock = "Top"
     $VersionLabel.ForeColor = [ColorTranslator]::FromHtml("#2D3436")
     $VersionLabel.TextAlign = "MiddleCenter"

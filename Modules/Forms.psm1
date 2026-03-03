@@ -13,6 +13,7 @@ Add-Type -AssemblyName System.Windows.Forms
 *                                                                                       *
 ########################################################################################>
 function Get-Icon {
+
     param ( $Name )
     # Base64 encoded icons
     $Icons = @{
@@ -36,6 +37,8 @@ function Get-Icon {
     $stream = New-Object System.IO.MemoryStream(,$bytes)
     [Icon]::FromHandle(([Bitmap]::FromStream($stream)).GetHicon())
 }
+
+<# FORM ERSTELLEN #>
 function New-Form {
     param( [string]$FormName )
 
@@ -149,6 +152,38 @@ function New-Panel {
     
     return $panel
 }
+function New-TextBox {
+    param ( [string]$TextBoxName )
+    $Default = @{
+        Text        = "kein Text angegeben"
+        Font        = [Font]::new("Consolas", 15)
+        Dock        = "Fill"
+        AutoSize    = $false
+        ForeColor   = [ColorTranslator]::FromHtml("#C0393B")
+        BackColor   = [ColorTranslator]::FromHtml("#2D3436")
+        TextAlign   = "Center"
+        BorderStyle = "None"
+    }
+    $TextBoxData = @{
+        "DeviceName" = @{ Text = $env:COMPUTERNAME }
+    }
+    $Data = if ($TextBoxData.ContainsKey($TextBoxName)) { $TextBoxData[$TextBoxName] } else { $Default }
+
+    # TextBox-Vorlage erstellen
+    $textbox = [TextBox]::new()
+    $textbox.Text           = if ($Data.ContainsKey("Text"))        { $Data.Text }          else { $Default.Text }
+    $textbox.Font           = if ($Data.ContainsKey("Font"))        { $Data.Font }          else { $Default.Font }
+    $textbox.Dock           = if ($Data.ContainsKey("Dock"))        { $Data.Dock }          else { $Default.Dock }
+    $textbox.AutoSize       = if ($Data.ContainsKey("AutoSize"))    { $Data.AutoSize }      else { $Default.AutoSize }
+    $textbox.ForeColor      = if ($Data.ContainsKey("ForeColor"))   { $Data.ForeColor }     else { $Default.ForeColor }
+    $textbox.BackColor      = if ($Data.ContainsKey("BackColor"))   { $Data.BackColor }     else { $Default.BackColor }
+    $textbox.TextAlign      = if ($Data.ContainsKey("TextAlign"))   { $Data.TextAlign }     else { $Default.TextAlign }
+    $textbox.BorderStyle    = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle }   else { $Default.BorderStyle }
+
+    return $textbox
+}
+
+<# FERTIGE FORMS #>
 function ChocolateyForm {
     $Form = New-Form "Chocolatey"
     $PackagePanel = New-Panel "Package"
@@ -315,23 +350,16 @@ function ChocolateyForm {
     # Fenster anzeigen
     $Form.ShowDialog()
 }
-function ChangeDeviceNameForm {
+function DeviceName {
+    $Panel = New-Panel "DeviceName"
+
     $Form = New-Form "DeviceName"
     $Form.Add_Shown({ $Button.Focus() })
     
-    $Panel = New-Panel "DeviceName"
     $Form.Controls.Add($Panel)
 
     # Textbox
-    $TextBox = New-Object System.Windows.Forms.TextBox
-    $TextBox.Text = $env:COMPUTERNAME
-    $TextBox.Font = New-Object System.Drawing.Font("Consolas", 15, [FontStyle]::Regular)
-    $TextBox.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $TextBox.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $TextBox.BorderStyle = "None"
-    $TextBox.TextAlign = "Center"
-    $TextBox.Dock = "Fill"
-    $TextBox.AutoSize = $false
+    $TextBox = New-TextBox "DeviceName"
     $Panel.Controls.Add($TextBox)
 
     # Space
@@ -352,7 +380,7 @@ function ChangeDeviceNameForm {
     $Form.ShowDialog()
 }
 function AboutForm {
-    $Form = New-Form "About"
+    $Form  = New-Form "About"
     $Panel = New-Panel "About"
     
     $Form.Controls.Add($Panel)
@@ -439,7 +467,7 @@ function DebloatForm {
     # Button-Eventhandler hinzufügen
     $RemoveOneDriveButton.Add_Click( { RemoveOneDrive } )
     $UnpinStartMenuButton.Add_Click( { UnpinStartMenuIcons } )
-    $ChangeDeviceNameButton.Add_Click( { ChangeDeviceNameForm } )
+    $ChangeDeviceNameButton.Add_Click( { DeviceName } )
 
     # Zeige das Formular an
     $Form.ShowDialog()

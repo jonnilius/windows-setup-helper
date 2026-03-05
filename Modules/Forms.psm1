@@ -84,9 +84,10 @@ function New-Button {
     if ($Data.ContainsKey("FlatStyle")) { $button.FlatStyle = $Data.FlatStyle }
     if ($Data.ContainsKey("BackColor")) { $button.BackColor = $Data.BackColor }
     if ($Data.ContainsKey("ForeColor")) { $button.ForeColor = $Data.ForeColor }
+    if ($Data.ContainsKey("Cursor"))    { $button.Cursor = $Data.Cursor } else { $button.Cursor = [Cursors]::Hand }
 
 
-
+    # Events hinzufügen, wenn definiert 
     if ($Data.ContainsKey("Add_Click")) { $button.Add_Click($Data.Add_Click) }
 
     return $button

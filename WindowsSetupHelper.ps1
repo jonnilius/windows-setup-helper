@@ -20,7 +20,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 # }
 $global:AppInfo = @{
     Name       = "Windows Setup Helper"
-    Version    = "0.9.3"
+    Version    = "0.9.5"
     Author     = "jonnilius"
     Company    = "BORINAS"
     License    = "MIT License"

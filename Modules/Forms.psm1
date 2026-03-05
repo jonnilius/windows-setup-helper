@@ -76,6 +76,7 @@ function New-Button {
 
     # Button erstellen und Eigenschaften setzen
     $button = [Button]::new()
+    $button.Cursor = [Cursors]::Hand
     if ($Data.ContainsKey("Dock"))      { $button.Dock = $Data.Dock }
     if ($Data.ContainsKey("Size"))      { $button.Size = $Data.Size }
     if ($Data.ContainsKey("Font"))      { $button.Font = $Data.Font }
@@ -84,7 +85,6 @@ function New-Button {
     if ($Data.ContainsKey("FlatStyle")) { $button.FlatStyle = $Data.FlatStyle }
     if ($Data.ContainsKey("BackColor")) { $button.BackColor = $Data.BackColor }
     if ($Data.ContainsKey("ForeColor")) { $button.ForeColor = $Data.ForeColor }
-    if ($Data.ContainsKey("Cursor"))    { $button.Cursor = $Data.Cursor } else { $button.Cursor = [Cursors]::Hand }
 
 
     # Events hinzufügen, wenn definiert 

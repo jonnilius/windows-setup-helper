@@ -188,20 +188,16 @@ In diesem Fall findest du die ursprünglichen PATH-Werte in der Sicherungsdatei 
 function ChocolateyForm {
     param($FormConfig)
     $Form = New-Form $FormConfig.Form.Chocolatey
-    # $Form = New-Form -FormName "Chocolatey"
-    $PackagePanel = New-Panel "Package"
+    $PackagePanel = New-Panel $FormConfig.Panel.Chocolatey
+    
     $Form.Controls.Add($PackagePanel)
 
     ## Label INSTALLIERT
-    $PackageLabel = New-Object System.Windows.Forms.Label
-    $PackageLabel.Text = "INSTALLIERT"
-    $PackageLabel.ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
-    $PackageLabel.AutoSize = $true
-    $PackageLabel.Location = New-Object System.Drawing.Point(10,10)
-    $PackageLabel.Font = New-Object System.Drawing.Font("Consolas", 13, ([FontStyle]::Bold -bor [FontStyle]::Underline))
+    $PackageLabel = New-Label $FormConfig.Label.PackageLabel
+    
     $PackagePanel.Controls.Add($PackageLabel)
-    $SelectAllLabel = New-Object System.Windows.Forms.Label
     ## Label ALLE AUSWÄHLEN
+    $SelectAllLabel = New-Object System.Windows.Forms.Label
     $SelectAllLabel.Text = "Alle auswählen"
     $SelectAllLabel.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
     $SelectAllLabel.AutoSize = $true
@@ -250,7 +246,7 @@ function ChocolateyForm {
     $PackagePanel.Controls.Add($ProcessInfoLabel)
 
     ### Sidebar
-    $SidebarPanel = New-Panel "Sidebar"
+    $SidebarPanel = New-Panel -Config $FormConfig.Panel.Sidebar
     # Version
     $VersionLabel = New-Object System.Windows.Forms.Label
     $VersionLabel.Text = "Version: $(Read-Chocolatey -Version)"

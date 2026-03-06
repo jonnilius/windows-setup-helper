@@ -91,11 +91,82 @@ $FormConfig = @{
         }
     }
     Button = @{
-        ChangeDeviceName = @{
-            Text = "Ändern"
-            Size = [Size]::new(120,25)
-            ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+        ChocoListInstall = @{
+            Text = "INSTALLIEREN"
+            Font = [Font]::new("Consolas", 8)
+            Dock = "Bottom"
+        }
+        ChocoListMore = @{
+            Text = ("Chocolatey verwalten").ToUpper()
+            Font = [Font]::new("Consolas", 8)
+            Dock = "Bottom"
+        }
+        UninstallChoco = @{ 
+            Text = "Chocolatey entfernen"
+            Size = [Size]::new(190,25)
+            Location = [Point]::new(10,35)
+            Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
+            Dock = "Bottom"
             BackColor = [ColorTranslator]::FromHtml("#2D3436")
+            ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+            Add_Click = { 
+                $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Chocolatey wirklich entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+                if ($confirm -eq [System.Windows.Forms.DialogResult]::Yes) { return }
+                
+                # $Form.Cursor = [Cursors]::AppStarting
+                
+                Start-Sleep -Seconds 1
+                Uninstall-Chocolatey | Out-Null
+                # $Main.Cursor = [Cursors]::Default
+                Start-Sleep -Seconds 1
+                [System.Windows.Forms.MessageBox]::Show("Chocolatey wurde erfolgreich entfernt.", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+             }
+        }
+    }
+    Label = @{
+        ChocoListLabel = @{
+            Text = "Wählen Sie die Programme aus, die Sie installieren möchten:"
+            Font = [Font]::new("Consolas", 9, [FontStyle]::Italic)
+            Dock = "Top"
+            AutoSize = $false
+            TextAlign = "MiddleCenter"
+        }
+        PackageLabel = @{
+            Text = "INSTALLIERT"
+            ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
+            AutoSize = $true
+            Location = [Point]::new(10,10)
+            Font = [Font]::new("Consolas", 13, ([FontStyle]::Bold -bor [FontStyle]::Underline))
+        }
+    }
+    Panel = @{
+        About = @{
+            Padding = [Padding]::new(10)
+        }
+        DeviceName = @{
+            Padding = [Padding]::new(10)
+        }
+        Debloat = @{
+            Padding = [Padding]::new(10,5,10,5)
+        }
+        Chocolatey = @{
+            Padding = [Padding]::new(10)
+            ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+        }
+        Header = @{
+            Height = 50
+            Dock = "Top"
+            BackColor = [ColorTranslator]::FromHtml("#C0393B")
+        }
+        Footer = @{
+            Height = 15
+            Dock = "Bottom"
+            BackColor = [ColorTranslator]::FromHtml("#C0393B")
+        }
+        Sidebar = @{
+            Dock = "Right"
+            BackColor = [ColorTranslator]::FromHtml("#C0393B")
+            Padding = [Padding]::new(10,5,0,0)
         }
     }
 }
@@ -114,11 +185,11 @@ $FormConfig = @{
 ########################################################################################> 
 $Main = New-Form $FormConfig.Form.Main
 
-$ChocoPanel = New-Panel "Chocolatey"
-$ChocoListLabel = New-Label "ChocoListLabel"
+$ChocoPanel = New-Panel $FormConfig.Panel.Chocolatey
+$ChocoListLabel = New-Label $FormConfig.Label.ChocoListLabel
 $ChocoListBox   = New-CheckedListBox "ChocoListBox"
-$ChocoListInstall = New-Button "ChocoListInstall"
-$ChocoListMore = New-Label "ChocoListMore"
+$ChocoListInstall = New-Button -Config $FormConfig.Button.ChocoListInstall
+$ChocoListMore = New-Button -Config $FormConfig.Button.ChocoListMore
 
 # Installationsprozess-Info
 $InstallProcessText = New-Object System.Windows.Forms.Label
@@ -192,7 +263,7 @@ $Header = & {
         $Main.Close()
     })
     # Panel
-    $header = New-Panel "Header"
+    $header = New-Panel $FormConfig.Panel.Header
     $header.Controls.Add($label)
 
     return $header
@@ -234,7 +305,7 @@ $Footer = & {
         
         return $label
     }
-    $Panel = New-Panel "Footer"
+    $Panel = New-Panel $FormConfig.Panel.Footer
     $Panel.Controls.AddRange(@($About, $Version, $Debloat))
 
     return $Panel

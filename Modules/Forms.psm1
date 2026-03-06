@@ -40,55 +40,19 @@ function Get-Icon {
 }
 <# FORM ERSTELLEN #>
 function New-Button {
-    param( [string]$ButtonName )
-
-    # Button-Daten für verschiedene Buttons definieren
-    $ButtonData = @{
-        "ChocoListInstall" = @{
-            Text = "Installieren"
-            FlatStyle = "Flat"
-            Font = [Font]::new("Consolas", 9, [FontStyle]::Bold)
-            Dock = "Bottom"
-        }
-        "ChocoUpdate"   = @{}
-        "UninstallChoco"= @{ 
-            Text = "Chocolatey entfernen"
-            Size = [Size]::new(190,25)
-            Location = [Point]::new(10,35)
-            FlatStyle = "Flat"
-            BackColor = [ColorTranslator]::FromHtml("#2D3436")
-            ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-            Add_Click = { 
-                $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Chocolatey wirklich entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
-                if ($confirm -eq [System.Windows.Forms.DialogResult]::Yes) { return }
-                
-                # $Form.Cursor = [Cursors]::AppStarting
-                
-                Start-Sleep -Seconds 1
-                Uninstall-Chocolatey | Out-Null
-                # $Main.Cursor = [Cursors]::Default
-                Start-Sleep -Seconds 1
-                [System.Windows.Forms.MessageBox]::Show("Chocolatey wurde erfolgreich entfernt.", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-             }
-         }
-    }
-    $Data = if ($ButtonData.ContainsKey($ButtonName)) { $ButtonData[$ButtonName] } else { @{} }
+    param( [hashtable]$Config = @{} )
 
     # Button erstellen und Eigenschaften setzen
     $button = [Button]::new()
     $button.Cursor = [Cursors]::Hand
-    if ($Data.ContainsKey("Dock"))      { $button.Dock = $Data.Dock }
-    if ($Data.ContainsKey("Size"))      { $button.Size = $Data.Size }
-    if ($Data.ContainsKey("Font"))      { $button.Font = $Data.Font }
-    if ($Data.ContainsKey("Text"))      { $button.Text = $Data.Text }
-    if ($Data.ContainsKey("Location"))  { $button.Location = $Data.Location }
-    if ($Data.ContainsKey("FlatStyle")) { $button.FlatStyle = $Data.FlatStyle }
-    if ($Data.ContainsKey("BackColor")) { $button.BackColor = $Data.BackColor }
-    if ($Data.ContainsKey("ForeColor")) { $button.ForeColor = $Data.ForeColor }
+    $button.FlatStyle = "Flat"
 
-
-    # Events hinzufügen, wenn definiert 
-    if ($Data.ContainsKey("Add_Click")) { $button.Add_Click($Data.Add_Click) }
+    # Zusätzliche Konfigurationen aus $ButtonConfig anwenden
+    foreach ($key in $Config.Keys) {
+        if ($button.PSObject.Properties.Match($key)) {
+            $button.$key = $Config[$key]
+        }
+    }
 
     return $button
 }
@@ -195,7 +159,7 @@ function New-Form {
             } else {
                 Write-Verbose "Ungültiges Ereignis: $name"
             }
-        } elseif ($props -contains $key) { 
+        } elseif ($form.PSObject.Properties.Match($key)) { 
             Write-Verbose "Setze Eigenschaft: $key"
             $form.$key = $FormConfig[$key] 
         } else { 
@@ -207,44 +171,24 @@ function New-Form {
     return $form
 }
 function New-Label {
-    param( [string]$LabelName )
-
-    # Label-Daten für verschiedene Labels definieren
-    $LabelData = @{
-        "ChocoListLabel" = @{
-            Text = "Chocolatey-Pakete"
-            AutoSize = $false
-            TextAlign = "MiddleCenter"
-            Dock = "Top"
-            Font = [Font]::new("Consolas", 15, [FontStyle]::Bold)
-            # Height = 30
-        }
-        "ChocoListMore" = @{
-            Text = "Aktualisieren / Deinstallieren"
-            Font = [Font]::new("Consolas", 8)
-            TextAlign = "BottomCenter"
-            Height = 20
-            AutoSize = $false
-            Dock = "Bottom"
-            Cursor = [Cursors]::Hand
-        }
-    }
-    $Data = if ($LabelData.ContainsKey($LabelName)) { $LabelData[$LabelName] } else { @{} }
+    param( [hashtable]$Config = @{} )
 
     # Mindestanforderungen für Label-Eigenschaften
     $label = [Label]::new()
-    $label.Text = if ($Data.ContainsKey("Text")) { $Data.Text } else { "Text fehlt" }
+    $label.Text =  "Labeltext fehlt"
 
-    # Erweiterte Eigenschaften für Label
-    if ($Data.ContainsKey("Dock")) { $label.Dock = $Data.Dock } # None
-    if ($Data.ContainsKey("Font")) { $label.Font = $Data.Font } # geerbt
-    if ($Data.ContainsKey("Width")) { $label.Width = $Data.Width }
-    if ($Data.ContainsKey("Margin")) { $label.Margin = $Data.Margin } # 3,3,3,3
-    if ($Data.ContainsKey("Cursor")) { $label.Cursor = $Data.Cursor } # Default
-    if ($Data.ContainsKey("Height")) { $label.Height = $Data.Height } # 23
-    if ($Data.ContainsKey("AutoSize")) { $label.AutoSize = $Data.AutoSize } # False
-    if ($Data.ContainsKey("FlatStyle")) { $label.FlatStyle = $Data.FlatStyle } # Standard
-    if ($Data.ContainsKey("TextAlign")) { $label.TextAlign = $Data.TextAlign } # TopLeft
+
+    foreach ($key in $Config.Keys) {
+        if ($label.PSObject.Properties.Match($key)) {
+            $label.$key = $Config[$key]
+        } elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($label.GetType().GetEvents().Name -contains $name) { $label.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($label.GetType().GetEvents().Name -contains $name) { $label.$key($Config[$key]) }
+        }
+    }
 
     return $label
 }
@@ -287,48 +231,23 @@ function New-ListBox {
     return $listBox
 }
 function New-Panel {
-    param( [string]$PanelName )
-
-    $Default = @{
-        BackColor   = [ColorTranslator]::FromHtml("#2D3436")
-        Dock        = "Fill"
-        Padding     = [Padding]::new(10)
-    }
-    $PanelData = @{
-        "About"         = @{ Padding = [Padding]::new(10) }
-        "DeviceName"    = @{ Padding = [Padding]::new(10) }
-        "Debloat"       = @{ Padding = [Padding]::new(10,5,10,5) }
-        "Chocolatey"    = @{ Padding = [Padding]::new(10); ForeColor = [ColorTranslator]::FromHtml("#C0393B")}
-        "Header"        = @{
-            Height = 50
-            Dock = "Top"
-            BackColor = [ColorTranslator]::FromHtml("#C0393B")
-        }
-        "Footer"        = @{
-            Height = 15
-            Dock = "Bottom"
-            BackColor = [ColorTranslator]::FromHtml("#C0393B")
-        } 
-        "Sidebar"       = @{
-            Dock        = "Right"
-            BackColor   = [ColorTranslator]::FromHtml("#C0393B")
-            Padding     = [Padding]::new(10,5,0,0)
-        }
-        "Space"         = @{
-            Dock        = "Right"
-            Width       = 10
-        }
-    }
-    $Data = if ($PanelData.ContainsKey($PanelName)) { $PanelData[$PanelName] } else { $Default }
+    param( [hashtable]$Config = @{} )
 
     $panel = [Panel]::new()
-    $panel.Dock      = if ($Data.ContainsKey("Dock"))       { $Data.Dock }      else { $Default.Dock }
-    $panel.BackColor = if ($Data.ContainsKey("BackColor"))  { $Data.BackColor } else { $Default.BackColor }
+    $panel.Dock = "Fill"
+    $panel.BackColor = [ColorTranslator]::FromHtml("#2D3436")
 
-    if ($Data.ContainsKey("ForeColor")) { $panel.ForeColor = $Data.ForeColor }
-    if ($Data.ContainsKey("Padding"))   { $panel.Padding = $Data.Padding }
-    if ($Data.ContainsKey("Height"))    { $panel.Height = $Data.Height }
-    if ($Data.ContainsKey("Width"))     { $panel.Width = $Data.Width }
+    foreach ($key in $Config.Keys) {
+        if ($panel.PSObject.Properties.Match($key)) { $panel.$key = $Config[$key] }
+        elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
+        }
+
+    }
     
     return $panel
 }

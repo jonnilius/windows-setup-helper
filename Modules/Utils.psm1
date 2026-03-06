@@ -228,7 +228,7 @@ function DeviceName {
     $Form = New-Form $FormConfig.Form.DeviceName
     $Form.Add_Shown({ $Button.Focus() })
     
-    $Panel = New-Panel "DeviceName"
+    $Panel = New-Panel $FormConfig.Panel.DeviceName
     $Form.Controls.Add($Panel)
 
     # Textbox
@@ -256,7 +256,7 @@ function AboutForm {
     param($FormConfig)
     $Form  = New-Form $FormConfig.Form.About
     # $Form  = New-Form -FormName "About"
-    $Panel = New-Panel "About"
+    $Panel = New-Panel $FormConfig.Panel.About
     
     $Form.Controls.Add($Panel)
 
@@ -283,7 +283,7 @@ function AboutForm {
 function DebloatForm {
     param($FormConfig)
     $Form = New-Form $FormConfig.Form.Debloat
-    $Panel = New-Panel "Debloat"
+    $Panel = New-Panel $FormConfig.Panel.Debloat
     
     $Form.Controls.Add($Panel)
 

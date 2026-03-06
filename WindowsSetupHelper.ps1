@@ -53,8 +53,44 @@ $global:restartScript = $false
 $global:LabelToolTip = [ToolTip]::new() # Tooltip für Labels
 
 
-<# FUNKTIONEN ############################################################################>
-
+<# FORM-DATA ############################################################################>
+$FormConfig = @{
+    Form = @{
+        # Beim Hinzufügen von Events bezieht sich $this auf das jeweilige Form-Objekt
+        Main = @{
+            Text        = "$($AppInfo.Name) $($AppInfo.Version)"
+            Icon        = Get-Icon "Main"
+            ClientSize = [Size]::new(400,565)
+        }
+        Chocolatey = @{
+            Text        = "$($AppInfo.Name) - Chocolatey"
+            Icon        = Get-Icon "Chocolatey"
+            Size        = [Size]::new(600,300)
+        }
+        About = @{
+            Text        = "About $($AppInfo.Name)"
+            Icon        = Get-Icon "About"
+            Size        = [Size]::new(350,400)
+            FormBorderStyle = "FixedDialog"
+            KeyPreview   = $true
+            Add_KeyDown = { if ($_.KeyCode -eq "Escape") { $this.Close() } }
+        }
+        Debloat = @{
+            Text        = "Tweaks & Debloat"
+            Icon        = Get-Icon "Debloat"
+            Size        = [Size]::new(245,125)
+            FormBorderStyle = "FixedDialog"
+        }
+        DeviceName = @{
+            Text        = "Gerätename festlegen"
+            Icon        = Get-Icon "DeviceName"
+            Size        = [Size]::new(300,150)
+            # Size        = [Size]::new(300,60)
+            FormBorderStyle = "FixedDialog"
+            # Padding = [Padding]::new(10,5,10,5)
+        }
+    }
+}
 
 <### Georgia11 ##########################################################################
 *                                                                                       *
@@ -67,7 +103,7 @@ $global:LabelToolTip = [ToolTip]::new() # Tooltip für Labels
 *                         `"bmmmdPY    `bmmmmd"'  .JMML.                                *
 *                                                                                       *
 ########################################################################################> 
-$Main = New-Form "Main"
+$Main = New-Form $FormConfig.Form.Main
 
 $ChocoPanel = New-Panel "Chocolatey"
 $ChocoListLabel = New-Label "ChocoListLabel"

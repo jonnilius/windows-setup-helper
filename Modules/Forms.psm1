@@ -145,61 +145,64 @@ function New-FlowLayoutPanel {
     return $flowPanel
 }
 function New-Form {
-    param( [string]$FormName )
-    $FormData = @{
-        "Main" = @{
-            ClientSize  = [Size]::new(400,565)
-            Padding     = [Padding]::new(10,5,10,5)
-            ForeColor   = [ColorTranslator]::FromHtml("#2D3436")
-            Text        = "Windows Setup Helper - $env:USERNAME"
-            Icon        = Get-Icon "Main"
-        }
-        "Chocolatey" = @{ 
-            Size    = [Size]::new(600,300)
-            Text    = "Chocolatey - Windows Setup Helper"
-            Icon    = Get-Icon "Choco" 
-        }
-        "About" = @{ 
-            Size        = [Size]::new(350,400)
-            Text       = "About - Windows Setup Helper"
-            Icon        = Get-Icon "About" 
-            KeyPreview  = $true
-            Add_KeyDown = { if ($_.KeyCode -eq [Keys]::Escape) { $form.Close() } }
-        }
-        "Debloat" = @{ 
-            Size    = [Size]::new(245,125)
-            Text    = "Debloat - Windows Setup Helper"
-            Icon    = Get-Icon "Debloat" 
-        }
-        "DeviceName" = @{ 
-            Size    = [Size]::new(300,60)
-            Padding = [Padding]::new(10,5,10,5) 
-            Text    = "Gerätename ändern - Windows Setup Helper"
-            Icon    = Get-Icon "DeviceName"
+    [CmdletBinding()]
+    param( [hashtable]$FormConfig = @{} )
+
+    # Form erstellen und Standardwerte setzen
+    Write-Verbose "Form wird erstellt..."
+    try {
+        $form = [Form]::new()
+        $form.StartPosition = "CenterScreen"
+        $form.BackColor = [ColorTranslator]::FromHtml("#C0393B")
+        $form.ForeColor = [ColorTranslator]::FromHtml("#2D3436") 
+        $form.Padding = [Padding]::new(10)
+        $form.MaximizeBox = $false
+        $form.FormBorderStyle = "FixedSingle"
+        $form.Text = "Form ohne Titel"
+        $form.Icon = Get-Icon "Default"
+    }
+    catch {
+        Write-Error "Fehler beim Erstellen des Formulars: $_"
+        return $null
+    }
+    
+    # Debug-Informationen zu Form-Eigenschaften und -Ereignissen
+    $props = $form.PSObject.Properties.Name
+    Write-Verbose "Form-Eigenschaften: $($props -join ', ')"
+    $events = $form.GetType().GetEvents().Name
+    Write-Verbose "Form-Ereignisse: $($events -join ', ')"
+    
+    # Form-Konfigurationen anwenden
+    Write-Verbose "Form-Konfigurationen werden angewendet..."
+    foreach ($key in $FormConfig.Keys) {
+        Write-Verbose "Verarbeite Key: $key"
+        $name = $key
+
+        if ($key -like "Add_*"){ 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { 
+                Write-Verbose "Füge Ereignis-Handler hinzu: $name"
+                $form.$key($FormConfig[$key])
+            } else {
+                Write-Verbose "Ungültiges Ereignis: $name"
+            }
+        } elseif ($key -like "Remove_*"){ 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { 
+                Write-Verbose "Entferne Ereignis-Handler: $name"
+                $form.$key($FormConfig[$key])
+            } else {
+                Write-Verbose "Ungültiges Ereignis: $name"
+            }
+        } elseif ($props -contains $key) { 
+            Write-Verbose "Setze Eigenschaft: $key"
+            $form.$key = $FormConfig[$key] 
+        } else { 
+            Write-Verbose "Ungültige Form-Konfiguration: $key" 
         }
     }
-    # Initialisierung der Form-Daten für verschiedene Forms
-    $Data = if ($FormData.ContainsKey($FormName)) { $FormData[$FormName] } else { @{} }
 
-    # Form-Vorlage 
-    $form = [Form]::new()
-    $form.MaximizeBox = $false
-    $form.StartPosition = "CenterScreen"
-    $form.FormBorderStyle = "FixedSingle"
-    $form.BackColor = [ColorTranslator]::FromHtml("#C0393B")
-    $form.ForeColor = if ($Data.ContainsKey("ForeColor")) { $Data.ForeColor } else { [ColorTranslator]::FromHtml("#2D3436") }
-    $form.Padding = if ($Data.ContainsKey("Padding")) { $Data.Padding } else { [Padding]::new(10) }
-    $form.Text = if ($Data.ContainsKey("Text")) { $Data.Text } else { "fehlende Überschrift" }
-    $form.Icon = if ($Data.ContainsKey("Icon")) { $Data.Icon } else { Get-Icon "Default" }
-    
-    # Form-Erweiterte Eigenschaften
-    if ($Data.ContainsKey("KeyPreview")) { $form.KeyPreview = $Data.KeyPreview }
-    if ($Data.ContainsKey("ClientSize")) { $form.ClientSize = $Data.ClientSize }
-    if ($Data.ContainsKey("Size"))       { $form.ClientSize = $Data.Size }
-
-    # Form-Events 
-    if ($Data.ContainsKey("Add_KeyDown")) { $form.Add_KeyDown($Data.Add_KeyDown) }
-    
+    # Form zurückgeben
     return $form
 }
 function New-Label {

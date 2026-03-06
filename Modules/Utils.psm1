@@ -1,4 +1,13 @@
-﻿<# TOOLS #>
+﻿<# HELPER #>
+function Invoke-OnSuccess {
+    param($Command, $Next)
+
+    & $Command
+    if ($?) { & $Next }
+}
+
+
+<# TOOLS #>
 function ChangeDeviceName {
     param (
         [string]$NewName

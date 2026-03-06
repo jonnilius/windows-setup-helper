@@ -186,7 +186,9 @@ In diesem Fall findest du die ursprünglichen PATH-Werte in der Sicherungsdatei 
 # Export-ModuleMember -Function Read-Chocolatey, Install-Chocolatey, Uninstall-Chocolatey
 
 function ChocolateyForm {
-    $Form = New-Form "Chocolatey"
+    param($FormConfig)
+    $Form = New-Form $FormConfig.Form.Chocolatey
+    # $Form = New-Form -FormName "Chocolatey"
     $PackagePanel = New-Panel "Package"
     $Form.Controls.Add($PackagePanel)
 

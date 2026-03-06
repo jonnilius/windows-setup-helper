@@ -33,6 +33,7 @@ $global:Color = @{
 
 
 # $ErrorActionPreference = "SilentlyContinue"
+
 $env:PSModulePath += ";$PSScriptRoot\Modules"
 Import-Module "$PSScriptRoot\Modules\Utils.psm1"
 Import-Module "$PSScriptRoot\Modules\Forms.psm1"
@@ -60,37 +61,45 @@ $FormConfig = @{
         Main = @{
             Text        = "$($AppInfo.Name) $($AppInfo.Version)"
             Icon        = Get-Icon "Main"
-            ClientSize = [Size]::new(400,565)
+            ClientSize  = [Size]::new(400,565)
         }
         Chocolatey = @{
             Text        = "$($AppInfo.Name) - Chocolatey"
             Icon        = Get-Icon "Chocolatey"
-            Size        = [Size]::new(600,300)
+            ClientSize  = [Size]::new(600,300)
         }
         About = @{
             Text        = "About $($AppInfo.Name)"
             Icon        = Get-Icon "About"
-            Size        = [Size]::new(350,400)
+            ClientSize        = [Size]::new(350,400)
             FormBorderStyle = "FixedDialog"
             KeyPreview   = $true
             Add_KeyDown = { if ($_.KeyCode -eq "Escape") { $this.Close() } }
         }
         Debloat = @{
             Text        = "Tweaks & Debloat"
-            Icon        = Get-Icon "Debloat"
-            Size        = [Size]::new(245,125)
+            Icon            = Get-Icon "Debloat"
+            ClientSize      = [Size]::new(245,125)
             FormBorderStyle = "FixedDialog"
         }
         DeviceName = @{
             Text        = "Gerätename festlegen"
             Icon        = Get-Icon "DeviceName"
-            Size        = [Size]::new(300,150)
-            # Size        = [Size]::new(300,60)
+            ClientSize        = [Size]::new(300,60)
+            Padding = [Padding]::new(10,5,10,5)
             FormBorderStyle = "FixedDialog"
-            # Padding = [Padding]::new(10,5,10,5)
+        }
+    }
+    Button = @{
+        ChangeDeviceName = @{
+            Text = "Ändern"
+            Size = [Size]::new(120,25)
+            ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+            BackColor = [ColorTranslator]::FromHtml("#2D3436")
         }
     }
 }
+
 
 <### Georgia11 ##########################################################################
 *                                                                                       *
@@ -198,7 +207,7 @@ $Footer = & {
         $label.Location = [Point]::New(5,3)
         $label.Cursor = [Cursors]::Hand
         $LabelToolTip.SetTooltip($label, "Informationen über das Skript")
-        $label.Add_Click({ AboutForm })
+        $label.Add_Click({ AboutForm $FormConfig })
 
         return $label
     }
@@ -221,7 +230,7 @@ $Footer = & {
         $label.Location = [Point]::New(330,3)
         $label.Cursor = [Cursors]::Hand
         $LabelToolTip.SetTooltip($label, "Mehr Optionen")
-        $label.Add_Click({ DebloatForm })
+        $label.Add_Click({ DebloatForm $FormConfig })
         
         return $label
     }
@@ -282,7 +291,7 @@ $ChocoListInstall.Add_Click({
         }
     }
 })
-$ChocoListMore.Add_Click({ ChocolateyForm })
+$ChocoListMore.Add_Click({ ChocolateyForm $FormConfig })
 
 
 $Main.Controls.AddRange(@($ChocoPanel, $Header, $Footer))

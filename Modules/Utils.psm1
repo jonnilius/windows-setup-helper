@@ -1,11 +1,4 @@
-﻿<# HELPER #>
-function Invoke-OnSuccess {
-    param($Command, $Next)
-
-    & $Command
-    if ($?) { & $Next }
-}
-
+﻿using namespace System.Drawing
 
 <# TOOLS #>
 function ChangeDeviceName {
@@ -229,11 +222,13 @@ function UnpinStartMenuIcons {
 
 <# DIALOGE #>
 function DeviceName {
-    $Panel = New-Panel "DeviceName"
-
-    $Form = New-Form "DeviceName"
+    param($FormConfig)
+    
+    # $Form = New-Form -FormName "DeviceName"
+    $Form = New-Form $FormConfig.Form.DeviceName
     $Form.Add_Shown({ $Button.Focus() })
     
+    $Panel = New-Panel "DeviceName"
     $Form.Controls.Add($Panel)
 
     # Textbox
@@ -258,7 +253,9 @@ function DeviceName {
     $Form.ShowDialog()
 }
 function AboutForm {
-    $Form  = New-Form "About"
+    param($FormConfig)
+    $Form  = New-Form $FormConfig.Form.About
+    # $Form  = New-Form -FormName "About"
     $Panel = New-Panel "About"
     
     $Form.Controls.Add($Panel)
@@ -284,7 +281,8 @@ function AboutForm {
     $Form.ShowDialog()
 }
 function DebloatForm {
-    $Form = New-Form "Debloat"
+    param($FormConfig)
+    $Form = New-Form $FormConfig.Form.Debloat
     $Panel = New-Panel "Debloat"
     
     $Form.Controls.Add($Panel)
@@ -321,7 +319,7 @@ function DebloatForm {
     # Button-Eventhandler hinzufügen
     $RemoveOneDriveButton.Add_Click( { RemoveOneDrive } )
     $UnpinStartMenuButton.Add_Click( { UnpinStartMenuIcons } )
-    $ChangeDeviceNameButton.Add_Click( { DeviceName } )
+    $ChangeDeviceNameButton.Add_Click( { DeviceName $FormConfig } )
 
     # Zeige das Formular an
     $Form.ShowDialog()

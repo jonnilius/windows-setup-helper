@@ -188,7 +188,7 @@ In diesem Fall findest du die ursprünglichen PATH-Werte in der Sicherungsdatei 
 function ChocolateyForm {
     param($FormConfig)
     $Form = New-Form $FormConfig.Form.Chocolatey
-    $PackagePanel = New-Panel $FormConfig.Panel.Chocolatey
+    $PackagePanel = New-Panel $FormConfig.Panel.Chocolatey 
     
     $Form.Controls.Add($PackagePanel)
 

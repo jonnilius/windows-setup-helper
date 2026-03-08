@@ -1,4 +1,5 @@
-﻿using namespace System.Drawing
+﻿using namespace System.Windows.Forms
+using namespace System.Drawing
 
 <# TOOLS #>
 function ChangeDeviceName {
@@ -224,36 +225,43 @@ function UnpinStartMenuIcons {
 function DeviceName {
     param($FormConfig)
     
-    # $Form = New-Form -FormName "DeviceName"
-    $Form = New-Form $FormConfig.Form.DeviceName
-    $Form.Add_Shown({ $Button.Focus() })
-    
-    $Panel = New-Panel $FormConfig.Panel.DeviceName
+    $Form = New-Form $FormConfig.DeviceName.Properties
+    # Write-Controls $Form $FormConfig.DeviceName.Controls
+
+    $Panel = New-Control $FormConfig.DeviceName.Controls.TableLayout
+
+
     $Form.Controls.Add($Panel)
-
+    
     # Textbox
-    $TextBox = New-TextBox "DeviceName"
+    $TextBox = [TextBox]::new()
+    $TextBox.Font = [Font]::new("Consolas", 15)
+    $TextBox.Width = 200
+    $TextBox.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+    $TextBox.BackColor = [ColorTranslator]::FromHtml("#2D3436")
+    $TextBox.TextAlign = "Center"
+    $TextBox.BorderStyle = "None"
+    $TextBox.Text = $env:COMPUTERNAME
+    $TextBox.Multiline = $false
     $Panel.Controls.Add($TextBox)
-
-    # Space
-    $Space = New-Panel "Space"
-    $Panel.Controls.Add($Space)
     
     # Button 
     $Button = New-Object System.Windows.Forms.Button
     $Button.Text = "Ändern"
-    $Button.Size = New-Object System.Drawing.Size(120, 25)
-    $Button.Dock = "Right"
+    $Button.Width = 100
+    $Button.Height = 25
     $Button.FlatStyle = "Flat"
+    $Button.TextAlign = "MiddleCenter"
     $Button.BackColor = [ColorTranslator]::FromHtml("#2D3436")
     $Button.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
     $Panel.Controls.Add($Button)
     $Button.Add_Click({ ChangeDeviceName -NewName $TextBox.Text })
+    $Form.Add_Shown({ $Button.Focus() })
 
     $Form.ShowDialog()
 }
 function AboutForm {
-    param($FormConfig)
+    param([hashtable]$FormConfig)
     $Form  = New-Form $FormConfig.Form.About
     # $Form  = New-Form -FormName "About"
     $Panel = New-Panel $FormConfig.Panel.About

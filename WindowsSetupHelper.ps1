@@ -86,7 +86,7 @@ $FormConfig = @{
             Text        = "Gerätename festlegen"
             Icon        = Get-Icon "DeviceName"
             ClientSize        = [Size]::new(300,60)
-            Padding = [Padding]::new(10,5,10,5)
+            Padding = [Padding]::new(5)
             FormBorderStyle = "FixedDialog"
         }
     }
@@ -168,6 +168,97 @@ $FormConfig = @{
             BackColor = [ColorTranslator]::FromHtml("#C0393B")
             Padding = [Padding]::new(10,5,0,0)
         }
+        Space = @{
+            Dock = "Fill"
+            BackColor = [ColorTranslator]::FromHtml("#EEEEEE")
+            Height = 10
+        }
+    }
+    ## Debug-Formular-Konfigurationen (für Entwicklung und Tests)
+    Main = @{
+        Properties = @{
+            Text        = "$($AppInfo.Name) $($AppInfo.Version)"
+            ClientSize  = [Size]::new(400,565)
+            Icon        = Get-Icon "Main"
+        }
+        Controls = @{
+            ChocolateyPanel = @{
+                Control = "Panel"
+                Padding = [Padding]::new(10)
+                ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+            }
+            Header = @{
+                Control = "Panel"
+                Height = 50
+                Dock = "Top"
+                BackColor = [ColorTranslator]::FromHtml("#C0393B")
+            }
+            Footer = @{
+                Control = "Panel"
+                Height = 15
+                Dock = "Bottom"
+                BackColor = [ColorTranslator]::FromHtml("#C0393B")
+            }
+        }
+        Events = @{
+            Shown = { $this.Activate() }
+        }
+            
+    }
+    Chocolatey = @{
+        Properties = @{
+            Text = "$($AppInfo.Name) - Chocolatey"
+            ClientSize = [Size]::new(600,300)
+            Icon = Get-Icon "Chocolatey"
+        }
+    }
+    About = @{
+        Properties = @{
+            Text = "About $($AppInfo.Name)"
+            ClientSize = [Size]::new(350,400)
+            Icon = Get-Icon "About"
+            FormBorderStyle = "FixedDialog"
+            KeyPreview = $true
+        }
+        Events = @{
+            KeyDown = { if ($_.KeyCode -eq "Escape") { $this.Close() } }
+        }
+    }
+    Debloat = @{
+        Properties = @{
+            Text = "Tweaks & Debloat"
+            ClientSize = [Size]::new(245,125)
+            Icon = Get-Icon "Debloat"
+            FormBorderStyle = "FixedDialog"
+        }
+    }
+    DeviceName = @{
+        Properties = @{
+            Text = "Neuer Gerätename"
+            ClientSize  = [Size]::new(300,40)
+            Padding     = [Padding]::new(5)
+            FormBorderStyle = "FixedDialog"
+            Icon = Get-Icon "DeviceName"
+        }
+        Controls = @{
+            TableLayout = @{
+                Control = "TableLayoutPanel"
+                Dock = "Fill"
+                Padding = [Padding]::new(0)
+                ColumnCount = 2
+                RowCount = 1
+                ColumnStyles = @(
+                    [System.Windows.Forms.ColumnStyle]::new("Percent", 100),
+                    [System.Windows.Forms.ColumnStyle]::new("AutoSize")
+                )
+                RowStyles = @(
+                    [System.Windows.Forms.RowStyle]::new("Percent", 100)
+                )
+            }
+        }
+        Events = @{
+            Shown = { $Button.Focus() }
+        }
     }
 }
 
@@ -183,7 +274,7 @@ $FormConfig = @{
 *                         `"bmmmdPY    `bmmmmd"'  .JMML.                                *
 *                                                                                       *
 ########################################################################################> 
-$Main = New-Form $FormConfig.Form.Main
+$Main = New-Form $FormConfig.Main.Properties
 
 $ChocoPanel = New-Panel $FormConfig.Panel.Chocolatey
 $ChocoListLabel = New-Label $FormConfig.Label.ChocoListLabel

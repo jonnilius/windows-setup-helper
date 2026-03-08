@@ -83,93 +83,6 @@ function New-CheckedListBox {
 
     return $checkedListBox
 }
-function New-FlowLayoutPanel {
-    param( [string]$PanelName )
-
-    # FlowLayoutPanel-Daten für verschiedene Panels definieren
-    $Default = @{ 
-        Dock = "Fill"
-        BackColor = "Transparent"
-        FlowDirection = "TopDown"
-        WrapContents = $true
-    }
-    $FlowLayoutPanelData = @{ 
-        "About"     = @{}
-        "Debloat"   = @{} 
-    }
-    $Data = if ($FlowLayoutPanelData.ContainsKey($PanelName)) { $FlowLayoutPanelData[$PanelName] } else { $Default }
-
-    # FlowLayoutPanel erstellen und Eigenschaften setzen
-    $flowPanel = [FlowLayoutPanel]::new()
-    $flowPanel.Dock          = if ($Data.ContainsKey("Dock"))           { $Data.Dock }          else { $Default.Dock }
-    $flowPanel.BackColor     = if ($Data.ContainsKey("BackColor"))      { $Data.BackColor }     else { $Default.BackColor }
-    $flowPanel.WrapContents  = if ($Data.ContainsKey("WrapContents"))   { $Data.WrapContents }  else { $Default.WrapContents }
-    $flowPanel.FlowDirection = if ($Data.ContainsKey("FlowDirection"))  { $Data.FlowDirection } else { $Default.FlowDirection }
-
-    return $flowPanel
-}
-
-function New-Form {
-    [CmdletBinding()]
-    param( [hashtable]$FormConfig = @{} )
-
-    # Form erstellen und Standardwerte setzen
-    Write-Verbose "Form wird erstellt..."
-    try {
-        $form = [Form]::new()
-        $form.StartPosition = "CenterScreen"
-        $form.BackColor = [ColorTranslator]::FromHtml("#C0393B")
-        $form.ForeColor = [ColorTranslator]::FromHtml("#2D3436") 
-        $form.Padding = [Padding]::new(10)
-        $form.MaximizeBox = $false
-        $form.FormBorderStyle = "FixedSingle"
-        $form.Text = "Form ohne Titel"
-        $form.Icon = Get-Icon "Default"
-    }
-    catch {
-        Write-Error "Fehler beim Erstellen des Formulars: $_"
-        return $null
-    }
-    
-    # Debug-Informationen zu Form-Eigenschaften und -Ereignissen
-    $props = $form.PSObject.Properties.Name
-    Write-Verbose "Form-Eigenschaften: $($props -join ', ')"
-    $events = $form.GetType().GetEvents().Name
-    Write-Verbose "Form-Ereignisse: $($events -join ', ')"
-    
-    # Form-Konfigurationen anwenden
-    Write-Verbose "Form-Konfigurationen werden angewendet..."
-    foreach ($key in $FormConfig.Keys) {
-        Write-Verbose "Verarbeite Key: $key"
-        $name = $key
-
-        if ($key -like "Add_*"){ 
-            $name = $key.Substring(4) 
-            if ($events -contains $name) { 
-                Write-Verbose "Füge Ereignis-Handler hinzu: $name"
-                $form.$key($FormConfig[$key])
-            } else {
-                Write-Verbose "Ungültiges Ereignis: $name"
-            }
-        } elseif ($key -like "Remove_*"){ 
-            $name = $key.Substring(7) 
-            if ($events -contains $name) { 
-                Write-Verbose "Entferne Ereignis-Handler: $name"
-                $form.$key($FormConfig[$key])
-            } else {
-                Write-Verbose "Ungültiges Ereignis: $name"
-            }
-        } elseif ($form.PSObject.Properties.Match($key)) { 
-            Write-Verbose "Setze Eigenschaft: $key"
-            $form.$key = $FormConfig[$key] 
-        } else { 
-            Write-Verbose "Ungültige Form-Konfiguration: $key" 
-        }
-    }
-
-    # Form zurückgeben
-    return $form
-}
 function New-Label {
     param( [hashtable]$Config = @{} )
 
@@ -230,27 +143,6 @@ function New-ListBox {
 
     return $listBox
 }
-function New-Panel {
-    param( [hashtable]$Config = @{} )
-
-    $panel = [Panel]::new()
-    $panel.Dock = "Fill"
-    $panel.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-
-    foreach ($key in $Config.Keys) {
-        if ($panel.PSObject.Properties.Match($key)) { $panel.$key = $Config[$key] }
-        elseif ($key -like "Add_*") { 
-            $name = $key.Substring(4) 
-            if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
-        } elseif ($key -like "Remove_*") { 
-            $name = $key.Substring(7) 
-            if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
-        }
-
-    }
-    
-    return $panel
-}
 function New-RichTextBox {
     param ( [string]$RichTextBoxName )
     $Default = @{
@@ -291,32 +183,145 @@ Lizenz: MIT
     return $richTextBox
 }
 function New-TextBox {
-    param ( [string]$TextBoxName )
-    $Default = @{
-        Text        = "kein Text angegeben"
-        Font        = [Font]::new("Consolas", 15)
-        Dock        = "Fill"
-        AutoSize    = $false
-        ForeColor   = [ColorTranslator]::FromHtml("#C0393B")
-        BackColor   = [ColorTranslator]::FromHtml("#2D3436")
-        TextAlign   = "Center"
-        BorderStyle = "None"
-    }
-    $TextBoxData = @{
-        "DeviceName" = @{ Text = $env:COMPUTERNAME }
-    }
-    $Data = if ($TextBoxData.ContainsKey($TextBoxName)) { $TextBoxData[$TextBoxName] } else { $Default }
 
-    # TextBox-Vorlage erstellen
     $textbox = [TextBox]::new()
-    $textbox.Text           = if ($Data.ContainsKey("Text"))        { $Data.Text }          else { $Default.Text }
-    $textbox.Font           = if ($Data.ContainsKey("Font"))        { $Data.Font }          else { $Default.Font }
-    $textbox.Dock           = if ($Data.ContainsKey("Dock"))        { $Data.Dock }          else { $Default.Dock }
-    $textbox.AutoSize       = if ($Data.ContainsKey("AutoSize"))    { $Data.AutoSize }      else { $Default.AutoSize }
-    $textbox.ForeColor      = if ($Data.ContainsKey("ForeColor"))   { $Data.ForeColor }     else { $Default.ForeColor }
-    $textbox.BackColor      = if ($Data.ContainsKey("BackColor"))   { $Data.BackColor }     else { $Default.BackColor }
-    $textbox.TextAlign      = if ($Data.ContainsKey("TextAlign"))   { $Data.TextAlign }     else { $Default.TextAlign }
-    $textbox.BorderStyle    = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle }   else { $Default.BorderStyle }
 
     return $textbox
+}
+# Container Controls
+function New-Panel {
+    param( [hashtable]$Config = @{} )
+
+    $panel = [Panel]::new()
+    $panel.Dock = "Fill"
+    $panel.BackColor = [ColorTranslator]::FromHtml("#2D3436")
+
+    foreach ($key in $Config.Keys) {
+        if ($panel.PSObject.Properties.Match($key)) { $panel.$key = $Config[$key] }
+        elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
+        }
+
+    }
+    
+    return $panel
+}
+function New-FlowLayoutPanel {
+    param( [string]$PanelName )
+
+    # FlowLayoutPanel-Daten für verschiedene Panels definieren
+    $Default = @{ 
+        Dock = "Fill"
+        BackColor = "Transparent"
+        FlowDirection = "TopDown"
+        WrapContents = $true
+    }
+    $FlowLayoutPanelData = @{ 
+        "About"     = @{}
+        "Debloat"   = @{} 
+    }
+    $Data = if ($FlowLayoutPanelData.ContainsKey($PanelName)) { $FlowLayoutPanelData[$PanelName] } else { $Default }
+
+    # FlowLayoutPanel erstellen und Eigenschaften setzen
+    $flowPanel = [FlowLayoutPanel]::new()
+    $flowPanel.Dock          = if ($Data.ContainsKey("Dock"))           { $Data.Dock }          else { $Default.Dock }
+    $flowPanel.BackColor     = if ($Data.ContainsKey("BackColor"))      { $Data.BackColor }     else { $Default.BackColor }
+    $flowPanel.WrapContents  = if ($Data.ContainsKey("WrapContents"))   { $Data.WrapContents }  else { $Default.WrapContents }
+    $flowPanel.FlowDirection = if ($Data.ContainsKey("FlowDirection"))  { $Data.FlowDirection } else { $Default.FlowDirection }
+
+    return $flowPanel
+}
+function New-TableLayoutPanel {
+    param ( $Config = @{} )
+    
+    $table = [TableLayoutPanel]::new()
+    foreach ($key in $Config.Keys) {
+        switch ($key) {
+            "ColumnStyles" {
+                foreach ($style in $Config[$key]) {
+                    [void]$table.ColumnStyles.Add($style)
+                }
+                continue
+            }
+            "RowStyles" {
+                foreach ($style in $Config[$key]) {
+                    [void]$table.RowStyles.Add($style)
+                }
+                continue
+            }
+            default {
+                if ($table.GetType().GetProperty($key)) { 
+                    $table.$key = $Config[$key] 
+                }
+            }
+        }
+    }    
+    return $table
+}
+
+
+function New-Form {
+    [CmdletBinding()]
+    param( [hashtable]$FormConfig = @{} )
+
+    # Form erstellen und Standardwerte setzen
+    $form = [Form]::new()
+    $form.StartPosition = "CenterScreen"
+    $form.BackColor = [ColorTranslator]::FromHtml("#C0393B")
+    $form.ForeColor = [ColorTranslator]::FromHtml("#2D3436") 
+    $form.Padding = [Padding]::new(10)
+    $form.MaximizeBox = $false
+    $form.FormBorderStyle = "FixedSingle"
+    $form.Text = "Form ohne Titel"
+    $form.Icon = Get-Icon "Default"
+    
+    # Form-Konfigurationen anwenden
+    $events = $form.GetType().GetEvents().Name
+    foreach ($key in $FormConfig.Keys) {
+        $name = $key
+
+        if ($key -like "Add_*"){ 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $form.$key($FormConfig[$key]) }
+        } elseif ($key -like "Remove_*"){ 
+            $name = $key.Substring(7)
+            if ($events -contains $name) { $form.$key($FormConfig[$key]) } 
+        } elseif ($form.PSObject.Properties[$key]) { 
+            $form.$key = $FormConfig[$key] 
+        }
+    }
+
+    # Form zurückgeben
+    return $form
+}
+function New-Control {
+    param([hashtable]$Config)
+
+    if (-not $Config.Control) {
+        throw "Config fehlt das Feld 'Control'"
+    }
+
+    $type = $Config.Control
+    
+    $copy = $Config.Clone()
+    $copy.Remove("Control")
+
+    switch ($type) {
+
+        "Panel" {               return New-Panel $copy }
+        "FlowLayoutPanel" {     return New-FlowLayoutPanel $copy }
+        "TableLayoutPanel" {    return New-TableLayoutPanel $copy }
+
+        "Label"  { return New-Label $copy }
+        "Button" { return New-Button $copy }
+
+
+
+        default { throw "Unbekannter Control-Typ: $type" }
+
+    }
 }

@@ -186,31 +186,24 @@ In diesem Fall findest du die ursprünglichen PATH-Werte in der Sicherungsdatei 
 
 
 function UpdateChocoApps {
-    param ($form)
+    param ( $form )
 
-    # App-Liste und Prozess-Label aus dem Formular abrufen
-    $processLabel   = $form.Controls.Find("ProcessInfoLabel", $true)[0]
-    $packagesList   = $form.Controls.Find("ListBox", $true)[0]
+    # Prozesslabel für Statusinformationen abrufen und initialisieren
+    $processLabel           = $form.Controls.Find("ProcessInfoLabel", $true)[0]
+    $processLabel.Text      = "Aktualisiere ausgewählte Pakete..."
+    $processLabel.Visible   = $true
     
     # Update- und Deinstallationsbuttons abrufen
     $updateButton = $form.Controls.Find("UpdateButton", $true)[0]
     $removeButton = $form.Controls.Find("UninstallButton", $true)[0]
     
-    # Ausgewählte Pakete erfassen und UI für Aktualisierung vorbereiten
-    $selectedPackages       = @($packagesList.SelectedItems)
-    $processLabel.Visible   = $true
+    # Cursor auf "Ladevorgang" setzen und ausgewählte Pakete abrufen
     $form.Cursor            = [Cursors]::AppStarting
+    $packagesList           = $form.Controls.Find("ListBox", $true)[0]
+    $selectedPackages       = @($packagesList.SelectedItems)
     Start-Sleep -Seconds 1
 
-    # Aktualisierung der ausgewählten Pakete mit Fortschrittsanzeige
-    foreach ($package in $selectedPackages) {
-        $processLabel.Text = "Aktualisiere $package..."
-        Start-Sleep -Seconds 1
-        choco upgrade $package -y | Out-Null
-        $packagesList.Items.Remove($package)
-        Start-Sleep -Seconds 1
-        $processLabel.Text = "Aktualisierung von $package abgeschlossen."
-    }
+    choco upgrade ($selectedPackages -join ' ') -y | Out-Null
 
     # Aktualisierung abgeschlossen
     $form.Cursor        = [Cursors]::Default

@@ -14,15 +14,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
     [System.Environment]::Exit(0)
 }
-# Blende die PowerShell-Konsole aus
-# & {
-#     Add-Type -Name Win -Namespace Console -MemberDefinition '
-#   [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
-#   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-# '
-#     $consolePtr = [Console.Win]::GetConsoleWindow()
-#     [Console.Win]::ShowWindow($consolePtr, 0)  # 0 = SW_HIDE
-# }
+
 $global:AppInfo = @{
     Name       = "Windows Setup Helper"
     Version    = "0.9.6"
@@ -51,6 +43,7 @@ $env:PSModulePath += ";$PSScriptRoot\Modules"
 Import-Module "$PSScriptRoot\Modules\Utils.psm1"
 Import-Module "$PSScriptRoot\Modules\Forms.psm1"
 Import-Module "$PSScriptRoot\Modules\Chocolatey.psm1"
+
 
 $ChocoSetupList = Read-Chocolatey -SetupList
 
@@ -305,11 +298,13 @@ $FormConfig = @{
             Icon = Get-Icon "Chocolatey"
             Add_Shown = { 
                 $packagesPanel = $this.Controls["PackagePanel"]
-                $packagesPanel.Controls.Remove($packagesPanel.Controls["LoadingLabel"])
                 $packageList = $packagesPanel.Controls["ListBox"]
+                $installedList = $packagesPanel.Controls.Find("InstalledList", $true)[0]
                 $appList = Read-Chocolatey -AppList
                 foreach ($program in $appList) { 
                     [void]$packageList.Items.Add($program)
+                    [void]$installedList.Items.Add($program)
+                    # [void]$installedList.Items.Add("$($program.Name) - $($program.Version)")
                 }
             }
         }
@@ -326,6 +321,7 @@ $FormConfig = @{
                         Control = "ListBox"
                         Name = "ListBox"
                         Dock = "Fill"
+                        Visible = $false
                         Add_Click = {
                             $updateButton = $this.FindForm().Controls["SidebarPanel"].Controls["UpdateButton"]
                             $removeButton = $this.FindForm().Controls["SidebarPanel"].Controls["UninstallButton"]
@@ -338,6 +334,93 @@ $FormConfig = @{
                             }
                         }
                     }
+                    TabControl = @{
+                        Control = "TabControl"
+                        Name = "TabControl"
+                        Dock = "Fill"
+                        # Height = 100
+                        Font = [Font]::new("Consolas", 8)
+                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                        Controls = [ordered]@{
+                            Installed = @{
+                                Control = "TabPage"
+                                Text = "Installierte Programme"
+                                BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+                                ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                                Controls = @{
+                                    DetailsLabel = @{
+                                        Control = "Label"
+                                        Name = "DetailsLabel"
+                                        Text = "Wählen Sie ein installiertes Programm aus, um weitere Informationen anzuzeigen."
+                                        Dock = "Fill"
+                                        TextAlign = "MiddleCenter"
+                                        Font = [Font]::new("Consolas", 9, [FontStyle]::Italic)
+                                    }
+                                    InstalledList = @{
+                                        Control = "ListBox"
+                                        Name = "InstalledList"
+                                        Dock = "Fill"
+                                        Add_Click = {
+                                            $updateButton = $this.FindForm().Controls["SidebarPanel"].Controls["UpdateButton"]
+                                            $removeButton = $this.FindForm().Controls["SidebarPanel"].Controls["UninstallButton"]
+                                            if ($this.SelectedItems.Count -gt 0) {
+                                                $updateButton.Visible = $true
+                                                $removeButton.Visible = $true
+                                            } else {
+                                                $updateButton.Visible = $false
+                                                $removeButton.Visible = $false
+                                            }
+                                        }
+                                    }
+                                    SelectAllLabel = @{
+                                        Control = "Label"
+                                        Name = "SelectAllLabel"
+                                        Text = "Alle auswählen"
+                                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                                        # AutoSize = $true
+                                        TextAlign = "MiddleCenter"
+                                        Font = [Font]::new("Consolas", 8)
+                                        Dock = "Bottom"
+                                        Cursor = [Cursors]::Hand
+                                        Add_Click = {
+                                            $listBox = $this.FindForm().Controls.Find("InstalledList", $true)[0]
+                                            $sidebarPanel = $this.FindForm().Controls["SidebarPanel"]
+                                            $updateButton = $sidebarPanel.Controls["UpdateButton"]
+                                            $removeButton = $sidebarPanel.Controls["UninstallButton"]
+                                            if ($listBox.Items.Count -eq $listBox.SelectedItems.Count) {
+                                                $updateButton.Visible = $false
+                                                $removeButton.Visible = $false
+                                                $listBox.SelectedItems.Clear()
+                                                $this.Text = "Alle auswählen"
+                                            } else {
+                                                $updateButton.Visible = $true
+                                                $removeButton.Visible = $true
+                                                for ($i = 0; $i -lt $listBox.Items.Count; $i++) { $listBox.SetSelected($i, $true) }
+                                                $this.Text = "Alle abwählen"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Installieren = @{
+                                Control = "TabPage"
+                                Text = "Verfügbare Programme"
+                                BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+                                ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                                Controls = @{
+                                    ChangelogLabel = @{
+                                        Control = "Label"
+                                        Name    = "ChangelogLabel"
+                                        Text    = "Changelog-Informationen werden hier angezeigt, wenn ein Programm ausgewählt ist."
+                                        Dock    = "Fill"
+                                        TextAlign   = "MiddleCenter"
+                                        Font    = [Font]::new("Consolas", 9, [FontStyle]::Italic)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     ProcessInfoLabel = @{
                         Control     = "Label"
                         Name        = "ProcessInfoLabel"
@@ -346,53 +429,6 @@ $FormConfig = @{
                         Text        = "Installationsprozess..."
                         TextAlign   = "MiddleCenter"
                         Visible     = $false
-                    }
-                    ChocoHeader = @{
-                        Control = "TableLayoutPanel"
-                        ColumnCount = 2
-                        ColumnStyles = @(
-                            [System.Windows.Forms.ColumnStyle]::new("Percent", 100),
-                            [System.Windows.Forms.ColumnStyle]::new("AutoSize")
-                        )
-                        Height = 30
-                        Dock = "Top"
-                        Controls = [ordered]@{
-                            Label = @{
-                                Control = "Label"
-                                Text = "INSTALLIERT"
-                                ForeColor = [ColorTranslator]::FromHtml($Colors.White)
-                                BackColor = [ColorTranslator]::FromHtml("Transparent")
-                                AutoSize = $true
-                                Font = [Font]::new("Consolas", 13, ([FontStyle]::Bold -bor [FontStyle]::Underline))
-                            }
-                            SelectAllLabel = @{
-                                Control = "Label"
-                                Name = "SelectAllLabel"
-                                Text = "Alle auswählen"
-                                ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
-                                AutoSize = $true
-                                TextAlign = "MiddleCenter"
-                                Font = [Font]::new("Consolas", 8)
-                                Cursor = [Cursors]::Hand
-                                Add_Click = {
-                                    $listBox = $this.FindForm().Controls["PackagePanel"].Controls["ListBox"]
-                                    $sidebarPanel = $this.FindForm().Controls["SidebarPanel"]
-                                    $updateButton = $sidebarPanel.Controls["UpdateButton"]
-                                    $removeButton = $sidebarPanel.Controls["UninstallButton"]
-                                    if ($listBox.Items.Count -eq $listBox.SelectedItems.Count) {
-                                        $updateButton.Visible = $false
-                                        $removeButton.Visible = $false
-                                        $listBox.SelectedItems.Clear()
-                                        $this.Text = "Alle auswählen"
-                                    } else {
-                                        $updateButton.Visible = $true
-                                        $removeButton.Visible = $true
-                                        for ($i = 0; $i -lt $listBox.Items.Count; $i++) { $listBox.SetSelected($i, $true) }
-                                        $this.Text = "Alle abwählen"
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }

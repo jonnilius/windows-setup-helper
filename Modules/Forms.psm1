@@ -130,9 +130,9 @@ function New-Button {
 
     # Zusätzliche Konfigurationen aus $ButtonConfig anwenden
     $events = $button.GetType().GetEvents().Name
-    $prop = $button.PSObject.Properties.Name
+    $prop   = $button.PSObject.Properties.Name
     foreach ($key in $Config.Keys) {
-        if ($prop -contains $key) {
+        if ($prop -contains $key) { 
             $button.$key = $Config[$key]
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
@@ -369,6 +369,56 @@ function New-TableLayoutPanel {
     }    
     return $table
 }
+function New-TabControl {
+    param ( $Config = @{} )
+    
+    $tabControl = [TabControl]::new()
+    $prop = $tabControl.GetType().GetProperties().Name
+    foreach ($key in $Config.Keys) {
+        switch ($key) {
+            "Controls" {
+                $ControlConfig = $Config[$key]
+                foreach ($cfg in $ControlConfig.Values) {
+                    $control = New-Control $cfg
+                    $control.Name = $ControlConfig.Keys | Where-Object { $ControlConfig[$_] -eq $cfg }
+                    $tabControl.Controls.Add($control)
+                }
+                continue
+            }
+            default {
+                if ($prop -contains $key) { 
+                    $tabControl.$key = $Config[$key] 
+                }
+            }
+        }
+    }    
+    return $tabControl
+}
+function New-TabPage {
+    param ( $Config = @{} )
+    
+    $tabPage = [TabPage]::new()
+    $prop = $tabPage.GetType().GetProperties().Name
+    foreach ($key in $Config.Keys) {
+        switch ($key) {
+            "Controls" {
+                $ControlConfig = $Config[$key]
+                foreach ($cfg in $ControlConfig.Values) {
+                    $control = New-Control $cfg
+                    $control.Name = $ControlConfig.Keys | Where-Object { $ControlConfig[$_] -eq $cfg }
+                    $tabPage.Controls.Add($control)
+                }
+                continue
+            }
+            default {
+                if ($prop -contains $key) { 
+                    $tabPage.$key = $Config[$key] 
+                }
+            }
+        }
+    }    
+    return $tabPage
+}
 
 
 function New-Form {
@@ -440,6 +490,9 @@ function New-Control {
         "ListBox" { return New-ListBox $copy }
         "RichTextBox" { return New-RichTextBox $copy }
         "TextBox" { return New-TextBox $copy }
+
+        "TabControl" { return New-TabControl $copy }
+        "TabPage" { return New-TabPage $copy }
 
         default { throw "Unbekannter Control-Typ: $type" }
 

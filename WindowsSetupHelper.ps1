@@ -1,6 +1,11 @@
 ﻿using namespace System.Windows.Forms
 using namespace System.Drawing
 using namespace Console
+Add-Type -AssemblyName Microsoft.VisualBasic
+Add-Type -AssemblyName System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Windows.Forms.DataVisualization
+[System.Windows.Forms.Application]::EnableVisualStyles()
 
 
 # Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
@@ -25,12 +30,20 @@ $global:AppInfo = @{
     Company    = "BORINAS"
     License    = "MIT License"
 }
-$global:Color = @{
+$global:Colors = @{
     Accent     = "#C0393B"
     Dark       = "#2D3436"
     White      = "#EEEEEE"
 }
-
+$global:toolTip = & {
+    $toolTip = New-Object System.Windows.Forms.ToolTip
+    $toolTip.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+    $toolTip.ForeColor = [ColorTranslator]::FromHtml($Colors.White)
+    $toolTip.AutoPopDelay = 5000
+    $toolTip.InitialDelay = 500
+    $toolTip.ReshowDelay = 500
+    return $toolTip
+}
 
 # $ErrorActionPreference = "SilentlyContinue"
 
@@ -43,15 +56,10 @@ $ChocoSetupList = Read-Chocolatey -SetupList
 
 
 
-Add-Type -AssemblyName Microsoft.VisualBasic
-Add-Type -AssemblyName System.Drawing
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Windows.Forms.DataVisualization
-[System.Windows.Forms.Application]::EnableVisualStyles()
 
 # global-Variablen
 $global:restartScript = $false
-$global:LabelToolTip = [ToolTip]::new() # Tooltip für Labels
+# $global:LabelToolTip = [ToolTip]::new() # Tooltip für Labels
 
 
 <# FORM-DATA ############################################################################>
@@ -185,31 +193,281 @@ $FormConfig = @{
             ChocolateyPanel = @{
                 Control = "Panel"
                 Padding = [Padding]::new(10)
-                ForeColor = [ColorTranslator]::FromHtml("#C0393B")
+                ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                Controls = [ordered]@{
+                    ListBox = @{
+                        Control = "CheckedListBox"
+                        Font = [Font]::new("Consolas", 9)
+                        ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
+                        BackColor = [ColorTranslator]::FromHtml("#2D3436")
+                        BorderStyle = "None"
+                        DisplayMember = "Name"
+                        CheckOnClick = $true
+                        Dock = "Fill"
+                    }
+                    Label = @{
+                        Control = "Label"
+                        Text = "Wählen Sie die Programme aus, die Sie installieren möchten:"
+                        Font = [Font]::new("Consolas", 9, [FontStyle]::Italic)
+                        Dock = "Top"
+                        AutoSize = $false
+                        TextAlign = "MiddleCenter"
+                    }
+                    InstallButton = @{
+                        Control = "Button"
+                        Name = "InstallButton"
+                        Text = "Installieren".ToUpper()
+                        Font = [Font]::new("Consolas", 8)
+                        Dock = "Bottom"
+                    }
+                    MoreButton = @{
+                        Control = "Button"
+                        Name = "MoreButton"
+                        Text = ("Chocolatey verwalten").ToUpper()
+                        Font = [Font]::new("Consolas", 8)
+                        Dock = "Bottom"
+                    }
+
+                }
             }
             Header = @{
                 Control = "Panel"
                 Height = 50
                 Dock = "Top"
                 BackColor = [ColorTranslator]::FromHtml("#C0393B")
+                Controls = @{
+                    Label = @{
+                        Control = "Label"
+                        Text = "WINDOWS SETUP HELPER"
+                        ForeColor = [ColorTranslator]::FromHtml("#2D3436")
+                        BackColor = [ColorTranslator]::FromHtml("#C0393B")
+                        Font = [Font]::new("Consolas", 24, [FontStyle]::Bold)
+                        Dock = "Fill"
+                        TextAlign = "MiddleCenter"
+                        Add_DoubleClick = {
+                            # Neustart des Skripts
+                            $global:restartScript = $true
+                            $this.FindForm().Close()
+                        }
+                    }
+                }
             }
             Footer = @{
                 Control = "Panel"
                 Height = 15
                 Dock = "Bottom"
                 BackColor = [ColorTranslator]::FromHtml("#C0393B")
+                Controls = @{
+                    About = @{
+                        Control = "Label"
+                        Text = "About".ToUpper()
+                        Font = [Font]::new("Consolas", 8, [FontStyle]::Underline)
+                        BackColor = [ColorTranslator]::FromHtml("#C0393B")
+                        ForeColor = [ColorTranslator]::FromHtml("#2D3436")
+                        Location = [Point]::New(5,3)
+                        Cursor = [Cursors]::Hand
+                        ToolTip = "Informationen über das Skript"
+                        Add_Click = { AboutForm $FormConfig }
+                    }
+                    Version = @{
+                        Control = "Label"
+                        Text = "Version $($AppInfo.Version)"
+                        Font = [Font]::new("Consolas", 8, [FontStyle]::Italic)
+                        BackColor = [ColorTranslator]::FromHtml("#C0393B")
+                        ForeColor = [ColorTranslator]::FromHtml("#2D3436")
+                        Location = [Point]::New(150,3)
+                    }
+                    Debloat = @{
+                        Control = "Label"
+                        Text = "DEBLOAT"
+                        Font = [Font]::new("Consolas", 8, [FontStyle]::Underline)
+                        BackColor = [ColorTranslator]::FromHtml("#C0393B")
+                        ForeColor = [ColorTranslator]::FromHtml("#2D3436")
+                        Location = [Point]::New(330,3)
+                        Cursor = [Cursors]::Hand
+                        ToolTip = "Mehr Optionen"
+                        Add_Click = { DebloatForm $FormConfig }
+                     }
+                }
             }
         }
         Events = @{
             Shown = { $this.Activate() }
+            FormClosed = { [System.Environment]::Exit(0) }
         }
             
     }
     Chocolatey = @{
         Properties = @{
             Text = "$($AppInfo.Name) - Chocolatey"
+            Name = "ChocolateyForm"
             ClientSize = [Size]::new(600,300)
             Icon = Get-Icon "Chocolatey"
+            Add_Shown = { 
+                $packagesPanel = $this.Controls["PackagePanel"]
+                $packagesPanel.Controls.Remove($packagesPanel.Controls["LoadingLabel"])
+                $packageList = $packagesPanel.Controls["ListBox"]
+                $appList = Read-Chocolatey -AppList
+                foreach ($program in $appList) { 
+                    [void]$packageList.Items.Add($program)
+                }
+            }
+        }
+        Controls = @{
+            PackagePanel = @{
+                Control     = "Panel"
+                Name        = "PackagePanel"
+                Dock        = "Fill"
+                Padding     = [Padding]::new(10)
+                ForeColor   = [ColorTranslator]::FromHtml($Colors.Accent)
+                BackColor   = [ColorTranslator]::FromHtml($Colors.Dark)
+                Controls    = [ordered]@{
+                    ListBox = @{
+                        Control = "ListBox"
+                        Name = "ListBox"
+                        Dock = "Fill"
+                        Add_Click = {
+                            $updateButton = $this.FindForm().Controls["SidebarPanel"].Controls["UpdateButton"]
+                            $removeButton = $this.FindForm().Controls["SidebarPanel"].Controls["UninstallButton"]
+                            if ($this.SelectedItems.Count -gt 0) {
+                                $updateButton.Visible = $true
+                                $removeButton.Visible = $true
+                            } else {
+                                $updateButton.Visible = $false
+                                $removeButton.Visible = $false
+                            }
+                        }
+                    }
+                    ProcessInfoLabel = @{
+                        Control     = "Label"
+                        Name        = "ProcessInfoLabel"
+                        # ForeColor   = [ColorTranslator]::FromHtml($Colors.Accent)
+                        Dock        = "Bottom"
+                        Text        = "Installationsprozess..."
+                        TextAlign   = "MiddleCenter"
+                        Visible     = $false
+                    }
+                    ChocoHeader = @{
+                        Control = "TableLayoutPanel"
+                        ColumnCount = 2
+                        ColumnStyles = @(
+                            [System.Windows.Forms.ColumnStyle]::new("Percent", 100),
+                            [System.Windows.Forms.ColumnStyle]::new("AutoSize")
+                        )
+                        Height = 30
+                        Dock = "Top"
+                        Controls = [ordered]@{
+                            Label = @{
+                                Control = "Label"
+                                Text = "INSTALLIERT"
+                                ForeColor = [ColorTranslator]::FromHtml($Colors.White)
+                                BackColor = [ColorTranslator]::FromHtml("Transparent")
+                                AutoSize = $true
+                                Font = [Font]::new("Consolas", 13, ([FontStyle]::Bold -bor [FontStyle]::Underline))
+                            }
+                            SelectAllLabel = @{
+                                Control = "Label"
+                                Name = "SelectAllLabel"
+                                Text = "Alle auswählen"
+                                ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                                AutoSize = $true
+                                TextAlign = "MiddleCenter"
+                                Font = [Font]::new("Consolas", 8)
+                                Cursor = [Cursors]::Hand
+                                Add_Click = {
+                                    $listBox = $this.FindForm().Controls["PackagePanel"].Controls["ListBox"]
+                                    $sidebarPanel = $this.FindForm().Controls["SidebarPanel"]
+                                    $updateButton = $sidebarPanel.Controls["UpdateButton"]
+                                    $removeButton = $sidebarPanel.Controls["UninstallButton"]
+                                    if ($listBox.Items.Count -eq $listBox.SelectedItems.Count) {
+                                        $updateButton.Visible = $false
+                                        $removeButton.Visible = $false
+                                        $listBox.SelectedItems.Clear()
+                                        $this.Text = "Alle auswählen"
+                                    } else {
+                                        $updateButton.Visible = $true
+                                        $removeButton.Visible = $true
+                                        for ($i = 0; $i -lt $listBox.Items.Count; $i++) { $listBox.SetSelected($i, $true) }
+                                        $this.Text = "Alle abwählen"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            SidebarPanel = @{
+                Control     = "Panel"
+                Name        = "SidebarPanel"
+                Dock        = "Right"
+                ForeColor   = [ColorTranslator]::FromHtml($Colors.Dark)
+                BackColor   = [ColorTranslator]::FromHtml($Colors.Accent)
+                Padding     = [Padding]::new(10,5,0,0)
+                Controls = [ordered]@{
+                    RemoveChocoButton = @{
+                        Control = "Button"
+                        Text = "Chocolatey entfernen"
+                        Size = [Size]::new(190,30)
+                        # Location = [Point]::new(10,35)
+                        Dock = "Top"
+                        Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
+                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                        Add_Click = { 
+                            $confirm = Show-MessageBox "ConfirmUninstallChocolatey"
+                            # $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Chocolatey wirklich entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+                            if ($confirm -eq [System.Windows.Forms.DialogResult]::No) { return }
+                            else { $form = $this.FindForm() }
+                            
+                            $form.Cursor = [Cursors]::AppStarting
+                            
+                            Start-Sleep -Seconds 1
+                            Uninstall-Chocolatey | Out-Null
+                            $form.Cursor = [Cursors]::Default
+                            Start-Sleep -Seconds 1
+                            Show-MessageBox "UninstallChocolateySuccess"
+                        }
+                    }
+                    VersionLabel = @{
+                        Control = "Label"
+                        Text = "Version: $(Read-Chocolatey -Version)"
+                        TextAlign = "MiddleCenter"
+                        Dock = "Top"
+                        Height = 30
+                        Font = [Font]::new("Consolas", 10, [FontStyle]::Bold)
+                    }
+                    UpdateButton = @{
+                        Control = "Button"
+                        Name    = "UpdateButton"
+                        Text    = "Aktualisieren"
+                        Visible = $false
+                        Height = 30
+                        Dock    = "Bottom"
+                        Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
+                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                        Add_Click = { UpdateChocoApps $this }
+                    }
+                    Space = @{
+                        Control = "Panel"
+                        Dock = "Bottom"
+                        Height = 5
+                        BackColor = [ColorTranslator]::FromHtml("Transparent")
+                    }
+                    UninstallButton = @{
+                        Control = "Button"
+                        Name    = "UninstallButton"
+
+                        Visible = $false
+                        Text    = "Entfernen"
+                        Height  = 30
+                        Dock    = "Bottom"
+                        Font    = [Font]::new("Consolas", 8, [FontStyle]::Bold)
+                        
+                        Add_Click = { UninstallChocoApps $this }
+                    }
+                }
+            }
         }
     }
     About = @{
@@ -274,13 +532,9 @@ $FormConfig = @{
 *                         `"bmmmdPY    `bmmmmd"'  .JMML.                                *
 *                                                                                       *
 ########################################################################################> 
-$Main = New-Form $FormConfig.Main.Properties
+$Main = New-Form $FormConfig.Main
 
-$ChocoPanel = New-Panel $FormConfig.Panel.Chocolatey
-$ChocoListLabel = New-Label $FormConfig.Label.ChocoListLabel
-$ChocoListBox   = New-CheckedListBox "ChocoListBox"
-$ChocoListInstall = New-Button -Config $FormConfig.Button.ChocoListInstall
-$ChocoListMore = New-Button -Config $FormConfig.Button.ChocoListMore
+$ChocoPanel = New-Control $FormConfig.Main.Controls.ChocolateyPanel
 
 # Installationsprozess-Info
 $InstallProcessText = New-Object System.Windows.Forms.Label
@@ -331,84 +585,29 @@ foreach ($program in $ChocoSetupList.GetEnumerator()) {
         Id   = $program.Key
         Name = $program.Value
     }
-    $ChocoListBox.Items.Add($item, $false) | Out-Null
+    # $ChocoListBox = $ChocoPanel.Controls["ListBox"]
+    $ChocoPanel.Controls["ListBox"].Items.Add($item, $false) | Out-Null
 }
 if (Read-Chocolatey -Installed) {
-    $ChocoPanel.Controls.AddRange(@($ChocoListBox, $ChocoListLabel, $ChocoListInstall, $ChocoListMore))
+    # $ChocoPanel.Controls.AddRange(@($ChocoListBox, $ChocoListLabel, $ChocoListInstall, $ChocoListMore))
 } else {
     $ChocoPanel.Controls.AddRange(@($NoChocoMessage, $InstallChocoButton))
 }
 
-$Header = & {
-    # Label
-    $label = New-Object System.Windows.Forms.Label
-    $label.Text = "WINDOWS SETUP HELPER"
-    $label.ForeColor = [ColorTranslator]::FromHtml($Colors.Dark)
-    $label.BackColor = [ColorTranslator]::FromHtml($Colors.Accent)
-    $label.Font = New-Object System.Drawing.Font("Consolas", 24, [FontStyle]::Bold)
-    $label.Dock = "Fill"
-    $label.TextAlign = "MiddleCenter"
-    $label.Add_DoubleClick({
-        # Neustart des Skripts
-        $global:restartScript = $true
-        $Main.Close()
-    })
-    # Panel
-    $header = New-Panel $FormConfig.Panel.Header
-    $header.Controls.Add($label)
+$Header = New-Control $FormConfig.Main.Controls.Header
 
-    return $header
-}
-$Footer = & {
-    $About = & {
-        $label = New-Object System.Windows.Forms.Label
-        $label.Text = "About".ToUpper()
-        $label.Font = New-Object System.Drawing.Font("Consolas", 8, [FontStyle]::Underline)
-        $label.BackColor = [ColorTranslator]::FromHtml($Colors.Accent)
-        $label.ForeColor = [ColorTranslator]::FromHtml($Colors.Dark)
-        $label.Location = [Point]::New(5,3)
-        $label.Cursor = [Cursors]::Hand
-        $LabelToolTip.SetTooltip($label, "Informationen über das Skript")
-        $label.Add_Click({ AboutForm $FormConfig })
-
-        return $label
-    }
-    $Version = & {
-        $label = New-Object System.Windows.Forms.Label
-        $label.Text = "Version $($AppInfo.Version)"
-        $label.Font = New-Object System.Drawing.Font("Consolas", 8, [FontStyle]::Italic)
-        $label.BackColor = [ColorTranslator]::FromHtml($Colors.Accent)
-        $label.ForeColor = [ColorTranslator]::FromHtml($Colors.Dark)
-        $label.Location = [Point]::New(150,3)
-
-        return $label
-    }
-    $Debloat = & {
-        $label = New-Object System.Windows.Forms.Label
-        $label.Text = "DEBLOAT"
-        $label.Font = New-Object System.Drawing.Font("Consolas", 8, [FontStyle]::Underline)
-        $label.BackColor = [ColorTranslator]::FromHtml($Colors.Accent)
-        $label.ForeColor = [ColorTranslator]::FromHtml($Colors.Dark)
-        $label.Location = [Point]::New(330,3)
-        $label.Cursor = [Cursors]::Hand
-        $LabelToolTip.SetTooltip($label, "Mehr Optionen")
-        $label.Add_Click({ DebloatForm $FormConfig })
-        
-        return $label
-    }
-    $Panel = New-Panel $FormConfig.Panel.Footer
-    $Panel.Controls.AddRange(@($About, $Version, $Debloat))
-
-    return $Panel
-}
+$Footer = New-Control $FormConfig.Main.Controls.Footer
 
 
 <# EVENTS #>
-$ChocoListInstall.Add_Click({ 
+$ChocoPanel.Controls["InstallButton"].Add_Click({ 
+    
+    $listbox        = $ChocoPanel.Controls["ListBox"]
+    $installButton  = $ChocoPanel.Controls["InstallButton"]
+    $moreButton     = $ChocoPanel.Controls["MoreButton"]
+
     $selectedPrograms = @()
-    foreach ($item in $ChocoListBox.CheckedItems) {
-        $selectedPrograms += $item.Id
-    }
+    foreach ($item in $listbox.CheckedItems) { $selectedPrograms += $item.Id }
 
     
     if ($selectedPrograms.Count -eq 0) {
@@ -416,8 +615,8 @@ $ChocoListInstall.Add_Click({
     }
     else {
         choco feature enable -n allowGlobalConfirmation
-        $ChocoPanel.Controls.Remove($ChocoListInstall)
-        $ChocoPanel.Controls.Remove($ChocoListMore)
+        $ChocoPanel.Controls.Remove($installButton)
+        $ChocoPanel.Controls.Remove($moreButton)
         $ChocoPanel.Controls.Add($InstallProcessText)
         $InstallProcessText.Text = "Installiere ausgewählte Programme..."
         $Main.Cursor = [System.Windows.Forms.Cursors]::AppStarting
@@ -439,25 +638,25 @@ $ChocoListInstall.Add_Click({
         # Fenster schließen
         Start-Sleep -Seconds 2
         $ChocoPanel.Controls.Remove($InstallProcessText)
-        $ChocoPanel.Controls.Add($ChocoListInstall)
-        $ChocoPanel.Controls.Add($ChocoListMore)
+        $ChocoPanel.Controls.Add($installButton)
+        $ChocoPanel.Controls.Add($moreButton)
 
         [System.Windows.Forms.MessageBox]::Show("Alle ausgewählten Programme wurden erfolgreich installiert!", "Erfolg", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
-        $ChocoListBox.Items.Clear() # Liste leeren
+        $listbox.Items.Clear() # Liste leeren
         foreach ($program in $ChocoSetupList.GetEnumerator()) {
             $item = [PSCustomObject]@{
                 Id   = $program.Key
                 Name = $program.Value
             }
-            $ChocoListBox.Items.Add($item, $false) | Out-Null
+            $listbox.Items.Add($item, $false) | Out-Null
         }
     }
 })
-$ChocoListMore.Add_Click({ ChocolateyForm $FormConfig })
+$ChocoPanel.Controls["MoreButton"].Add_Click({ ChocolateyForm $FormConfig })
 
 
 $Main.Controls.AddRange(@($ChocoPanel, $Header, $Footer))
-$Main.Add_Shown({ $Main.Activate() })
+
 [void]$Main.ShowDialog()
 
 

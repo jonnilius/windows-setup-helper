@@ -25,7 +25,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 # }
 $global:AppInfo = @{
     Name       = "Windows Setup Helper"
-    Version    = "0.9.5"
+    Version    = "0.9.6"
     Author     = "jonnilius"
     Company    = "BORINAS"
     License    = "MIT License"
@@ -407,12 +407,8 @@ $FormConfig = @{
                     RemoveChocoButton = @{
                         Control = "Button"
                         Text = "Chocolatey entfernen"
-                        Size = [Size]::new(190,30)
-                        # Location = [Point]::new(10,35)
                         Dock = "Top"
                         Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
-                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
                         Add_Click = { 
                             $confirm = Show-MessageBox "ConfirmUninstallChocolatey"
                             # $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Chocolatey wirklich entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
@@ -441,12 +437,9 @@ $FormConfig = @{
                         Name    = "UpdateButton"
                         Text    = "Aktualisieren"
                         Visible = $false
-                        Height = 30
                         Dock    = "Bottom"
                         Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
-                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
-                        Add_Click = { UpdateChocoApps $this }
+                        Add_Click = { UpdateChocoApps $this.FindForm() }
                     }
                     Space = @{
                         Control = "Panel"
@@ -460,7 +453,6 @@ $FormConfig = @{
 
                         Visible = $false
                         Text    = "Entfernen"
-                        Height  = 30
                         Dock    = "Bottom"
                         Font    = [Font]::new("Consolas", 8, [FontStyle]::Bold)
                         

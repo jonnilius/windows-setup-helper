@@ -225,8 +225,7 @@ function UnpinStartMenuIcons {
 function DeviceName {
     param($FormConfig)
     
-    $Form = New-Form $FormConfig.DeviceName.Properties
-    # Write-Controls $Form $FormConfig.DeviceName.Controls
+    $Form = New-Form $FormConfig.DeviceName
 
     $Panel = New-Control $FormConfig.DeviceName.Controls.TableLayout
 
@@ -262,7 +261,7 @@ function DeviceName {
 }
 function AboutForm {
     param([hashtable]$FormConfig)
-    $Form  = New-Form $FormConfig.Form.About
+    $Form  = New-Form $FormConfig.About
     # $Form  = New-Form -FormName "About"
     $Panel = New-Panel $FormConfig.Panel.About
     
@@ -290,7 +289,7 @@ function AboutForm {
 }
 function DebloatForm {
     param($FormConfig)
-    $Form = New-Form $FormConfig.Form.Debloat
+    $Form = New-Form $FormConfig.Debloat.Properties
     $Panel = New-Panel $FormConfig.Panel.Debloat
     
     $Form.Controls.Add($Panel)

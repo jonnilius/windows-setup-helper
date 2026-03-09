@@ -183,162 +183,87 @@ In diesem Fall findest du die ursprünglichen PATH-Werte in der Sicherungsdatei 
         [Environment]::SetEnvironmentVariable('ChocolateyToolsLocation', [string]::Empty, $scope)
     }
 }
-# Export-ModuleMember -Function Read-Chocolatey, Install-Chocolatey, Uninstall-Chocolatey
 
+
+function UpdateChocoApps {
+    param ($form)
+
+    # App-Liste und Prozess-Label aus dem Formular abrufen
+    $processLabel   = $form.Controls.Find("ProcessInfoLabel", $true)[0]
+    $packagesList   = $form.Controls.Find("ListBox", $true)[0]
+    
+    # Update- und Deinstallationsbuttons abrufen
+    $updateButton = $form.Controls.Find("UpdateButton", $true)[0]
+    $removeButton = $form.Controls.Find("UninstallButton", $true)[0]
+    
+    # Ausgewählte Pakete erfassen und UI für Aktualisierung vorbereiten
+    $selectedPackages       = @($packagesList.SelectedItems)
+    $processLabel.Visible   = $true
+    $form.Cursor            = [Cursors]::AppStarting
+    Start-Sleep -Seconds 1
+
+    # Aktualisierung der ausgewählten Pakete mit Fortschrittsanzeige
+    foreach ($package in $selectedPackages) {
+        $processLabel.Text = "Aktualisiere $package..."
+        Start-Sleep -Seconds 1
+        choco upgrade $package -y | Out-Null
+        $packagesList.Items.Remove($package)
+        Start-Sleep -Seconds 1
+        $processLabel.Text = "Aktualisierung von $package abgeschlossen."
+    }
+
+    # Aktualisierung abgeschlossen
+    $form.Cursor        = [Cursors]::Default
+    $processLabel.Text  = "Alle ausgewählten Pakete wurden aktualisiert."
+    $packagesList.SelectedItems.Clear()
+    $packagesList.Items.Clear()
+
+    # App-Liste neu laden und UI-Elemente zurücksetzen
+    $appList = Read-Chocolatey -AppList
+    $updateButton.Visible = $false
+    $removeButton.Visible = $false
+    $processLabel.Visible = $false
+    foreach ($program in $appList) {
+        $packagesList.Items.Add($program) | Out-Null
+    }
+    # $form.Controls["SidebarPanel"].Enabled = $true
+    Start-Sleep -Seconds 2
+    Show-MessageBox "PackagesUpdated"
+}
+function UninstallChocoApps {
+    param ($button)
+    
+    $form = $button.FindForm()
+    $packagesList = $form.Controls.Find("ListBox", $true)[0]
+    $processLabel = $form.Controls.Find("ProcessInfoLabel", $true)[0]
+
+    $updateButton = $form.Controls.Find("UpdateButton", $true)[0]
+    $removeButton = $form.Controls.Find("UninstallButton", $true)[0]
+    $selectedPackages = @($packagesList.SelectedItems)
+    
+    $form.Cursor = [Cursors]::AppStarting
+    $processLabel.Visible = $true
+    Start-Sleep -Seconds 1
+
+    foreach ($package in $selectedPackages) {
+        $processLabel.Text = "Deinstalliere $package..."
+        Start-Sleep -Seconds 1
+        choco uninstall $package -y | Out-Null
+        $packagesList.Items.Remove($package)
+        Start-Sleep -Seconds 1
+        $processLabel.Text = "Deinstallation von $package abgeschlossen."
+    }
+
+    $form.Cursor = [Cursors]::Default
+    $processLabel.Text = "Alle ausgewählten Pakete wurden deinstalliert."
+    $removeButton.Visible = $false
+    $processLabel.Visible = $false
+    $updateButton.Visible = $false
+    Start-Sleep -Seconds 2
+    Show-MessageBox "PackagesUninstalled"
+}
 function ChocolateyForm {
     param($FormConfig)
-    $Form = New-Form $FormConfig.Form.Chocolatey
-    $PackagePanel = New-Panel $FormConfig.Panel.Chocolatey 
-    
-    $Form.Controls.Add($PackagePanel)
-
-    ## Label INSTALLIERT
-    $PackageLabel = New-Label $FormConfig.Label.PackageLabel
-    
-    $PackagePanel.Controls.Add($PackageLabel)
-    ## Label ALLE AUSWÄHLEN
-    $SelectAllLabel = New-Object System.Windows.Forms.Label
-    $SelectAllLabel.Text = "Alle auswählen"
-    $SelectAllLabel.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $SelectAllLabel.AutoSize = $true
-    $SelectAllLabel.Location = New-Object System.Drawing.Point(280,10)
-    $SelectAllLabel.Font = New-Object System.Drawing.Font("Consolas", 8)
-    $SelectAllLabel.Cursor = [System.Windows.Forms.Cursors]::Hand
-    $PackagePanel.Controls.Add($SelectAllLabel)
-    $SelectAllLabel.Add_Click({
-        if ($PackageList.SelectedItems.Count -eq $PackageList.Items.Count) {
-            $SidebarPanel.Controls.Remove($UpdateButton)
-            $SidebarPanel.Controls.Remove($UninstallButton)
-            $PackageList.SelectedItems.Clear()
-            $SelectAllLabel.Text = "Alle auswählen"
-        } else {
-            $SidebarPanel.Controls.Add($UpdateButton)
-            $SidebarPanel.Controls.Add($UninstallButton)
-            for ($i = 0; $i -lt $PackageList.Items.Count; $i++) {
-                $PackageList.SelectedItems.Add($PackageList.Items[$i])
-            }
-            $SelectAllLabel.Text = "Alle abwählen"
-        }
-    })
-    # Listbox
-    $PackageList = New-ListBox "Chocolatey"
-    $appList = Read-Chocolatey -AppList
-    foreach ($program in $appList) { $PackageList.Items.Add($program) | Out-Null }
-    $PackageList.Add_Click({
-        if ($null -eq $PackageList.SelectedItem) {
-            $SidebarPanel.Controls.Remove($UpdateButton)
-            $SidebarPanel.Controls.Remove($UninstallButton)
-        } else {
-            $SidebarPanel.Controls.Add($UpdateButton)
-            $SidebarPanel.Controls.Add($UninstallButton)
-        }
-    })
-    $PackagePanel.Controls.Add($PackageList)
-    # Prozess-Info
-    $ProcessInfoLabel = New-Object System.Windows.Forms.Label
-    $ProcessInfoLabel.Text = ""
-    $ProcessInfoLabel.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $ProcessInfoLabel.Padding = New-Object System.Windows.Forms.Padding(0,5,0,10)
-    $ProcessInfoLabel.Dock = "Bottom"
-    $ProcessInfoLabel.Height = 30
-    $ProcessInfoLabel.AutoSize = $false
-    $ProcessInfoLabel.TextAlign = "MiddleCenter"
-    $PackagePanel.Controls.Add($ProcessInfoLabel)
-
-    ### Sidebar
-    $SidebarPanel = New-Panel -Config $FormConfig.Panel.Sidebar
-    # Version
-    $VersionLabel = New-Object System.Windows.Forms.Label
-    $VersionLabel.Text = "Version: $(Read-Chocolatey -Version)"
-    $VersionLabel.Dock = "Top"
-    $VersionLabel.ForeColor = [ColorTranslator]::FromHtml("#2D3436")
-    $VersionLabel.TextAlign = "MiddleCenter"
-    $VersionLabel.Font = New-Object System.Drawing.Font("Consolas", 11,[FontStyle]::Bold)
-    $SidebarPanel.Controls.Add($VersionLabel)
-    # Remove Button
-    $RemoveButton = New-Object System.Windows.Forms.Button
-    $RemoveButton.Text = "Chocolatey entfernen"
-    $RemoveButton.Size = New-Object System.Drawing.Size(190,25)
-    $RemoveButton.Location = New-Object System.Drawing.Point(10,35)
-    $RemoveButton.FlatStyle = "Flat"
-    $RemoveButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $RemoveButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $RemoveButton.Add_Click({
-        $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Chocolatey wirklich entfernen? Alle über Chocolatey installierten Programme müssen danach manuell deinstalliert werden.", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
-        if ($confirm -eq [System.Windows.Forms.DialogResult]::Yes) { return }
-
-        $Form.Cursor = [System.Windows.Forms.Cursors]::AppStarting
-
-        # Chocolatey deinstallieren
-        Start-Sleep -Seconds 1 # Kurze Pause, damit der Cursorwechsel sichtbar ist
-        Uninstall-Chocolatey | Out-Null
-        $Main.Cursor = [System.Windows.Forms.Cursors]::Default
-        Start-Sleep -Seconds 1
-
-    })
-    $SidebarPanel.Controls.Add($RemoveButton)
-    # Update-Button
-    $UpdateButton = New-Object System.Windows.Forms.Button
-    $UpdateButton.Text = "Aktualisieren"
-    $UpdateButton.Size = New-Object System.Drawing.Size(190,25)
-    $UpdateButton.Location = New-Object System.Drawing.Point(10,215)
-    $UpdateButton.FlatStyle = "Flat"
-    $UpdateButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $UpdateButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $UpdateButton.Add_Click({
-        $selectedItems = @()
-        $Form.Cursor = [System.Windows.Forms.Cursors]::AppStarting
-        Start-Sleep -Seconds 1
-        foreach ($item in $PackageList.SelectedItems) {
-            $selectedItems += $item
-        }
-        foreach ($item in $selectedItems) {
-            $ProcessInfoLabel.Text = "Aktualisiere $item..."
-            choco upgrade $item -y | Out-Null
-            $PackageList.Items.Remove($item)
-            $PackageList.Items.Add($item) | Out-Null
-        }
-        $Form.Cursor = [System.Windows.Forms.Cursors]::Default
-        $ProcessInfoLabel.Text = "Aktualisierung abgeschlossen."
-        $PackageList.SelectedItems.Clear()
-        $PackageList.Items.Clear()
-        $appList = Get-ChocoAppList
-        foreach ($program in $appList) { $PackageList.Items.Add($program) | Out-Null }
-        $SidebarPanel.Controls.Remove($UpdateButton)
-        $SidebarPanel.Controls.Remove($UninstallButton)
-        $ProcessInfoLabel.Text = ""
-    })
-    # Uninstall-Button
-    $UninstallButton = New-Object System.Windows.Forms.Button
-    $UninstallButton.Text = "Deinstallieren"
-    $UninstallButton.Size = New-Object System.Drawing.Size(190,25)
-    $UninstallButton.Location = New-Object System.Drawing.Point(10,245)
-    $UninstallButton.FlatStyle = "Flat"
-    $UninstallButton.BackColor = [ColorTranslator]::FromHtml("#2D3436")
-    $UninstallButton.ForeColor = [ColorTranslator]::FromHtml("#C0393B")
-    $UninstallButton.Add_Click({
-        $selectedPackages = @()
-        $Form.Cursor = [System.Windows.Forms.Cursors]::AppStarting
-        Start-Sleep -Seconds 1
-        foreach ($item in $PackageList.SelectedItems) {
-            $selectedPackages += $item
-        }
-        foreach ($item in $selectedPackages) {
-            $ProcessInfoLabel.Text = "Deinstalliere $item..."
-            choco uninstall $item -y | Out-Null
-            $PackageList.Items.Remove($item)
-            $ProcessInfoLabel.Text = "Deinstallation von $item abgeschlossen."
-            Start-Sleep -Seconds 1
-        }
-        $Form.Cursor = [System.Windows.Forms.Cursors]::Default
-        $ProcessInfoLabel.Text = "Deinstallation abgeschlossen."
-        $SidebarPanel.Controls.Remove($UpdateButton)
-        $SidebarPanel.Controls.Remove($UninstallButton)
-        $ProcessInfoLabel.Text = ""
-    })
-
-    $Form.Controls.Add($SidebarPanel)
-
-    # Fenster anzeigen
+    $Form = New-Form $FormConfig.Chocolatey
     $Form.ShowDialog()
 }

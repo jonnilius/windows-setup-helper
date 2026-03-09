@@ -38,6 +38,82 @@ function Get-Icon {
     $stream = New-Object System.IO.MemoryStream(,$bytes)
     [Icon]::FromHandle(([Bitmap]::FromStream($stream)).GetHicon())
 }
+function Show-MessageBox {
+    param (
+        [string]$Config,
+        [string]$Text,
+        [string]$Caption = "Information",
+        [string]$Icon = "Info",
+        [string]$Buttons = "OK"
+    )
+    switch($Config){
+        "ConfirmUninstallChocolatey" {
+            $Text = "Möchten Sie Chocolatey wirklich deinstallieren?"
+            $Caption = "Chocolatey Deinstallation bestätigen"
+            $Icon = "Warning"
+            $Buttons = "YesNo"
+        }
+        "ConfirmUninstallPackages" {
+            $Text = "Möchten Sie die ausgewählten Pakete wirklich deinstallieren?"
+            $Caption = "Paketdeinstallation bestätigen"
+            $Icon = "Warning"
+            $Buttons = "YesNo"
+        }
+        "UninstallChocolateySuccess" {
+            $Text = "Chocolatey wurde erfolgreich deinstalliert."
+            $Caption = "Deinstallation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "UninstallChocolateyFailed" {
+            $Text = "Die Deinstallation von Chocolatey ist fehlgeschlagen."
+            $Caption = "Deinstallation fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+        "ErrorUpdatingPackage" {
+            $Text = "Fehler beim Aktualisieren des Pakets. Bitte überprüfen Sie die Protokolle für weitere Details."
+            $Caption = "Paketaktualisierung fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+        "PackagesUpdated" {
+            $Text = "Die ausgewählten Pakete wurden erfolgreich aktualisiert."
+            $Caption = "Aktualisierung erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "PackagesUninstalled" {
+            $Text = "Die ausgewählten Pakete wurden erfolgreich deinstalliert."
+            $Caption = "Deinstallation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+         default {
+            $Text = "Unbekannte Konfiguration: $Config"
+            $Caption = "Fehler"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+    }
+
+    $iconEnum = switch ($Icon.ToLower()) {
+        "info" { [System.Windows.Forms.MessageBoxIcon]::Information }
+        "warning" { [System.Windows.Forms.MessageBoxIcon]::Warning }
+        "error" { [System.Windows.Forms.MessageBoxIcon]::Error }
+        default { [System.Windows.Forms.MessageBoxIcon]::None }
+    }
+
+    $buttonsEnum = switch ($Buttons.ToUpper()) {
+        "OK" { [System.Windows.Forms.MessageBoxButtons]::OK }
+        "OKCANCEL" { [System.Windows.Forms.MessageBoxButtons]::OKCancel }
+        "YESNO" { [System.Windows.Forms.MessageBoxButtons]::YesNo }
+        default { [System.Windows.Forms.MessageBoxButtons]::OK }
+    }
+
+    [System.Windows.Forms.MessageBox]::Show($Text, $Caption, $buttonsEnum, $iconEnum)
+}
+
 <# FORM ERSTELLEN #>
 function New-Button {
     param( [hashtable]$Config = @{} )
@@ -47,39 +123,58 @@ function New-Button {
     $button.Cursor = [Cursors]::Hand
     $button.FlatStyle = "Flat"
 
+    # Standardwerte für Button-Eigenschaften
+    $button.Height = 30
+    $button.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+    $button.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+
     # Zusätzliche Konfigurationen aus $ButtonConfig anwenden
+    $events = $button.GetType().GetEvents().Name
+    $prop = $button.PSObject.Properties.Name
     foreach ($key in $Config.Keys) {
-        if ($button.PSObject.Properties.Match($key)) {
+        if ($prop -contains $key) {
             $button.$key = $Config[$key]
+        } elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $button.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $button.$key($Config[$key]) }
+        } elseif ($key -eq "ToolTip") {
+            if (-not $toolTip) { $toolTip = [ToolTip]::new() }
+            $toolTip.SetToolTip($button, $Config[$key])
         }
     }
 
     return $button
 }
 function New-CheckedListBox {
-    param ( [string]$CheckedListBoxName )
-    $CheckedListBoxData = @{
-        "ChocoListBox" = @{
-            Font = [Font]::new("Consolas", 9)
-            ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
-            BackColor = [ColorTranslator]::FromHtml("#2D3436")
-            BorderStyle = "None"
-            DisplayMember = "Name"
-            CheckOnClick = $true
-            Dock = "Fill"
-        }
-    }
-    $Data = if ($CheckedListBoxData.ContainsKey($CheckedListBoxName)) { $CheckedListBoxData[$CheckedListBoxName] } else { @{} }
+    param ( [hashtable]$Config = @{} )
+
+    $Data = $Config
 
     $checkedListBox = [CheckedListBox]::new()
     $checkedListBox.ForeColor = if ($Data.ContainsKey("ForeColor")) { $Data.ForeColor } else { [ColorTranslator]::FromHtml("#EEEEEE") }
     $checkedListBox.BackColor = if ($Data.ContainsKey("BackColor")) { $Data.BackColor } else { [ColorTranslator]::FromHtml("#2D3436") }
     $checkedListBox.Font = if ($Data.ContainsKey("Font")) { $Data.Font } else { [Font]::new("Consolas", 9) }
     $checkedListBox.BorderStyle = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle } else { "None" } # Fixed3D
-    $CheckedListBox.CheckOnClick = if ($Data.ContainsKey("CheckOnClick")) { $Data.CheckOnClick } # $false
-    $CheckedListBox.DisplayMember = if ($Data.ContainsKey("DisplayMember")) { $Data.DisplayMember } else { $null }
-    $CheckedListBox.Dock = if ($Data.ContainsKey("Dock")) { $Data.Dock } # None
-    
+    $checkedListBox.CheckOnClick = if ($Data.ContainsKey("CheckOnClick")) { $Data.CheckOnClick } # $false
+    $checkedListBox.DisplayMember = if ($Data.ContainsKey("DisplayMember")) { $Data.DisplayMember } else { $null }
+    $checkedListBox.Dock = if ($Data.ContainsKey("Dock")) { $Data.Dock } # None
+
+    $events = $checkedListBox.GetType().GetEvents().Name
+    foreach ($key in $Config.Keys) {
+        if ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $checkedListBox.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $checkedListBox.$key($Config[$key]) }
+        } elseif ($key -eq "ToolTip") {
+            if (-not $toolTip) { $toolTip = [ToolTip]::new() }
+            $toolTip.SetToolTip($checkedListBox, $Config[$key])
+        }
+    }
 
     return $checkedListBox
 }
@@ -89,57 +184,51 @@ function New-Label {
     # Mindestanforderungen für Label-Eigenschaften
     $label = [Label]::new()
     $label.Text =  "Labeltext fehlt"
-
+    
+    $events = $label.GetType().GetEvents().Name
 
     foreach ($key in $Config.Keys) {
-        if ($label.PSObject.Properties.Match($key)) {
+        if ($label.PSObject.Properties[$key]) {
             $label.$key = $Config[$key]
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($label.GetType().GetEvents().Name -contains $name) { $label.$key($Config[$key]) }
+            if ($events -contains $name) { $label.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($label.GetType().GetEvents().Name -contains $name) { $label.$key($Config[$key]) }
+            if ($events -contains $name) { $label.$key($Config[$key]) }
+        } elseif ($key -eq "ToolTip") {
+            if (-not $toolTip) { $toolTip = [ToolTip]::new() }
+            $toolTip.SetToolTip($label, $Config[$key])
         }
     }
 
     return $label
 }
 function New-ListBox {
-    param ( [string]$ListBoxName )
+    param ( [hashtable]$Config = @{} )
+    $listBox = [ListBox]::new()
+    $listBox.BorderStyle = "None"
+    $listBox.SelectionMode = "MultiSimple"
 
-    # ListBox-Daten für verschiedene ListBoxen definieren
-    $Default = @{
-        Font = [Font]::new("Consolas", 10)
-        Size = [Size]::new(310,305)
-        ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
-        BackColor = [ColorTranslator]::FromHtml("#2D3436")
-        BorderStyle = "None"
-    }
-    $ListBoxData = @{
-        "Chocolatey"    = @{
-            BorderStyle     = "None"
-            SelectionMode   = "MultiSimple"
-            Location        = [Point]::new(10,35)
-            Size            = [Size]::new(350,200)
-            Font            = [Font]::new("Consolas", 10)
-            ForeColor       = [ColorTranslator]::FromHtml("#EEEEEE")
-            BackColor       = [ColorTranslator]::FromHtml("#2D3436")
+    $listBox.ForeColor = [ColorTranslator]::FromHtml($Colors.White)
+    $listBox.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+    $listBox.Font = [Font]::new("Consolas", 10)
+
+    $events = $listBox.GetType().GetEvents().Name
+    foreach ($key in $Config.Keys) {
+        if ($listBox.PSObject.Properties[$key]) {
+            $listBox.$key = $Config[$key]
+        } elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $listBox.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $listBox.$key($Config[$key]) }
+        } elseif ($key -eq "ToolTip") {
+            if (-not $toolTip) { $toolTip = [ToolTip]::new() }
+            $toolTip.SetToolTip($listBox, $Config[$key])
         }
     }
-    $Data = if ($ListBoxData.ContainsKey($ListBoxName)) { $ListBoxData[$ListBoxName] } else { $Default }
-
-    # ListBox-Vorlage erstellen
-    $listBox = [ListBox]::new()
-    $listBox.Font        = if ($Data.ContainsKey("Font"))        { $Data.Font }        else { $Default.Font }
-    $listBox.Size        = if ($Data.ContainsKey("Size"))        { $Data.Size }        else { $Default.Size }
-    $listBox.ForeColor   = if ($Data.ContainsKey("ForeColor"))   { $Data.ForeColor }   else { $Default.ForeColor }
-    $listBox.BackColor   = if ($Data.ContainsKey("BackColor"))   { $Data.BackColor }   else { $Default.BackColor }
-    $listBox.BorderStyle = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle } else { $Default.BorderStyle }
-
-    # ListBox-Erweiterte Eigenschaften setzen
-    if ($Data.ContainsKey("SelectionMode")) { $listBox.SelectionMode = $Data.SelectionMode }
-    if ($Data.ContainsKey("Location")) { $listBox.Location = $Data.Location }
 
     return $listBox
 }
@@ -197,15 +286,23 @@ function New-Panel {
     $panel.BackColor = [ColorTranslator]::FromHtml("#2D3436")
 
     foreach ($key in $Config.Keys) {
-        if ($panel.PSObject.Properties.Match($key)) { $panel.$key = $Config[$key] }
+        if ($key -eq "Controls") { 
+            $ControlConfig = $Config[$key]
+            foreach ($cfg in $ControlConfig.Values) {
+                $control = New-Control $cfg
+                $control.Name = $ControlConfig.Keys | Where-Object { $ControlConfig[$_] -eq $cfg }
+                $panel.Controls.Add($control)
+            }
+         }
         elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
             if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
             if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
+        } elseif ($panel.PSObject.Properties.Match($key)) { 
+            $panel.$key = $Config[$key] 
         }
-
     }
     
     return $panel
@@ -239,8 +336,18 @@ function New-TableLayoutPanel {
     param ( $Config = @{} )
     
     $table = [TableLayoutPanel]::new()
+    $prop = $table.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
         switch ($key) {
+            "Controls" {
+                $ControlConfig = $Config[$key]
+                foreach ($cfg in $ControlConfig.Values) {
+                    $control = New-Control $cfg
+                    $control.Name = $ControlConfig.Keys | Where-Object { $ControlConfig[$_] -eq $cfg }
+                    $table.Controls.Add($control)
+                }
+                continue
+            }
             "ColumnStyles" {
                 foreach ($style in $Config[$key]) {
                     [void]$table.ColumnStyles.Add($style)
@@ -254,7 +361,7 @@ function New-TableLayoutPanel {
                 continue
             }
             default {
-                if ($table.GetType().GetProperty($key)) { 
+                if ($prop -contains $key) { 
                     $table.$key = $Config[$key] 
                 }
             }
@@ -268,6 +375,7 @@ function New-Form {
     [CmdletBinding()]
     param( [hashtable]$FormConfig = @{} )
 
+
     # Form erstellen und Standardwerte setzen
     $form = [Form]::new()
     $form.StartPosition = "CenterScreen"
@@ -279,19 +387,28 @@ function New-Form {
     $form.Text = "Form ohne Titel"
     $form.Icon = Get-Icon "Default"
     
-    # Form-Konfigurationen anwenden
-    $events = $form.GetType().GetEvents().Name
-    foreach ($key in $FormConfig.Keys) {
-        $name = $key
-
-        if ($key -like "Add_*"){ 
-            $name = $key.Substring(4) 
-            if ($events -contains $name) { $form.$key($FormConfig[$key]) }
-        } elseif ($key -like "Remove_*"){ 
-            $name = $key.Substring(7)
-            if ($events -contains $name) { $form.$key($FormConfig[$key]) } 
-        } elseif ($form.PSObject.Properties[$key]) { 
-            $form.$key = $FormConfig[$key] 
+    # Properties
+    if ($FormConfig.ContainsKey("Properties")) {
+        foreach ($key in $FormConfig.Properties.Keys) {
+            if ($form.PSObject.Properties[$key]) {
+                $form.$key = $FormConfig.Properties[$key]
+            } elseif ($key -like "Add_*") { 
+                $name = $key.Substring(4) 
+                if ($form.GetType().GetEvents().Name -contains $name) { $form.$key($FormConfig.Properties[$key]) }
+            } elseif ($key -like "Remove_*") { 
+                $name = $key.Substring(7) 
+                if ($form.GetType().GetEvents().Name -contains $name) { $form.$key($FormConfig.Properties[$key]) }
+            } elseif ($key -eq "ToolTip") {
+                if (-not $toolTip) { $toolTip = [ToolTip]::new() }
+                $toolTip.SetToolTip($form, $FormConfig.Properties[$key])
+             }
+        }
+    }
+    if ($FormConfig.ContainsKey("Controls") -and $FormConfig.Controls.ContainsKey("PackagePanel")) {
+        foreach ($cfg in $FormConfig.Controls.Values) {
+            $control = New-Control $cfg
+            $control.Name = $FormConfig.Controls.Keys | Where-Object { $FormConfig.Controls[$_] -eq $cfg }
+            $form.Controls.Add($control)
         }
     }
 
@@ -309,6 +426,7 @@ function New-Control {
     
     $copy = $Config.Clone()
     $copy.Remove("Control")
+    if ($copy -contains "Controls") { $copy.Remove("Controls") }
 
     switch ($type) {
 
@@ -318,8 +436,10 @@ function New-Control {
 
         "Label"  { return New-Label $copy }
         "Button" { return New-Button $copy }
-
-
+        "CheckedListBox" { return New-CheckedListBox $copy }
+        "ListBox" { return New-ListBox $copy }
+        "RichTextBox" { return New-RichTextBox $copy }
+        "TextBox" { return New-TextBox $copy }
 
         default { throw "Unbekannter Control-Typ: $type" }
 

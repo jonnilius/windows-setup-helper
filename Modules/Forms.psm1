@@ -83,6 +83,12 @@ function Show-MessageBox {
             $Icon = "Info"
             $Buttons = "OK"
         }
+        "PackagesInstalled" {
+            $Text = "Die ausgewählten Pakete wurden erfolgreich installiert."
+            $Caption = "Installation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
         "PackagesUninstalled" {
             $Text = "Die ausgewählten Pakete wurden erfolgreich deinstalliert."
             $Caption = "Deinstallation erfolgreich"
@@ -120,17 +126,17 @@ function New-Button {
 
     # Button erstellen und Eigenschaften setzen
     $button = [Button]::new()
-    $button.Cursor = [Cursors]::Hand
-    $button.FlatStyle = "Flat"
 
-    # Standardwerte für Button-Eigenschaften
     $button.Height = 30
+    $button.FlatStyle = "Flat"
+    $button.Cursor = [Cursors]::Hand
+    $button.Font = [Font]::new("Consolas", 10)
     $button.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
     $button.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
 
     # Zusätzliche Konfigurationen aus $ButtonConfig anwenden
     $events = $button.GetType().GetEvents().Name
-    $prop   = $button.PSObject.Properties.Name
+    $prop   = $button.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
         if ($prop -contains $key) { 
             $button.$key = $Config[$key]
@@ -151,16 +157,14 @@ function New-Button {
 function New-CheckedListBox {
     param ( [hashtable]$Config = @{} )
 
-    $Data = $Config
-
     $checkedListBox = [CheckedListBox]::new()
-    $checkedListBox.ForeColor = if ($Data.ContainsKey("ForeColor")) { $Data.ForeColor } else { [ColorTranslator]::FromHtml("#EEEEEE") }
-    $checkedListBox.BackColor = if ($Data.ContainsKey("BackColor")) { $Data.BackColor } else { [ColorTranslator]::FromHtml("#2D3436") }
-    $checkedListBox.Font = if ($Data.ContainsKey("Font")) { $Data.Font } else { [Font]::new("Consolas", 9) }
-    $checkedListBox.BorderStyle = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle } else { "None" } # Fixed3D
-    $checkedListBox.CheckOnClick = if ($Data.ContainsKey("CheckOnClick")) { $Data.CheckOnClick } # $false
-    $checkedListBox.DisplayMember = if ($Data.ContainsKey("DisplayMember")) { $Data.DisplayMember } else { $null }
-    $checkedListBox.Dock = if ($Data.ContainsKey("Dock")) { $Data.Dock } # None
+    $checkedListBox.DisplayMember   = "Name"
+    $checkedListBox.CheckOnClick    = $true
+    $checkedListBox.BorderStyle     = "None"
+    $checkedListBox.Font            = [Font]::new("Consolas", 9) 
+    $checkedListBox.ForeColor       = [ColorTranslator]::FromHtml($Colors.White)
+    $checkedListBox.BackColor       = [ColorTranslator]::FromHtml($Colors.Dark) 
+    $checkedListBox.Dock            = "Fill"
 
     $events = $checkedListBox.GetType().GetEvents().Name
     foreach ($key in $Config.Keys) {
@@ -173,6 +177,19 @@ function New-CheckedListBox {
         } elseif ($key -eq "ToolTip") {
             if (-not $toolTip) { $toolTip = [ToolTip]::new() }
             $toolTip.SetToolTip($checkedListBox, $Config[$key])
+        } elseif ($key -eq "Items") {
+            foreach ($program in $Config[$key]) {
+                
+                $item = [PSCustomObject]@{
+                    Id = $program.Key
+                    Name = $program.Value
+                }
+                $checkedListBox.Items.Add($item, $false) | Out-Null
+            }
+        } else {
+            if ($checkedListBox.PSObject.Properties[$key]) {
+                $checkedListBox.$key = $Config[$key]
+            }
         }
     }
 
@@ -227,47 +244,43 @@ function New-ListBox {
         } elseif ($key -eq "ToolTip") {
             if (-not $toolTip) { $toolTip = [ToolTip]::new() }
             $toolTip.SetToolTip($listBox, $Config[$key])
+        } elseif ($key -eq "Items") {
+            foreach ($item in $Config[$key]) {
+                $listBox.Items.Add($item) | Out-Null
+            }
         }
     }
 
     return $listBox
 }
 function New-RichTextBox {
-    param ( [string]$RichTextBoxName )
-    $Default = @{
-        Font = [Font]::new("Consolas", 10)
-        Size = [Size]::new(310,305)
-        ForeColor = [ColorTranslator]::FromHtml("#EEEEEE")
-        BackColor = [ColorTranslator]::FromHtml("#2D3436")
-        BorderStyle = "None"
-        ReadOnly = $true
-        Text = "kein Text angegeben"
-    }
-    $RichTextBoxData = @{
-        "About"     = @{
-            Size        = [Size]::new(310,305)
-            Text        = @"
-Windows Setup Shelper ist ein PowerShell-Skript, das die Einrichtung und Grundkonfiguration eines Windows-Systems deutlich vereinfacht.`n
-Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
-Das Skript richtet sich an alle, die Windows-PCs effizient und wiederholbar einrichten möchten - egal ob für den privaten Gebrauch, im Unternehmen oder in Bildungseinrichtungen.`n
-Durch die Integration von Automatisierung und Benutzerfreundlichkeit spart der Windows Setup Helper Zeit und reduziert Fehlerquellen bei der Systemeinrichtung.`n
-Version: $Version
-Entwickler: $Author
-Lizenz: MIT
-"@
-        }
-    }
-    $Data = if ($RichTextBoxData.ContainsKey($RichTextBoxName)) { $RichTextBoxData[$RichTextBoxName] } else { $Default }
+    param ( [hashtable]$Config = @{})
 
     # RichTextBox-Vorlage erstellen
     $richTextBox = [RichTextBox]::new()
-    $richTextBox.Font        = if ($Data.ContainsKey("Font"))        { $Data.Font }        else { $Default.Font }
-    $richTextBox.Size        = if ($Data.ContainsKey("Size"))        { $Data.Size }        else { $Default.Size }
-    $richTextBox.Text        = if ($Data.ContainsKey("Text"))        { $Data.Text }        else { $Default.Text }
-    $richTextBox.ReadOnly    = if ($Data.ContainsKey("ReadOnly"))    { $Data.ReadOnly }    else { $Default.ReadOnly }
-    $richTextBox.ForeColor   = if ($Data.ContainsKey("ForeColor"))   { $Data.ForeColor }   else { $Default.ForeColor }
-    $richTextBox.BackColor   = if ($Data.ContainsKey("BackColor"))   { $Data.BackColor }   else { $Default.BackColor }
-    $richTextBox.BorderStyle = if ($Data.ContainsKey("BorderStyle")) { $Data.BorderStyle } else { $Default.BorderStyle }
+    $richTextBox.Font        = [Font]::new("Consolas", 10)
+    $richTextBox.Text        = "kein Text angegeben"
+    $richTextBox.ReadOnly    = $true
+    $richTextBox.ForeColor   = [ColorTranslator]::FromHtml($Colors.White)
+    $richTextBox.BackColor   = [ColorTranslator]::FromHtml($Colors.Dark)
+    $richTextBox.BorderStyle = "None"
+
+    $props   = $richTextBox.GetType().GetProperties().Name
+    $events  = $richTextBox.GetType().GetEvents().Name
+    foreach ($key in $Config.Keys) {
+        if ($props -contains $key) { 
+            $richTextBox.$key = $Config[$key] 
+        } elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $richTextBox.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $richTextBox.$key($Config[$key]) }
+        } elseif ($key -eq "ToolTip") {
+            if (-not $toolTip) { $toolTip = [ToolTip]::new() }
+            $toolTip.SetToolTip($richTextBox, $Config[$key])
+        }
+    }
 
     return $richTextBox
 }
@@ -283,7 +296,8 @@ function New-Panel {
 
     $panel = [Panel]::new()
     $panel.Dock = "Fill"
-    $panel.BackColor = [ColorTranslator]::FromHtml("#2D3436")
+    $panel.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+    $panel.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
 
     foreach ($key in $Config.Keys) {
         if ($key -eq "Controls") { 
@@ -308,27 +322,37 @@ function New-Panel {
     return $panel
 }
 function New-FlowLayoutPanel {
-    param( [string]$PanelName )
+    param( [hashtable]$Config = @{} )
 
-    # FlowLayoutPanel-Daten für verschiedene Panels definieren
-    $Default = @{ 
-        Dock = "Fill"
-        BackColor = "Transparent"
-        FlowDirection = "TopDown"
-        WrapContents = $true
-    }
-    $FlowLayoutPanelData = @{ 
-        "About"     = @{}
-        "Debloat"   = @{} 
-    }
-    $Data = if ($FlowLayoutPanelData.ContainsKey($PanelName)) { $FlowLayoutPanelData[$PanelName] } else { $Default }
-
-    # FlowLayoutPanel erstellen und Eigenschaften setzen
     $flowPanel = [FlowLayoutPanel]::new()
-    $flowPanel.Dock          = if ($Data.ContainsKey("Dock"))           { $Data.Dock }          else { $Default.Dock }
-    $flowPanel.BackColor     = if ($Data.ContainsKey("BackColor"))      { $Data.BackColor }     else { $Default.BackColor }
-    $flowPanel.WrapContents  = if ($Data.ContainsKey("WrapContents"))   { $Data.WrapContents }  else { $Default.WrapContents }
-    $flowPanel.FlowDirection = if ($Data.ContainsKey("FlowDirection"))  { $Data.FlowDirection } else { $Default.FlowDirection }
+    $flowPanel.Dock             = "Fill"
+    $flowPanel.AutoScroll       = $false
+    $flowPanel.WrapContents     = $false
+    $flowPanel.FlowDirection    = "TopDown"
+    $flowPanel.ForeColor        = [ColorTranslator]::FromHtml($Colors.Accent)
+    $flowPanel.BackColor        = [ColorTranslator]::FromHtml($Colors.Dark)
+
+    # Properties und Events
+    $props  = $flowPanel.GetType().GetProperties().Name
+    $events = $flowPanel.GetType().GetEvents().Name
+    foreach ($key in $Config.Keys) {
+        if ($key -eq "Controls") { 
+            $ControlConfig = $Config[$key]
+            foreach ($item in $ControlConfig.GetEnumerator()) {
+                $control        = New-Control $item.Value
+                $control.Name   = $item.Key
+                $flowPanel.Controls.Add($control)
+            }
+         } elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $flowPanel.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $flowPanel.$key($Config[$key]) }
+        } elseif ($props -contains $key) { 
+            $flowPanel.$key = $Config[$key] 
+        }
+    }
 
     return $flowPanel
 }
@@ -341,9 +365,9 @@ function New-TableLayoutPanel {
         switch ($key) {
             "Controls" {
                 $ControlConfig = $Config[$key]
-                foreach ($cfg in $ControlConfig.Values) {
-                    $control = New-Control $cfg
-                    $control.Name = $ControlConfig.Keys | Where-Object { $ControlConfig[$_] -eq $cfg }
+                foreach ($item in $ControlConfig.GetEnumerator()) {
+                    $control        = New-Control $item.Value
+                    $control.Name   = $item.Key
                     $table.Controls.Add($control)
                 }
                 continue
@@ -373,16 +397,27 @@ function New-TabControl {
     param ( $Config = @{} )
     
     $tabControl = [TabControl]::new()
-    $prop = $tabControl.GetType().GetProperties().Name
+    $tabControl.Dock = "Fill"
+    $tabControl.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+    $tabControl.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+    $tabControl.Font = [Font]::new("Consolas", 10)
+
+    $prop   = $tabControl.GetType().GetProperties().Name
+    $events = $tabControl.GetType().GetEvents().Name
     foreach ($key in $Config.Keys) {
-        switch ($key) {
+        switch -Wildcard ($key) {
             "Controls" {
                 $ControlConfig = $Config[$key]
-                foreach ($cfg in $ControlConfig.Values) {
-                    $control = New-Control $cfg
-                    $control.Name = $ControlConfig.Keys | Where-Object { $ControlConfig[$_] -eq $cfg }
+                foreach ($item in $ControlConfig.GetEnumerator()) {
+                    $control        = New-Control $item.Value
+                    $control.Name   = $item.Key
                     $tabControl.Controls.Add($control)
                 }
+                continue
+            }
+            "Add_*" {
+                $name = $key.Substring(4) 
+                if ($events -contains $name) { $tabControl.$key($Config[$key]) }
                 continue
             }
             default {
@@ -393,19 +428,24 @@ function New-TabControl {
         }
     }    
     return $tabControl
-}
+}   
 function New-TabPage {
     param ( $Config = @{} )
     
     $tabPage = [TabPage]::new()
+    $tabPage.BorderStyle = "None"
+    $tabPage.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+    $tabPage.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+
+
     $prop = $tabPage.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
         switch ($key) {
             "Controls" {
                 $ControlConfig = $Config[$key]
-                foreach ($cfg in $ControlConfig.Values) {
-                    $control = New-Control $cfg
-                    $control.Name = $ControlConfig.Keys | Where-Object { $ControlConfig[$_] -eq $cfg }
+                foreach ($item in $ControlConfig.GetEnumerator()) {
+                    $control        = New-Control $item.Value
+                    $control.Name   = $item.Key
                     $tabPage.Controls.Add($control)
                 }
                 continue
@@ -454,11 +494,21 @@ function New-Form {
              }
         }
     }
-    if ($FormConfig.ContainsKey("Controls") -and $FormConfig.Controls.ContainsKey("PackagePanel")) {
-        foreach ($cfg in $FormConfig.Controls.Values) {
+    if ($FormConfig.ContainsKey("Controls")) {
+        foreach ($controlName in $FormConfig.Controls.Keys) {
+            $cfg = $FormConfig.Controls[$controlName]
             $control = New-Control $cfg
-            $control.Name = $FormConfig.Controls.Keys | Where-Object { $FormConfig.Controls[$_] -eq $cfg }
+            $control.Name = $controlName
             $form.Controls.Add($control)
+        }
+    }
+    if ($FormConfig.ContainsKey("Events")) {
+        $events = $form.GetType().GetEvents().Name
+        foreach ($key in $FormConfig.Events.Keys) {
+            if ($events -contains $key) {
+                $name = "Add_$key"
+                $form.$name($FormConfig.Events[$key])
+            }
         }
     }
 
@@ -466,33 +516,31 @@ function New-Form {
     return $form
 }
 function New-Control {
-    param([hashtable]$Config)
+    param( [hashtable]$Config )
+    if (-not $Config.Control) { throw "Config fehlt das Feld 'Control'" }
 
-    if (-not $Config.Control) {
-        throw "Config fehlt das Feld 'Control'"
-    }
 
     $type = $Config.Control
-    
     $copy = $Config.Clone()
     $copy.Remove("Control")
-    if ($copy -contains "Controls") { $copy.Remove("Controls") }
-
+    
     switch ($type) {
+        # Container Controls
+        "Panel" {            return New-Panel $copy }
+        "FlowLayoutPanel" {  return New-FlowLayoutPanel $copy }
+        "TableLayoutPanel" { return New-TableLayoutPanel $copy }
 
-        "Panel" {               return New-Panel $copy }
-        "FlowLayoutPanel" {     return New-FlowLayoutPanel $copy }
-        "TableLayoutPanel" {    return New-TableLayoutPanel $copy }
-
-        "Label"  { return New-Label $copy }
-        "Button" { return New-Button $copy }
+        # Standard Controls
+        "Button" {         return New-Button $copy }
+        "Label"  {         return New-Label $copy }
+        "TextBox" {        return New-TextBox $copy }
+        "RichTextBox" {    return New-RichTextBox $copy }
+        "ListBox" {        return New-ListBox $copy }
         "CheckedListBox" { return New-CheckedListBox $copy }
-        "ListBox" { return New-ListBox $copy }
-        "RichTextBox" { return New-RichTextBox $copy }
-        "TextBox" { return New-TextBox $copy }
 
+        # Tab Controls
         "TabControl" { return New-TabControl $copy }
-        "TabPage" { return New-TabPage $copy }
+        "TabPage" {    return New-TabPage $copy }
 
         default { throw "Unbekannter Control-Typ: $type" }
 

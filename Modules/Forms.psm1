@@ -124,9 +124,9 @@ function Show-MessageBox {
 function New-Button {
     param( [hashtable]$Config = @{} )
 
-    # Button erstellen und Eigenschaften setzen
     $button = [Button]::new()
 
+    # Default-Stil anwenden
     $button.Height = 30
     $button.FlatStyle = "Flat"
     $button.Cursor = [Cursors]::Hand
@@ -134,7 +134,7 @@ function New-Button {
     $button.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
     $button.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
 
-    # Zusätzliche Konfigurationen aus $ButtonConfig anwenden
+    # Properties und Events dynamisch setzen
     $events = $button.GetType().GetEvents().Name
     $prop   = $button.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
@@ -152,12 +152,13 @@ function New-Button {
         }
     }
 
-    return $button
+    $button
 }
 function New-CheckedListBox {
     param ( [hashtable]$Config = @{} )
 
     $checkedListBox = [CheckedListBox]::new()
+
     $checkedListBox.DisplayMember   = "Name"
     $checkedListBox.CheckOnClick    = $true
     $checkedListBox.BorderStyle     = "None"
@@ -166,7 +167,9 @@ function New-CheckedListBox {
     $checkedListBox.BackColor       = [ColorTranslator]::FromHtml($Colors.Dark) 
     $checkedListBox.Dock            = "Fill"
 
+    # Dynamisch Properties und Events setzen
     $events = $checkedListBox.GetType().GetEvents().Name
+    $prop   = $checkedListBox.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
         if ($key -like "Add_*") { 
             $name = $key.Substring(4) 
@@ -179,13 +182,14 @@ function New-CheckedListBox {
             $toolTip.SetToolTip($checkedListBox, $Config[$key])
         } elseif ($key -eq "Items") {
             foreach ($program in $Config[$key]) {
-                
                 $item = [PSCustomObject]@{
                     Id = $program.Key
                     Name = $program.Value
                 }
                 $checkedListBox.Items.Add($item, $false) | Out-Null
             }
+        } elseif ($prop -contains $key) { 
+            $checkedListBox.$key = $Config[$key]
         } else {
             if ($checkedListBox.PSObject.Properties[$key]) {
                 $checkedListBox.$key = $Config[$key]
@@ -193,7 +197,7 @@ function New-CheckedListBox {
         }
     }
 
-    return $checkedListBox
+    $checkedListBox
 }
 function New-Label {
     param( [hashtable]$Config = @{} )
@@ -202,10 +206,11 @@ function New-Label {
     $label = [Label]::new()
     $label.Text =  "Labeltext fehlt"
     
+    # Properties und Events dynamisch setzen
     $events = $label.GetType().GetEvents().Name
-
+    $prop   = $label.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
-        if ($label.PSObject.Properties[$key]) {
+        if ($prop -contains $key) {
             $label.$key = $Config[$key]
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
@@ -216,6 +221,10 @@ function New-Label {
         } elseif ($key -eq "ToolTip") {
             if (-not $toolTip) { $toolTip = [ToolTip]::new() }
             $toolTip.SetToolTip($label, $Config[$key])
+        } else {
+            if ($label.PSObject.Properties[$key]) {
+                $label.$key = $Config[$key]
+            }
         }
     }
 
@@ -231,11 +240,11 @@ function New-ListBox {
     $listBox.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
     $listBox.Font = [Font]::new("Consolas", 10)
 
+    # Dynamisch Properties und Events setzen
     $events = $listBox.GetType().GetEvents().Name
+    $props  = $listBox.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
-        if ($listBox.PSObject.Properties[$key]) {
-            $listBox.$key = $Config[$key]
-        } elseif ($key -like "Add_*") { 
+        if ($key -like "Add_*") { 
             $name = $key.Substring(4) 
             if ($events -contains $name) { $listBox.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
@@ -248,16 +257,22 @@ function New-ListBox {
             foreach ($item in $Config[$key]) {
                 $listBox.Items.Add($item) | Out-Null
             }
+        } elseif ($props -contains $key) {
+            $listBox.$key = $Config[$key]
+        } else {
+            if ($listBox.PSObject.Properties[$key]) {
+                $listBox.$key = $Config[$key]
+            }
         }
     }
 
-    return $listBox
+    $listBox
 }
 function New-RichTextBox {
-    param ( [hashtable]$Config = @{})
+    param ( [hashtable]$Config = @{} )
 
-    # RichTextBox-Vorlage erstellen
     $richTextBox = [RichTextBox]::new()
+    
     $richTextBox.Font        = [Font]::new("Consolas", 10)
     $richTextBox.Text        = "kein Text angegeben"
     $richTextBox.ReadOnly    = $true
@@ -265,10 +280,11 @@ function New-RichTextBox {
     $richTextBox.BackColor   = [ColorTranslator]::FromHtml($Colors.Dark)
     $richTextBox.BorderStyle = "None"
 
-    $props   = $richTextBox.GetType().GetProperties().Name
+    # Properties und Events dynamisch setzen
+    $prop    = $richTextBox.GetType().GetProperties().Name
     $events  = $richTextBox.GetType().GetEvents().Name
     foreach ($key in $Config.Keys) {
-        if ($props -contains $key) { 
+        if ($prop -contains $key) { 
             $richTextBox.$key = $Config[$key] 
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
@@ -279,16 +295,43 @@ function New-RichTextBox {
         } elseif ($key -eq "ToolTip") {
             if (-not $toolTip) { $toolTip = [ToolTip]::new() }
             $toolTip.SetToolTip($richTextBox, $Config[$key])
+        } else {
+            if ($richTextBox.PSObject.Properties[$key]) {
+                $richTextBox.$key = $Config[$key]
+            }
         }
     }
 
-    return $richTextBox
+    $richTextBox
 }
 function New-TextBox {
+    param ( [hashtable]$Config = @{} )
 
     $textbox = [TextBox]::new()
 
-    return $textbox
+    # Properties und Events dynamisch setzen
+    $events = $textbox.GetType().GetEvents().Name
+    $prop   = $textbox.GetType().GetProperties().Name
+    foreach ($key in $Config.Keys) {
+        if ($prop -contains $key) { 
+            $textbox.$key = $Config[$key] 
+        } elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $textbox.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $textbox.$key($Config[$key]) }
+        } elseif ($key -eq "ToolTip") {
+            if (-not $toolTip) { $toolTip = [ToolTip]::new() }
+            $toolTip.SetToolTip($textbox, $Config[$key])
+        } else {
+            if ($textbox.PSObject.Properties[$key]) {
+                $textbox.$key = $Config[$key]
+            }
+        }
+    }
+
+    $textbox
 }
 # Container Controls
 function New-Panel {
@@ -299,32 +342,39 @@ function New-Panel {
     $panel.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
     $panel.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
 
+    # Properties und Events dynamisch setzen
+    $events = $panel.GetType().GetEvents().Name
+    $prop   = $panel.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
         if ($key -eq "Controls") { 
             $ControlConfig = $Config[$key]
-            foreach ($cfg in $ControlConfig.Values) {
-                $control = New-Control $cfg
-                $control.Name = $ControlConfig.Keys | Where-Object { $ControlConfig[$_] -eq $cfg }
+            foreach ($cfg in $ControlConfig.GetEnumerator()) {
+                $control        = New-Control $cfg.Value
+                $control.Name   = $cfg.Key
                 $panel.Controls.Add($control)
             }
-         }
-        elseif ($key -like "Add_*") { 
+        } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
+            if ($events -contains $name) { $panel.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($panel.GetType().GetEvents().Name -contains $name) { $panel.$key($Config[$key]) }
-        } elseif ($panel.PSObject.Properties.Match($key)) { 
+            if ($events -contains $name) { $panel.$key($Config[$key]) }
+        } elseif ($prop -contains $key) { 
             $panel.$key = $Config[$key] 
+        } else {
+            if ($panel.PSObject.Properties[$key]) {
+                $panel.$key = $Config[$key]
+            }
         }
     }
     
-    return $panel
+    $panel
 }
 function New-FlowLayoutPanel {
     param( [hashtable]$Config = @{} )
 
     $flowPanel = [FlowLayoutPanel]::new()
+
     $flowPanel.Dock             = "Fill"
     $flowPanel.AutoScroll       = $false
     $flowPanel.WrapContents     = $false
@@ -343,7 +393,8 @@ function New-FlowLayoutPanel {
                 $control.Name   = $item.Key
                 $flowPanel.Controls.Add($control)
             }
-         } elseif ($key -like "Add_*") { 
+        
+        } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
             if ($events -contains $name) { $flowPanel.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
@@ -351,47 +402,59 @@ function New-FlowLayoutPanel {
             if ($events -contains $name) { $flowPanel.$key($Config[$key]) }
         } elseif ($props -contains $key) { 
             $flowPanel.$key = $Config[$key] 
+        } else {
+            if ($flowPanel.PSObject.Properties[$key]) {
+                $flowPanel.$key = $Config[$key]
+            }
         }
     }
 
-    return $flowPanel
+    $flowPanel
 }
 function New-TableLayoutPanel {
     param ( $Config = @{} )
     
     $table = [TableLayoutPanel]::new()
-    $prop = $table.GetType().GetProperties().Name
+
+    # Properties und Events dynamisch setzen
+    $events = $table.GetType().GetEvents().Name
+    $prop   = $table.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
-        switch ($key) {
-            "Controls" {
-                $ControlConfig = $Config[$key]
-                foreach ($item in $ControlConfig.GetEnumerator()) {
-                    $control        = New-Control $item.Value
-                    $control.Name   = $item.Key
-                    $table.Controls.Add($control)
-                }
-                continue
+        if ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $table.$key($Config[$key]) }
+            continue
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $table.$key($Config[$key]) }
+            continue
+        } elseif ($key -eq "ToolTip") {
+            if (-not $toolTip) { $toolTip = [ToolTip]::new() }
+            $toolTip.SetToolTip($table, $Config[$key])
+            continue
+        } elseif ($key -eq "ColumnStyles") {
+            foreach ($style in $Config[$key]) { [void]$table.ColumnStyles.Add($style) }
+            continue
+        } elseif ($key -eq "RowStyles") {
+            foreach ($style in $Config[$key]) { [void]$table.RowStyles.Add($style) }
+            continue
+        } elseif ($key -eq "Controls") { 
+            $ControlConfig = $Config[$key]
+            foreach ($item in $ControlConfig.GetEnumerator()) {
+                $control        = New-Control $item.Value
+                $control.Name   = $item.Key
+                $table.Controls.Add($control)
             }
-            "ColumnStyles" {
-                foreach ($style in $Config[$key]) {
-                    [void]$table.ColumnStyles.Add($style)
-                }
-                continue
-            }
-            "RowStyles" {
-                foreach ($style in $Config[$key]) {
-                    [void]$table.RowStyles.Add($style)
-                }
-                continue
-            }
-            default {
-                if ($prop -contains $key) { 
-                    $table.$key = $Config[$key] 
-                }
-            }
+            continue
+        } elseif ($prop -contains $key) { 
+            $table.$key = $Config[$key] 
+            continue
+        } elseif ($table.PSObject.Properties[$key]) {
+            $table.$key = $Config[$key]
+            continue
         }
     }    
-    return $table
+    $table
 }
 function New-TabControl {
     param ( $Config = @{} )
@@ -402,6 +465,7 @@ function New-TabControl {
     $tabControl.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
     $tabControl.Font = [Font]::new("Consolas", 10)
 
+    # Properties und Events dynamisch setzen
     $prop   = $tabControl.GetType().GetProperties().Name
     $events = $tabControl.GetType().GetEvents().Name
     foreach ($key in $Config.Keys) {

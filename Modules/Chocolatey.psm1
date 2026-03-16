@@ -371,8 +371,8 @@ function Start-Chocolatey {
                                         Name        = "AddList"
                                         Items       = Read-Chocolatey -SetupList
                                         Add_ItemCheck = {
-                                            param($sender, $e)
-                                            $count = $sender.CheckedItems.Count
+                                            param($src, $e)
+                                            $count = $src.CheckedItems.Count
                                             if ($e.NewValue -eq [CheckState]::Checked) { $count++ } else { $count-- }
 
                                             $form = $this.FindForm()

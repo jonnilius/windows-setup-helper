@@ -152,7 +152,7 @@ $FormConfig = @{
     Main = @{
         Properties = @{
             Text        = "$($AppInfo.Name) $($AppInfo.Version)"
-            ClientSize  = [Size]::new(400,300) # Breite, Höhe
+            ClientSize  = [Size]::new(400,295) # Breite, Höhe
             Icon        = Get-Icon "Main"
         }
         Controls = @{
@@ -163,16 +163,31 @@ $FormConfig = @{
                 ForeColor   = [ColorTranslator]::FromHtml($Colors.Accent)
                 Controls    = [ordered]@{
                     ProcessBox = @{
-                        Control = "Label"
-                        Name = "ProcessBox"
-                        Dock = "Top"
-                        Height = 35
-                        AutoSize = $false
-                        Margin = [Padding]::new(0,0,0,10)
-                        Font = [Font]::new("Consolas", 10, [FontStyle]::Italic)
-                        BackColor = [ColorTranslator]::FromHtml($Colors.Accent)
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.White)
+                        Control     = "RichTextBox"
+                        Name        = "ProcessBox"
+                        Dock        = "Fill"
+                        Margin      = [Padding]::new(0,0,0,10)
+                        FontStyle = [FontStyle]::Italic
+                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                        Text = "Windows Setup Helper"
                         Visible = $false
+                        Add_VisibleChanged = {
+                            $this.FindForm().ClientSize = if ($this.Visible) { [Size]::new(400,400) } else { [Size]::new(400,295) }
+                        }
+                    }
+                    PaketManagerButton = @{
+                        Control = "Button"
+                        Name = "PaketManagerButton"
+                        Text = "Paket-Manager"
+                        Font = [Font]::new("Consolas", 12)
+                        
+                        Margin = [Padding]::new(0,0,0,10)
+                        Add_Click = {
+                            $Content = $this.FindForm().Controls["Content"]
+                            $PaketManager = $this.FindForm().Controls["PaketManager"]
+                            $Content.Visible = $false
+                            $PaketManager.Visible = $true
+                        }
                     }
                     ChangeDeviceNameButton = @{
                         Control = "Button"
@@ -190,13 +205,13 @@ $FormConfig = @{
                         Margin = [Padding]::new(0,0,0,10)
                         Add_Click = { Hide-StartMenuIcons $this.FindForm().Controls["Content"].Controls["ProcessBox"] }
                     }
-                    ChocoButton = @{
+                    DebloatButton = @{
                         Control = "Button"
-                        Name = "MoreButton"
+                        Text = "Debloater öffnen"
+                        Font = [Font]::new("Consolas", 12)
+                        Dock = "Top"
                         Margin = [Padding]::new(0,0,0,10)
-                        Text = "Paket-Manager – Chocolatey"
-                        Font = [Font]::new("Consolas", 10)
-                        Add_Click = { Start-Chocolatey }
+                        Add_Click = { DebloatForm $FormConfig.Debloat }
                     }
                 }
             }
@@ -247,106 +262,91 @@ $FormConfig = @{
                         ForeColor = [ColorTranslator]::FromHtml("#2D3436")
                         Location = [Point]::New(150,3)
                     }
-                    Debloat = @{
+                    Details = @{
                         Control = "Label"
-                        Text = "DEBLOAT"
+                        Text = "DETAILS"
                         Font = [Font]::new("Consolas", 8, [FontStyle]::Underline)
                         BackColor = [ColorTranslator]::FromHtml("#C0393B")
                         ForeColor = [ColorTranslator]::FromHtml("#2D3436")
                         Location = [Point]::New(330,3)
                         Cursor = [Cursors]::Hand
                         ToolTip = "Mehr Optionen"
-                        Add_Click = { DebloatForm $FormConfig }
+                        Add_Click = { 
+                            $ProcessBox = $this.FindForm().Controls["Content"].Controls["ProcessBox"]
+                            $ProcessBox.Visible = -not $ProcessBox.Visible
+                         }
                      }
+                }
+            }
+            PaketManager = @{
+                Control = "FlowLayoutPanel"
+                Padding = [Padding]::new(10)
+                Dock = "Fill"
+                visible = $false
+                Controls = @{
+                    WingetButton = @{
+                        Control = "Button"
+                        Name = "WingetButton"
+                        Margin = [Padding]::new(0,0,0,10)
+                        Text = "Winget"
+                        Font = [Font]::new("Consolas", 12)
+                        
+                        Add_Click = { Start-Winget }
+                        Add_VisibleChanged = {
+                            if ($this.Visible) {
+                                $this.Text = if (Get-Command -Name winget.exe -ErrorAction SilentlyContinue) { "Winget deinstallieren" } else { "Winget installieren" }
+                            }
+                        }
+                    }
+                    ChocoButton = @{
+                        Control = "Button"
+                        Name = "ChocoButton"
+                        Margin = [Padding]::new(0,0,0,10)
+                        Text = "Chocolatey"
+                        Font = [Font]::new("Consolas", 12)
+                        Add_Click = { Start-Chocolatey }
+                    }
+                    UninstallOneDriveButton = @{
+                        Control = "Button"
+                        Name = "UninstallOneDriveButton"
+                        Text = "OneDrive entfernen"
+                        Font = [Font]::new("Consolas", 12)
+                        Dock = "Top"
+                        Margin = [Padding]::new(0,0,0,10)
+                        Add_Click = { Uninstall-OneDrive $this.FindForm().Controls["Content"].Controls["ProcessBox"] }
+                    }
                 }
             }
         }
         Events = @{
             Load = { 
-                $Content = $this.Controls["Content"] 
+                $Content        = $this.Controls["Content"]
+                $PaketManager   = $this.Controls["PaketManager"]
+
                 $contentWidth = $Content.ClientSize.Width - $Content.Padding.Left - $Content.Padding.Right
-                foreach ($control in $Content.Controls.Values) {
-                    if ($control.Dock -eq "Top" -or $control.Dock -eq "Bottom") {
+                foreach ($control in ($Content.Controls + $PaketManager.Controls)) {
+                    if ($control -is [System.Windows.Forms.Button]) {
                         $control.Width = $contentWidth
                     }
                 }
-                $Content.Controls["ChocoButton"].Width = $contentWidth
             }
             Shown = { $this.Activate() }
             FormClosed = { [System.Environment]::Exit(0) }
         }
             
     }
-}
-
-function AboutForm {
-    $Config = @{
-        Properties = @{
-            Text = "About - $($AppInfo.Name)"
-            ClientSize = [Size]::new(350,400)
-            Icon = Get-Icon "About"
-            FormBorderStyle = "FixedDialog"
-            KeyPreview = $true
-        }
-        Controls = @{
-            Panel = @{
-                Control = "Panel"
-                Padding = [Padding]::new(10)
-                Controls = @{
-                    FlowPanel = @{
-                        Control = "FlowLayoutPanel"
-                        WrapContents = $false
-                        Dock = "Fill"
-                        Controls = [ordered]@{
-                            Label = @{
-                                Control = "Label"
-                                Text = "WINDOWS SETUP HELPER"
-                                ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
-                                Dock = "Fill"
-                                TextAlign = "MiddleCenter"
-                                Margin = [Padding]::new(0,10,0,10)
-                                Font = [Font]::new("Consolas", 20 )
-                            }
-                            RichText = @{
-                                Control = "RichTextBox"
-                                Size    = [Size]::new(310,310)
-                                Text    = @"
-Windows Setup Helper ist ein PowerShell-Skript, das die Einrichtung und Grundkonfiguration eines Windows-Systems deutlich vereinfacht.`n
-Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
-Das Skript richtet sich an alle, die Windows-PCs effizient und wiederholbar einrichten möchten - egal ob für den privaten Gebrauch, im Unternehmen oder in Bildungseinrichtungen.`n
-Durch die Integration von Automatisierung und Benutzerfreundlichkeit spart der Windows Setup Helper Zeit und reduziert Fehlerquellen bei der Systemeinrichtung.`n
-Version: $($AppInfo.Version)
-Entwickler: $($AppInfo.Author)
-Lizenz: MIT
-"@
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Events = @{
-            KeyDown = { if ($_.KeyCode -eq "Escape") { $this.Close() } }
-        }
-    }
-    $Form  = New-Form $Config
-    $Form.ShowDialog()
-    $Form.Dispose()
-}
-function DebloatForm {
-    $Config = @{
-        Properties = @{
+    Debloat = @{
+        Properties  = @{
             Text = "Tweaks & Debloat"
-            ClientSize = [Size]::new(245,125)
+            ClientSize = [Size]::new(400,150)
             Icon = Get-Icon "Debloat"
             FormBorderStyle = "FixedDialog"
         }
-        Controls = @{
+        Controls    = @{
             TableLayout = @{
                 Control = "TableLayoutPanel"
                 Dock = "Fill"
                 Padding = [Padding]::new(0)
-                BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
                 ColumnCount = 1
                 RowCount = 3
                 ColumnStyles = @(
@@ -355,92 +355,58 @@ function DebloatForm {
                 RowStyles = @(
                     [System.Windows.Forms.RowStyle]::new("Percent", 33),
                     [System.Windows.Forms.RowStyle]::new("Percent", 33),
-                    [System.Windows.Forms.RowStyle]::new("Percent", 34)
+                    [System.Windows.Forms.RowStyle]::new("Percent", 33)
                 )
                 Controls = @{
-                    UninstallOneDriveButton = @{
+                    UninstallOneDrive = @{
                         Control = "Button"
                         Text = "OneDrive entfernen"
-                        Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
+                        Font = [Font]::new("Consolas", 10)
                         Dock = "Fill"
-                        Add_Click = { Uninstall-OneDrive $this.Controls["Content"].Controls["ProcessBox"] }
+                        Add_Click = { Uninstall-OneDrive $this.findForm().Controls["ProcessLabel"] }
                     }
-                    UnpinStartMenuButton = @{
+                    UninstallEdge = @{
+                        Control = "Button"
+                        Text = "Microsoft Edge entfernen"
+                        Font = [Font]::new("Consolas", 10)
+                        Dock = "Fill"
+                        Add_Click = { 
+                            $processLabel = $this.FindForm().Controls["ProcessLabel"]
+                            .\DebloatEdge.ps1 { param($msg) Update-StatusLabel -Label $processLabel -Message $msg } 
+                            $processLabel.Visible = $false
+                        }
+                    }   
+                    HideStartMenuIcons = @{
                         Control = "Button"
                         Text = "Startmenü aufräumen"
-                        Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
+                        Font = [Font]::new("Consolas", 10)
                         Dock = "Fill"
-                        Add_Click = { Unpin-StartMenu $this.Controls["Content"].Controls["ProcessBox"] }
+                        Add_Click = { Hide-StartMenuIcons $this.FindForm().Controls["ProcessLabel"] }
                     }
-                    ChangeDeviceNameButton = @{
-                        Control = "Button"
-                        Text = "Gerätename festlegen"
-                        Font = [Font]::new("Consolas", 8, [FontStyle]::Bold)
-                        Dock = "Fill"
-                        Add_Click = { DeviceNameForm $FormConfig }
-                     }
+
                 }
             }
-        }
-    }
-    $Form = New-Form $Config
-    $Form.ShowDialog()
-}
-function DeviceNameForm {    
-    $Config = @{
-        Properties = @{
-            Text = "Neuer Gerätename"
-            ClientSize  = [Size]::new(300,40)
-            Padding     = [Padding]::new(5)
-            FormBorderStyle = "FixedDialog"
-            Icon = Get-Icon "DeviceName"
-        }
-        Controls = @{
-            TableLayout = @{
-                Control = "TableLayoutPanel"
-                Dock = "Fill"
-                Padding = [Padding]::new(0)
-                ColumnCount = 2
-                RowCount = 1
-                ColumnStyles = @(
-                    [System.Windows.Forms.ColumnStyle]::new("Percent", 100),
-                    [System.Windows.Forms.ColumnStyle]::new("AutoSize")
-                )
-                RowStyles = @(
-                    [System.Windows.Forms.RowStyle]::new("Percent", 100)
-                )
-                Controls = @{
-                    TextBox = @{
-                        Control = "TextBox"
-                        Font = [Font]::new("Consolas", 15)
-                        # Width = 200
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
-                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
-                        TextAlign = "Center"
-                        BorderStyle = "None"
-                        Text = $env:COMPUTERNAME
-                        Multiline = $false
-                    }
-                    Button = @{
-                        Control = "Button"
-                        Text = "Ändern"
-                        Size = [Size]::new(100,25)
-                        FlatStyle = "Flat"
-                        TextAlign = "MiddleCenter"
-                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
-                        Add_Click = { ChangeDeviceName -NewName $this.Controls["TextBox"].Text }
-                    }
+            ProcessLabel = @{
+                Control = "Label"
+                Height  = 50
+                Name    = "ProcessLabel"
+                Font    = [Font]::new("Consolas", 10, [FontStyle]::Italic)
+                Dock    = "Bottom"
+                Width   = 400
+                TextAlign = "MiddleCenter"
+                Visible = $false
+                Add_VisibleChanged = {
+                    $this.FindForm().ClientSize = if ($this.Visible) { [Size]::new(400,200) } else { [Size]::new(400,125) }
                 }
+
             }
         }
-        Events = @{
-            Shown = { $this.Controls["Button"].Focus() }
+        Events      = @{
+            Closed = { $this.Dispose() }
         }
     }
-    $Form = New-Form $Config
-    $Form.ShowDialog()
 }
+
 
 $Form = New-Form $FormConfig.Main
 $Form.ShowDialog()

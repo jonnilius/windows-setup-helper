@@ -22,6 +22,33 @@ $global:toolTip = & {
     $toolTip.ReshowDelay = 500
     $toolTip
 }
+function Get-Font {
+    <# 
+    FontName: Consolas, Tahoma, Segoe UI, Arial, Cascadia Code
+    FontStyle: Regular, Bold, Italic, Underline, Strikeout
+    
+    #>
+    param(
+        [int]$size      = 10, 
+        [string]$name   = "Tahoma",
+        [string]$style  = "Regular"
+    )
+
+    # FontStyle-Enum basierend auf dem übergebenen Stil-String setzen
+    switch ($style.ToLower()) {
+        "bold"      { $styleEnum = [FontStyle]::Bold }
+        "italic"    { $styleEnum = [FontStyle]::Italic }
+        "regular"   { $styleEnum = [FontStyle]::Regular }
+        "strikeout" { $styleEnum = [FontStyle]::Strikeout }
+        "underline" { $styleEnum = [FontStyle]::Underline }
+        default     { $styleEnum = [FontStyle]::Regular }
+    }
+
+    $fontFamily = New-Object System.Drawing.FontFamily($name)
+
+    return New-Object System.Drawing.Font($fontFamily, $size, $styleEnum)
+
+}
 function Get-Icon {
 
     param ( $Name )
@@ -128,8 +155,24 @@ function Show-MessageBox {
 
     [System.Windows.Forms.MessageBox]::Show($Text, $Caption, $buttonsEnum, $iconEnum)
 }
+function Resize-Form {
+    param ( $Form, [int]$fontSize = 10 )
 
-<# FORM ERSTELLEN #>
+    $sx = $Form.ClientSize.Width / 400
+    $sy = $Form.ClientSize.Height / 400
+    $scale = [Math]::Min($sx, $sy)
+
+    return $scale * $fontSize
+}
+function Start-Form {
+    param ( $Config = @{} )
+
+    $form = New-Form $Config
+    $form.ShowDialog()
+    $form.Dispose()
+}
+
+<# CONTROLS #>
 function New-Button {
     param( [hashtable]$Config = @{} )
 
@@ -342,7 +385,39 @@ function New-TextBox {
 
     $textbox
 }
-# Container Controls
+function New-Control {
+    param( [hashtable]$Config )
+    if (-not $Config.Control) { throw "Config fehlt das Feld 'Control'" }
+
+
+    $type = $Config.Control
+    $copy = $Config.Clone()
+    $copy.Remove("Control")
+    
+    switch ($type) {
+        # Container Controls
+        "Panel" {            return New-Panel $copy }
+        "FlowLayoutPanel" {  return New-FlowLayoutPanel $copy }
+        "TableLayoutPanel" { return New-TableLayoutPanel $copy }
+
+        # Standard Controls
+        "Button" {         return New-Button $copy }
+        "Label"  {         return New-Label $copy }
+        "TextBox" {        return New-TextBox $copy }
+        "RichTextBox" {    return New-RichTextBox $copy }
+        "ListBox" {        return New-ListBox $copy }
+        "CheckedListBox" { return New-CheckedListBox $copy }
+
+        # Tab Controls
+        "TabControl" { return New-TabControl $copy }
+        "TabPage" {    return New-TabPage $copy }
+
+        default { throw "Unbekannter Control-Typ: $type" }
+
+    }
+}
+
+<# CONTAINER CONTROLS #>
 function New-Panel {
     param( [hashtable]$Config = @{} )
 
@@ -428,6 +503,7 @@ function New-TableLayoutPanel {
     # Properties und Events dynamisch setzen
     $type   = $table.GetType()
     $events = $type.GetEvents().Name
+    $tableProps = "Column", "Row"
     foreach ($key in $Config.Keys) {
         if ($key -like "Add_*") { 
             $name = $key.Substring(4) 
@@ -437,68 +513,41 @@ function New-TableLayoutPanel {
             $name = $key.Substring(7) 
             if ($events -contains $name) { $table.$key($Config[$key]) }
             continue
-        } elseif ($key -eq "Column") {
-            $Column = $Config[$key]
-            $table.ColumnStyles.Clear()
-            $table.ColumnCount = $Column.Count
-            foreach ($ColStyle in $Column) { 
-                if ($ColStyle -is [System.Windows.Forms.ColumnStyle]) { [void]$table.ColumnStyles.Add($ColStyle) } 
-                else {
-                    $sizeTypes  = "Percent", "AutoSize", "Absolute"
-                    $sizeType   = "AutoSize"
-                    $width      = 0
+        } elseif ($key -in $tableProps) {
+            $keyConfig  = $Config[$key]
+            $isColumn   = $key -eq "Column"
+            $sizeTypes  = "Percent", "AutoSize", "Absolute"
 
-                    if ($ColStyle -is [string]) {
-                        $sizeType = $ColStyle
-                        if ($ColStyle -match '^\d+$' -and ([int]$ColStyle -ge 0 -and [int]$ColStyle -le 100)) {
-                            $sizeType = "Percent"
-                            $width = [int]$ColStyle
-                        } elseif ($sizeTypes -contains $ColStyle) {
-                            $sizeType = $ColStyle
-                        }
-                    } elseif ($ColStyle -is [int]) {
-                        $sizeType = "Absolute"
-                        $width = $ColStyle
-                    } elseif ($ColStyle -is [array]) {
-                        if ($ColStyle[0] -in $sizeTypes) { $sizeType = $ColStyle[0] } 
-                        if ($ColStyle.Count -gt 1 -and $ColStyle[1] -ge 0) { $width = $ColStyle[1] } 
-                    } 
-                    
-                    $colStyle   = [ColumnStyle]::new([SizeType]::$sizeType, $width)
-                    [void]$table.ColumnStyles.Add($colStyle)
-                }
-            }
+            if ($isColumn) { $table.ColumnStyles.Clear(); $table.ColumnCount = $keyConfig.Count }
+            else { $table.RowStyles.Clear(); $table.RowCount = $keyConfig.Count }
 
-            continue
-        } elseif ($key -eq "Row") {
-            $Row = $Config[$key]
-            $table.RowStyles.Clear()
-            $table.RowCount = $Row.Count
-            foreach ($style in $Row) { 
-                if ($style -is [System.Windows.Forms.RowStyle]) { [void]$table.RowStyles.Add($style) } 
+            foreach ($style in $keyConfig) { 
+                $keyStyle = if ($style -is [System.Windows.Forms.TableLayoutStyle]) { $style } 
                 else {
-                    $sizeTypes  = "Percent", "AutoSize", "Absolute"
                     $sizeType   = "AutoSize"
-                    $height     = 0
+                    $dimension  = 0
 
                     if ($style -is [string]) {
-                        $sizeType = $style
                         if ($style -match '^\d+$' -and ([int]$style -ge 0 -and [int]$style -le 100)) {
                             $sizeType = "Percent"
-                            $height = [int]$style
+                            $dimension = [int]$style
                         } elseif ($sizeTypes -contains $style) {
                             $sizeType = $style
                         }
                     } elseif ($style -is [int]) {
                         $sizeType = "Absolute"
-                        $height = $style
+                        $dimension = $style
                     } elseif ($style -is [array]) {
                         if ($style[0] -in $sizeTypes) { $sizeType = $style[0] } 
-                        if ($style.Count -gt 1 -and $style[1] -ge 0) { $height = $style[1] } 
+                        if ($style.Count -gt 1 -and $style[1] -ge 0) { $dimension = $style[1] } 
                     } 
-                    $rowStyle   = [RowStyle]::new([SizeType]::$sizeType, $height)
-                    [void]$table.RowStyles.Add($rowStyle)
+
+                    if ($isColumn) { [ColumnStyle]::new([SizeType]::$sizeType, $dimension) }
+                    else { [RowStyle]::new([SizeType]::$sizeType, $dimension) }
+
                 }
+                if ($isColumn) { [void]$table.ColumnStyles.Add($keyStyle) }
+                else { [void]$table.RowStyles.Add($keyStyle) }
             }
             continue
         } elseif ($key -eq "ToolTip") {
@@ -547,14 +596,12 @@ function New-TabControl {
     param ( $Config = @{} )
     
     $tabControl = [TabControl]::new()
-    $tabControl.Dock = "Fill"
-    $tabControl.BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
-    $tabControl.ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
-    $tabControl.Font = [Font]::new("Consolas", 10)
 
     # Properties und Events dynamisch setzen
-    $prop   = $tabControl.GetType().GetProperties().Name
-    $events = $tabControl.GetType().GetEvents().Name
+    $type   = $tabControl.GetType()
+    $prop   = $type.GetProperties().Name
+    $events = $type.GetEvents().Name
+
     foreach ($key in $Config.Keys) {
         switch -Wildcard ($key) {
             "Controls" {
@@ -611,7 +658,7 @@ function New-TabPage {
     return $tabPage
 }
 
-
+<# FORM ERSTELLEN #>
 function New-Form {
     [CmdletBinding()]
     param( [hashtable]$FormConfig = @{} )
@@ -664,42 +711,4 @@ function New-Form {
 
     # Form zurückgeben
     return $form
-}
-function New-Control {
-    param( [hashtable]$Config )
-    if (-not $Config.Control) { throw "Config fehlt das Feld 'Control'" }
-
-
-    $type = $Config.Control
-    $copy = $Config.Clone()
-    $copy.Remove("Control")
-    
-    switch ($type) {
-        # Container Controls
-        "Panel" {            return New-Panel $copy }
-        "FlowLayoutPanel" {  return New-FlowLayoutPanel $copy }
-        "TableLayoutPanel" { return New-TableLayoutPanel $copy }
-
-        # Standard Controls
-        "Button" {         return New-Button $copy }
-        "Label"  {         return New-Label $copy }
-        "TextBox" {        return New-TextBox $copy }
-        "RichTextBox" {    return New-RichTextBox $copy }
-        "ListBox" {        return New-ListBox $copy }
-        "CheckedListBox" { return New-CheckedListBox $copy }
-
-        # Tab Controls
-        "TabControl" { return New-TabControl $copy }
-        "TabPage" {    return New-TabPage $copy }
-
-        default { throw "Unbekannter Control-Typ: $type" }
-
-    }
-}
-
-function Start-Form {
-    param ( $Config = @{} )
-    $form = New-Form $Config
-    $form.ShowDialog()
-    $form.Dispose()
 }

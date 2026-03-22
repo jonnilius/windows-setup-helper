@@ -1,4 +1,4 @@
-using namespace System.Windows.Forms
+﻿using namespace System.Windows.Forms
 Add-Type -AssemblyName System.Windows.Forms
 
 param( [ScriptBlock]$ShowText )

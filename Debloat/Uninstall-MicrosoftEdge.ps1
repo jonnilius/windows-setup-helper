@@ -1,4 +1,4 @@
-﻿<#
+<#
 # Written by bibicadotnet – https://github.com/bibicadotnet/microsoft-edge-debloater
 #>
 param( [ScriptBlock]$ShowText )

@@ -84,33 +84,6 @@ Import-Module "$PSScriptRoot\Modules\FormBuilder.psm1"
 Import-Module "$PSScriptRoot\Modules\Chocolatey.psm1"
 
 
-# $script:ChocoSetupList = Read-Chocolatey -SetupList
-# & $AppInfo.DebugText "Initialisiere Anwendungsinformationen..."
-# $global:AppList = @{
-#     Chocolatey  = @{
-#         IsInstalled = Get-Command -Name "choco.exe" -ErrorAction SilentlyContinue
-#         Install     = { Get-PackageProvider -Name "Chocolatey" -Force | Out-Null; Install-Package -Name "Chocolatey" -ProviderName "Chocolatey" -Force }
-#         Uninstall   = { Get-PackageProvider -Name "Chocolatey" -Force | Out-Null; Uninstall-Package -Name "Chocolatey" -ProviderName "Chocolatey" -Force }
-#         Version     = { (choco --version).Trim() }
-#         AppList     = { choco list --local-only --no-color | Select-Object -Skip 1 }
-#     }
-#     Edge        = @{
-#         IsInstalled = Get-Package -Name "Microsoft Edge" -ErrorAction SilentlyContinue
-#         Install     = { Get-PackageProvider -Name "Edge" -Force | Out-Null; Install-Package -Name "Microsoft Edge" -ProviderName "Edge" -Force }
-#         Uninstall   = { Get-PackageProvider -Name "Edge" -Force | Out-Null; Uninstall-Package -Name "Microsoft Edge" -ProviderName "Edge" -Force }
-#     }
-#     OneDrive    = @{
-#         IsInstalled = Get-Package -Name "Microsoft OneDrive" -ErrorAction SilentlyContinue
-#         Install     = { Get-PackageProvider -Name "OneDrive" -Force | Out-Null; Install-Package -Name "OneDrive" -ProviderName "OneDrive" -Force }
-#         Uninstall   = { Get-PackageProvider -Name "OneDrive" -Force | Out-Null; Uninstall-Package -Name "OneDrive" -ProviderName "OneDrive" -Force }
-#     }
-#     WinGet      = @{
-#         IsInstalled     = Get-Command -Name "winget.exe" -ErrorAction SilentlyContinue
-#         Version         = ((winget --version).Trim() -replace '^v', '')
-#         InstalledList   = Get-WinGetApps -InstalledList
-#         SetupList       = Get-WinGetApps -SetupList 
-#     }
-# }
 
 
 & $AppInfo.DebugText "Erstelle Hauptformular..."
@@ -529,13 +502,13 @@ $FormConfig = @{
                                             DisableSleep = @{
                                                 ColumnSpan  = 3
                                                 # Position    = 0,8
-                                                Control     = "Label"
+                                                Control     = "Button"
                                                 Text        = "Energiesparmodus deaktivieren"
-                                                Font        = Get-Font "Label" -Style "Italic"
+                                                Font        = Get-Font "Button"
                                                 Dock        = "Fill"
                                                 TextAlign   = "MiddleCenter"
-                                                Cursor      = "Hand"
                                                 Visible     = $false
+                                                Margin      = [Padding]::new(25,10,25,10)
                                                 Add_Click = { 
                                                     Set-PowerStatus -PowerScheme "AC" -StatusType "Standby" -Minutes 0
                                                     $this.FindForm().Controls.Find("StandbyValueAC", $true)[0].Text = Get-PowerStatus "AC" "Standby" -TextOutput
@@ -557,8 +530,6 @@ $FormConfig = @{
 
                                                     $this.Visible = $false
                                                 }
-                                                Add_MouseEnter = { $this.Font = Get-Font "Label" -Style "Italic, Underline" }
-                                                Add_MouseLeave = { $this.Font = Get-Font "Label" -Style "Italic" }
                                             }
                                         }
                                     }
@@ -599,157 +570,17 @@ $FormConfig = @{
                             $headerLabel    = $form.Controls["Header"]
 
                             switch ($selectedTab.Text) {
-                                "System"            { $headerLabel.Text = $AppInfo.Name.ToUpper() }
+                                "Allgemein"         { $headerLabel.Text = $AppInfo.Name.ToUpper() }
                                 "Debloat"           { $headerLabel.Text = "WINDOWS DEBLOATER" }
                                 "Programme"         { $headerLabel.Text = "PROGRAMMVERWALTUNG" }
                                 "Energieoptionen"   { 
                                     $headerLabel.Text = "ENERGIEOPTIONEN" 
-                                    $form.MinimumSize = [Size]::new(350,440)
+                                    $form.MinimumSize = [Size]::new(350,450)
                                 }
                             }
                         }
                     }
                 }
-            }
-            MainPanel = @{
-                Control     = "TableLayoutPanel"
-                Dock       = "Fill"
-                BackColor   = $AppDesign.Dark
-                Visible     = $false
-                Row = @( "100", "AutoSize" )
-                Controls    = [ordered]@{
-                    InfoBox = @{
-                        Control     = "Label"
-                        Name        = "InfoBox"
-                        Dock        = "Fill"
-                        Margin      = [Padding]::new(10)
-                        Font        = [Font]::new("Consolas", 10, [FontStyle]::Regular)
-                        ForeColor   = [ColorTranslator]::FromHtml($Colors.Accent)
-                        TextAlign   = "TopLeft"
-                        Text        = ""
-                    }
-                    Buttons = @{
-                        Control = "TableLayoutPanel"
-                        Dock    = "Fill"
-                        Margin  = [Padding]::new(5)
-                        Column  = @( "50", "50" )
-                        Row     = @( "50", "50" )
-                        Controls = [ordered]@{
-                            ChocolateyButton = @{
-                                Control = "Button"
-                                Text    = "Chocolatey Software"
-                                Dock    = "Fill"
-                                Font    = Get-Font
-                                Margin  = [Padding]::new(5)
-
-                                Add_Click = { Start-Form $FormConfig.Chocolatey }
-                            }
-                            DebloatButton = @{
-                                Control = "Button"
-                                Text    = "Debloater"
-                                Dock    = "Fill"
-                                Font    = Get-Font
-                                Margin  = [Padding]::new(5)
-
-                                Add_Click = { Start-Form $FormConfig.Debloat }
-                            }
-                            WingetButton = @{
-                                Control = "Button"
-                                Text = "WinGet"
-                                Margin = [Padding]::new(5)
-                                Font = Get-Font
-                                Dock = "Fill"
-                                Visible = $false
-                                Add_Click = { 
-                                
-                                }
-                            }
-                            SettingsButton = @{
-                                Control = "Button"
-                                Text = "Einstellungen"
-                                Margin = [Padding]::new(5)
-                                Font = Get-Font
-                                Dock = "Fill"
-                                Visible = $false
-                            }
-                        }
-                    }
-                }
-            }
-            PaketManagerPanel = @{
-                Control = "TableLayoutPanel"
-                Dock = "Bottom"
-                ForeColor = $FormColor.Accent
-                BackColor = $FormColor.Dark
-                Padding = [Padding]::new(20,0,20,0)
-                Visible = $false
-                Column = @( "50", "50" )
-                Row = @( "AutoSize", 50, "100")
-                Controls = @{
-                    Label = @{
-                        Position = (0,1),1
-                        Control = "Label"
-                        Text = "Paket-Manager".ToUpper()
-                        Font = [Font]::new("Consolas", 14, [FontStyle]::Underline)
-                        Dock = "Top"
-                        Height = 50
-                        TextAlign = "MiddleCenter"
-                        Add_Click = {
-                            $mainPanel = $this.FindForm().Controls["MainPanel"]
-                            $paketManagerPanel = $this.FindForm().Controls["PaketManagerPanel"]
-                            $paketManagerPanel.Visible = $false
-                            $mainPanel.Visible = $true
-                        }
-                    }
-                    WingetButton = @{
-                        Position = (0,2)
-                        Control = "Button"
-                        Name = "WingetButton"
-                        Margin = [Padding]::new(0,0,0,10)
-                        Text = "WinGet"
-                        Font = [Font]::new("Consolas", 10)
-                        Dock = "Fill"
-                    }
-                    ChocoButton = @{
-                        Position = (1,2)
-                        Control = "Button"
-                        Name = "ChocoButton"
-                        Margin = [Padding]::new(0,0,0,10)
-                        Text = "Chocolatey"
-                        Dock = "Fill"
-                        Font = [Font]::new("Consolas", 10)
-                        Add_Click = { Start-Form $FormConfig.Chocolatey }
-                    }
-                }
-                Add_Click = {
-                    $mainPanel = $this.FindForm().Controls["MainPanel"]
-                    $paketManagerPanel = $this.FindForm().Controls["PaketManagerPanel"]
-                    $paketManagerPanel.Visible = $false
-                    $mainPanel.Visible = $true
-                 }
-            }
-            SettingsPanel = @{
-                Control = "FlowLayoutPanel"
-                Padding = [Padding]::new(10)
-                Dock = "Fill"
-                visible = $false
-                Controls = @{
-                    Label = @{
-                        Control = "Label"
-                        Text = "Einstellungen"
-                        Font = [Font]::new("Consolas", 15, [FontStyle]::Bold)
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
-                        Dock = "Top"
-                        AutoSize = $false
-                        TextAlign = "MiddleCenter"
-                    }
-                }
-                Add_Click = {
-                    $mainPanel = $this.FindForm().Controls["MainPanel"]
-                    $settingsPanel = $this.FindForm().Controls["SettingsPanel"]
-                    $settingsPanel.Visible = $false
-                    $mainPanel.Visible = $true
-                 }
             }
             Header = @{
                 Control = "Label"
@@ -1501,8 +1332,6 @@ Lizenz: MIT
                             & $AppInfo.DebugText "'UninstallButton' geklickt. Bereite Deinstallation vor..."
                             $processLabel   = $this.FindForm().Controls["PackagePanel"].Controls["ProcessLabel"]
                             $installedList = $this.FindForm().Controls.Find("InstalledList", $true)[0]
-                            $WinGetList = Get-WinGet -List
-                            # $checkedList = foreach ($index in $installedList.SelectedItems) { Get-WinGet -List | Where-Object { $_.Name -eq $index } }
                             $checkedList = $installedList.SelectedItems #| ForEach-Object { $_.Id }
                             
                             # Write-Host "Der Inhalt von `$checkedList: " $checkedList
@@ -1515,23 +1344,31 @@ Lizenz: MIT
             }
         }
         Events      = @{
+            Load = { 
+                $sidebarPanel   = $this.Controls["SidebarPanel"]
+
+                & $AppInfo.DebugText "Überprüfe WinGet-Installation..."
+                if (Get-WinGet) { 
+                    & $AppInfo.DebugText "WinGet ist installiert. Aktiviere Deinstallations-Button."
+                    $sidebarPanel.Controls["UninstallWinGetButton"].Enabled = $true 
+                    $sidebarPanel.Controls["WinGetVersionLabel"].Text += Get-WinGet -Version
+                } else { 
+                    & $AppInfo.DebugText "WinGet ist nicht installiert. Aktiviere Installations-Button."
+                    $sidebarPanel.Controls["InstallWinGetButton"].Enabled   = $true 
+                    $sidebarPanel.Controls["WinGetVersionLabel"].Text += "Nicht installiert"
+                }
+            }
             Shown = { 
                 $tabControl     = $this.Controls["PackagePanel"].Controls["TabControl"]
                 $InstalledList  = $tabControl.Controls["ManageTab"].Controls["InstalledList"]
-                $sidebarPanel   = $this.Controls["SidebarPanel"]
                 
                 # Installierte Programme laden
+                & $AppInfo.DebugText "Lade installierte Programme..."
                 foreach ($program in Get-WinGet -List) { 
                     [void]$InstalledList.Items.Add($program) 
                 }
                 
-                # SidebarPanel
-                $sidebarPanel.Controls["WinGetVersionLabel"].Text += if (Get-WinGet -Version) { Get-WinGet -Version } else { "Nicht installiert" }
-                if (Get-WinGet) { 
-                    $sidebarPanel.Controls["UninstallWinGetButton"].Enabled = $true 
-                } else { 
-                    $sidebarPanel.Controls["InstallWinGetButton"].Enabled   = $true 
-                }
+                
 
             }
         }
@@ -1541,4 +1378,4 @@ Lizenz: MIT
 & $AppInfo.DebugText "Starte Hauptformular..."
 Start-Form $FormConfig.Main
 # Start-Form $FormConfig.Chocolatey
-Start-Form $FormConfig.WinGet
+# Start-Form $FormConfig.WinGet

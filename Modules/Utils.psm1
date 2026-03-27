@@ -2,12 +2,28 @@
 using namespace System.Drawing
 
 function Show-DialogBox {
+    <#
+    .SYNOPSIS
+        Zeigt ein Dialogfeld mit einer Nachricht, einem Titel, Schaltflächen und einem Symbol an.
+    .PARAMETER Message
+        Die anzuzeigende Nachricht.
+    .PARAMETER Title
+        Der Titel des Dialogfelds.
+    .PARAMETER Buttons
+        Die anzuzeigenden Schaltflächen (z. B. "OK", "YesNo").
+    .PARAMETER Icon
+        Das anzuzeigende Symbol (z. B. "None", "Information", "Warning", "Error").
+    .EXAMPLE
+        Show-DialogBox -Message "Dies ist eine Nachricht" -Title "Titel" -Buttons "OK" -Icon "Information"
+    #>
     param (
         [string]$Message,
         [string]$Title,
         [string]$Buttons,
         [string]$Icon
     )
+    if (-not $Message)  { throw "Der Parameter 'Message' ist erforderlich." }
+    if (-not $Title)    { throw "Der Parameter 'Title' ist erforderlich." }
     # Konvertiere die Button-Parameter in die entsprechenden Enums
     switch ($Buttons) {
         "OK"    { $Buttons = [System.Windows.Forms.MessageBoxButtons]::OK }
@@ -23,23 +39,28 @@ function Show-DialogBox {
         default         { $Icon = [System.Windows.Forms.MessageBoxIcon]::None }
     }
 
-    return [System.Windows.Forms.MessageBox]::Show($Message, $Title, $Buttons, $Icon)
+    $result = [System.Windows.Forms.MessageBox]::Show($Message, $Title, $Buttons, $Icon)
+
+    if ($Buttons -eq [System.Windows.Forms.MessageBoxButtons]::YesNo) {
+        return $result -eq [System.Windows.Forms.DialogResult]::Yes
+    }
+
+    return $result -eq [System.Windows.Forms.DialogResult]::OK
 }
 function Update-Status {
     param( 
         $Label, 
-        [string]$Message, 
-        [int]$Delay = 0, 
-        [switch]$Final
+        [string]$Message, [int]$Delay = 0, [switch]$Final
     )
 
     
     # Überprüfen, ob das übergebene Objekt ein Label ist, und das zugehörige Formular abrufen
     if ($Label -isnot [System.Windows.Forms.Label]) { 
+        & $AppLog.Error "Ungültiges Label-Objekt übergeben: $Label"
         Write-Host "--$Message--"
         return 
     }
-    $form = $Label.FindForm()
+
 
     # Überprüfen, ob der Aufruf von einem anderen Thread stammt, und gegebenenfalls den Aufruf auf den UI-Thread verschieben.
     if ($Label.InvokeRequired) {
@@ -49,41 +70,38 @@ function Update-Status {
     
     # Aktualisiert den Text des Labels mit der übergebenen Nachricht und erzwingt die Aktualisierung der Benutzeroberfläche.
     $Label.Text = $Message
+    & $AppLog.Info "Status aktualisiert: $Message"
     [Application]::DoEvents()
     
     # Stellt sicher, dass das Label sichtbar wird, wenn der Status aktualisiert wird.
     if ($Label.Visible -eq $false) { 
         $Label.Visible = $true 
-        $form.Cursor = [System.Windows.Forms.Cursors]::AppStarting
+        Set-Cursor "Wait"
     }
     Start-Sleep -Seconds $Delay
 
     # Wenn der Final-Parameter gesetzt ist, wird das Label nach einer kurzen Verzögerung ausgeblendet.
     if ($Final) {
+        Set-Cursor "Default"
         Start-Sleep -Seconds 2
         $Label.Visible = $false
-        $form.Cursor = [System.Windows.Forms.Cursors]::Default
     }
     return
 }
-function Remove-Item {
-    param ( [string]$AppName, [scriptblock]$ShowText )
+function Uninstall-App {
+    param ( $take, [string]$AppName )
+    & $AppLog.Info "Funktion 'Uninstall-App' aufgerufen mit AppName: $AppName"
     
-    if (-not $ShowText) { $ShowText = { param($msg) Write-Host $msg } }
     $RootPath = $AppInfo.Path
 
     switch ($AppName) {
-        "Edge"              { & "$RootPath\Debloat\Uninstall-MicrosoftEdge.ps1" -ShowText $ShowText }
-        "OneDrive"          { & "$RootPath\Debloat\Uninstall-OneDrive.ps1" -ShowText $ShowText }
-        "StartMenuIcons"    { & "$RootPath\Debloat\Remove-StartMenuIcons.ps1" -ShowText $ShowText }
-        "WinGet"            { & "$RootPath\Debloat\Uninstall-WinGet.ps1" -ShowText $ShowText }
+        "Edge"           { & "$RootPath\Debloat\Uninstall-MicrosoftEdge.ps1" $take; break }
+        "OneDrive"       { & "$RootPath\Debloat\Uninstall-OneDrive.ps1" $take; break }
+        "WinGet"         { & "$RootPath\Debloat\Uninstall-WinGet.ps1" $take; break }
+        default          { & $AppLog.Error "Unbekannter AppName: $AppName" }
     }
 }
-function Use-Ternary {
-    param( $Condition, $TrueValue, $FalseValue )
-    $result = if ($Condition) { $TrueValue } else { $FalseValue }
-    return $result
-}
+
 function Start-Command {
     param ( [string]$Command, [switch]$RunAsAdmin )
     if ($RunAsAdmin) {
@@ -92,6 +110,14 @@ function Start-Command {
         Write-Host "Starte Befehl: $Command"
         return Start-Process powershell -ArgumentList "-Command $Command" -NoNewWindow -Wait
     }
+}
+function Remove-StartMenuIcons {
+    param ( $take )
+    & $AppLog.Info "Funktion 'Remove-StartMenuIcons' aufgerufen."
+
+    # Führe das Skript zum Entfernen der Startmenü-Icons aus
+    $RootPath = $AppInfo.Path
+    & "$RootPath\Debloat\Remove-StartMenuIcons.ps1" $take
 }
 
 function ChangeDeviceName {
@@ -157,36 +183,39 @@ function Update-PowerStatus {
     $Config = @{
         Properties = @{
             Text        = "Energieoptionen Ändern"
-            ClientSize  = [Size]::new(300,50)
+            ClientSize  = [Size]::new(280,60)
             MinimizeBox = $false
             MaximizeBox = $false
             KeyPreview  = $true
+            FormBorderStyle = "FixedDialog"
+            Padding     = [Padding]::new(5)
+            BackColor   = Get-Color "Dark"
         }
         Controls = [ordered]@{
             GroupBox = @{
                 Control     = "GroupBox"
                 Text        = $GroupBoxText
-                Size        = [Size]::new(300,50)
+                Dock        = "Fill"
                 Controls    = [ordered]@{
                     TestTable = @{
                         Control     = "TableLayoutPanel"
                         Dock        = "Fill"
-                        Column      = @(30, "40", "40")
+                        Column      = @(50, "AutoSize", "40")
                         Row         = @(30)
                         Controls    = [ordered]@{
                             Minutes = @{
-                                Control     = "TextBox"
-                                Text        = $CurrentMinutes
+                                Control     = "NumericUpDown"
+                                Value       = $CurrentMinutes
                                 Font        = Get-Font "Value"
                                 Dock        = "Fill"
-                                # Bestätigt die Eingabe, wenn die Enter-Taste gedrückt wird
-                                Add_KeyPress = { if (-not [char]::IsDigit($_.KeyChar) -and $_.KeyChar -ne [char]8) { $_.Handled = $true } }
-                                Add_TextChanged = { 
-                                    # Entfernt alle nicht-numerischen Zeichen aus der Eingabe und setzt den Cursor ans Ende des Textes
-                                    if ($this.Text -match '[^0-9]') {
-                                        $this.Text = ($this.Text -replace '[^0-9]', '')
-                                        $this.SelectionStart = $this.Text.Length
-                                    }
+                                Minimum     = 0
+                                Increment   = 5
+                                Maximum     = 999
+                                Add_KeyPress = { 
+                                    # Akzeptiere nur Ziffern
+                                    if (-not [char]::IsDigit($_.KeyChar) -and $_.KeyChar -ne [char]8) { $_.Handled = $true } 
+                                    # Begrenze die Eingabe auf maximal 3 Zeichen
+                                    elseif ($this.Text.Length -ge 3 -and $_.KeyChar -ne [char]8) { $_.Handled = $true }
                                 }
                             }
                             MinutesLabel = @{
@@ -204,7 +233,7 @@ function Update-PowerStatus {
                                 Dock        = "Fill"
                                 Add_Click    = {
                                     $form = $this.FindForm()
-                                    [int]$minutes = $form.Controls["GroupBox"].Controls["TestTable"].Controls["Minutes"].Text
+                                    [int]$minutes = $this.Parent.Controls["Minutes"].Text
                                     Set-PowerStatus -PowerScheme $PowerScheme -StatusType $StatusType -Minutes $minutes
                                     $form.Close()
                                 }
@@ -583,8 +612,8 @@ function DeviceNameForm {
                         Control = "TextBox"
                         Font = [Font]::new("Consolas", 15)
                         # Width = 200
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
-                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
+                        ForeColor = $AppColor.Accent
+                        BackColor = $AppColor.Dark
                         TextAlign = "Center"
                         BorderStyle = "None"
                         Text = $env:COMPUTERNAME
@@ -596,8 +625,8 @@ function DeviceNameForm {
                         Size = [Size]::new(100,25)
                         FlatStyle = "Flat"
                         TextAlign = "MiddleCenter"
-                        BackColor = [ColorTranslator]::FromHtml($Colors.Dark)
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                        BackColor = $AppColor.Dark
+                        ForeColor = $AppColor.Accent
                         Add_Click = { ChangeDeviceName -NewName $this.Controls["TextBox"].Text }
                     }
                 }

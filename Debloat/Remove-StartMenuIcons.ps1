@@ -1,10 +1,57 @@
-﻿param( [ScriptBlock]$ShowText )
-if (-not $ShowText) { $ShowText = { param($msg) Write-Host $msg } }
-
-# Bestätigungsdialog anzeigen
+﻿using namespace System.Windows.Forms
+param ( $take )
 Add-Type -AssemblyName System.Windows.Forms
-$confirm = [System.Windows.Forms.MessageBox]::Show("Möchtest du wirklich alle Startmenü-Icons entfernen? Diese Aktion kann nicht rückgängig gemacht werden.", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
-if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) { & $ShowText "Aktion abgebrochen. Es wurden keine Änderungen vorgenommen." -Final; return }
+
+
+# Administratorrechte überprüfen
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
+    [System.Environment]::Exit(0)
+}
+
+# Statusaktualisierungsfunktion
+$ShowText = {
+    <#
+    .SYNOPSIS
+        Zeigt eine Statusmeldung an.
+    .PARAMETER msg
+        Die anzuzeigende Nachricht.
+    .PARAMETER Final
+        Gibt an, ob dies die letzte Nachricht ist.
+    #>
+    param($msg, [switch]$Final)
+
+    # Überprüfen, ob die Funktion Update-Status verfügbar ist
+    if (Get-Command Update-Status -ErrorAction SilentlyContinue) {
+        Update-Status -Label (Get-ProcessLabel $take "Main") -Message $msg -Delay 1 -Final:$Final
+    } else {
+        # Fallback: Nachricht in der Konsole ausgeben
+        Write-Host $msg
+        if ($Final) {
+            Write-Host "Fertig!" -ForegroundColor Green
+            Start-Sleep -Seconds 2
+        }
+    }
+}
+
+# Bestätigungsdialog anzeigen, bevor die Startmenü-Icons entfernt werden
+$Request = {
+    $Title   = "Bestätigung"
+    $Text    = "Möchtest du wirklich alle Startmenü-Icons entfernen?"
+    $Buttons = [MessageBoxButtons]::YesNo
+    $Icon    = [MessageBoxIcon]::Warning 
+    $YesNo   = [System.Windows.Forms.DialogResult]::Yes
+
+    # Zeige den Bestätigungsdialog an
+    $confirm = [MessageBox]::Show($Text, $Title, $Buttons, $Icon)
+
+    # Überprüfe die Benutzerantwort und gib true zurück, wenn "Yes" ausgewählt wurde, andernfalls false
+    return  $confirm -eq $YesNo
+}
+if (-not (& $Request)) {
+    & $ShowText "Entfernung der Startmenü-Icons abgebrochen." -Final
+    return
+}
 
 # Statusmeldung anzeigen
 & $ShowText "Entferne Startmenü-Icons..."

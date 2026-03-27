@@ -5,9 +5,10 @@
         [switch]$AppList,
         [switch]$SetupList
     )
+    & $AppLog.Info "Branch: Read-Chocolatey"
     
     if ($AppList)         {
-        & $AppInfo.DebugText "Funktion 'Read-Chocolatey -AppList' aufgerufen. Lade Liste der installierten Pakete..."
+        & $AppLog.Info "Key: [switch]`$AppList "
 
         $apkList = @()
         $rawList = choco list --idonly
@@ -19,13 +20,13 @@
 
         return $apkList
     } elseif ($Installed) { 
-        & $AppInfo.DebugText "Funktion 'Read-Chocolatey -Installed' aufgerufen. Überprüfe, ob Chocolatey installiert ist..."
+        & $AppLog.Info "Key: [switch]`$Installed "
         return !([string]::IsNullOrWhiteSpace((Get-Command choco -ErrorAction SilentlyContinue).Source)) 
     } elseif ($Version)   { 
-        & $AppInfo.DebugText "Funktion 'Read-Chocolatey -Version' aufgerufen. Lade die installierte Version von Chocolatey..."
+        & $AppLog.Info "Key: [switch]`$Version "
         return (choco --version).Trim() 
     } elseif ($SetupList) { 
-        # & $AppInfo.DebugText "Funktion 'Read-Chocolatey -SetupList' aufgerufen. Bereite die Liste der verfügbaren Pakete für die Installation vor..."
+        & $AppLog.Info "Key: [switch]`$SetupList "
         $list = [ordered]@{
             # Packagename bei Chocolatey | Anzeigename
             "7zip"                      = "7-Zip"
@@ -83,33 +84,69 @@
                 Name = $list[$key]
             }
         }
-        # & $AppInfo.DebugText "Rückgabewerte von Get-Chocolatey -SetupList: $($items | Out-String)"
         return $items
     }
 }
 function Get-Chocolatey {
-    & $AppInfo.DebugText "Funktion 'Get-Chocolatey' aufgerufen. Überprüfe, ob Chocolatey installiert ist..."
+    & $AppLog.Info "Branch: Get-Chocolatey"
     return !([string]::IsNullOrWhiteSpace((Get-Command choco -ErrorAction SilentlyContinue).Source))
 }
 
 function Install-Chocolatey {
+    param ( [scriptblock]$ShowText )
+    & $AppLog.Info "Branch: Install-Chocolatey"
+
+    # Fallback-Implementierung für $ShowText, falls kein Skriptblock übergeben wurde
+    if (-not $ShowText){ 
+        $ShowText = { 
+            param($msg, [switch]$Final) 
+            Write-Host $msg
+            if($Final) { Start-Sleep -Seconds 2 } 
+        } 
+    }
     # Ausführunagsrichtlinien anpassen (erlaubt für diesen Prozess unsignierte Skripte)
+    & $ShowText "Passe Ausführungsrichtlinien an..."
     Set-ExecutionPolicy Bypass -Scope Process -Force
-
+    
     # Sicherheitsprotokoll anpassen (benötigt für TLS 1.2, das von Chocolatey-Servern verwendet wird)
+    & $ShowText "Aktualisiere Sicherheitsprotokolle für Webanfragen..."
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-
+    
     # Chocolatey laden und installieren (Setup durch Chocolatey-Installationsskript)
+    & $ShowText "Lade und installiere Chocolatey..."
     Invoke-WebRequest -Uri 'https://community.chocolatey.org/install.ps1' -UseBasicParsing | Invoke-Expression
+
+    # Überprüfen, ob die Installation erfolgreich war
+    if (Get-Chocolatey) {
+        & $ShowText "Chocolatey wurde erfolgreich installiert." -Final
+        Show-MessageBox "InstallChocolateySuccess"
+    } else {
+        & $ShowText "Fehler: Chocolatey konnte nicht installiert werden." -Final
+        Show-MessageBox "InstallChocolateyFailed"
+    }
 }
 function Uninstall-Chocolatey {
     param ( [scriptblock]$ShowText )
-    if (-not $ShowText){ $ShowText = { param($msg, [switch]$Final) Write-Host $msg; if($Final) { Start-Sleep -Seconds 2 } } }
+    & $AppLog.Info "Branch: Uninstall-Chocolatey"
+
+    # Fallback-Implementierung für $ShowText, falls kein Skriptblock übergeben wurde
+    if (-not $ShowText){ 
+        $ShowText = { 
+            param($msg, [switch]$Final) 
+            Write-Host $msg
+            if($Final) { Start-Sleep -Seconds 2 } 
+        } 
+    }
 
     # Bestätigung der Deinstallation einholen
-    if (-not (Show-MessageBox "ConfirmUninstallChocolatey")) { & $ShowText "Deinstallation von Chocolatey abgebrochen." -Final; return }
+    & $ShowText "Deinstallation von Chocolatey wird gestartet..."
+    if (-not (Show-MessageBox "ConfirmUninstallChocolatey")) { 
+        & $ShowText "Deinstallation von Chocolatey abgebrochen." -Final
+        return 
+    }
 
     # Umgebungsvariable für Chocolatey-Installation überprüfen
+    & $ShowText "Überprüfe Chocolatey-Installation und PATH-Variablen..."
     if (-not $env:ChocolateyInstall) { 
         & $ShowText "Chocolatey ist nicht installiert oder die Umgebungsvariable fehlt." -Final
         return 
@@ -129,17 +166,21 @@ function Uninstall-Chocolatey {
         Während die Registry beispielsweise "%SystemRoot%" in einem PATH-Eintrag anzeigt,
         sieht der PowerShell-Registry-Provider lediglich "C:\Windows".
     #>
+    & $ShowText "Lese aktuelle PATH-Variablen aus der Registry..."
     $userKey  = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
     $userPath = $userKey.GetValue('PATH', [string]::Empty, 'DoNotExpandEnvironmentNames').ToString()
 
+    & $ShowText "Öffne Registry-Schlüssel für PATH-Variablen..."
     $machineKey  = [Registry]::LocalMachine.OpenSubKey('SYSTEM\ControlSet001\Control\Session Manager\Environment\', $true)
     $machinePath = $machineKey.GetValue('PATH', [string]::Empty, 'DoNotExpandEnvironmentNames').ToString()
     
+    & $ShowText "Sichere aktuelle PATH-Variablen..."
     $backupFile  = "C:\PATH_backups_ChocolateyUninstall.txt"
     $backupPATHs = @( "User PATH: $userPath", "Machine PATH: $machinePath" )
     $backupPATHs | Set-Content -Path $backupFile -Encoding UTF8 -Force
 
     # Chocolatey-Installationspfad aus PATH entfernen, falls vorhanden
+    & $ShowText "Bereinige PATH-Variablen von Chocolatey-Installationspfad..."
     if ($userPath -like "*$env:ChocolateyInstall*") {
         & $ShowText "Chocolatey-Installationspfad im Benutzer-PATH gefunden. Wird entfernt..."
 
@@ -168,10 +209,11 @@ function Uninstall-Chocolatey {
     # Anpassung für Dienste, die in Unterordnern von ChocolateyInstall ausgeführt werden
     $agentService = Get-Service -Name chocolatey-agent -ErrorAction SilentlyContinue
     if ($agentService -and $agentService.Status -eq 'Running') {
+        & $ShowText "Stoppe Dienst: chocolatey-agent..."
         $agentService.Stop()
     }
     # TODO: Weitere relevante Dienste hier ergänzen
-
+    & $ShowText "Lösche Chocolatey-Installationsverzeichnis..."
     Remove-Item -Path $env:ChocolateyInstall -Recurse -Force
 
     'ChocolateyInstall', 'ChocolateyLastPathUpdate' | ForEach-Object {
@@ -180,6 +222,7 @@ function Uninstall-Chocolatey {
         }
     }
 
+    & $ShowText "Schließe Registry-Schlüssel..."
     $machineKey.Close()
     $userKey.Close()
     if ($env:ChocolateyToolsLocation -and (Test-Path $env:ChocolateyToolsLocation)) {
@@ -189,18 +232,29 @@ function Uninstall-Chocolatey {
     foreach ($scope in 'User', 'Machine') {
         [Environment]::SetEnvironmentVariable('ChocolateyToolsLocation', [string]::Empty, $scope)
     }
+    & $ShowText "Deinstallation von Chocolatey abgeschlossen." -Final
+    Show-MessageBox "UninstallChocolateySuccess"
+}
+function Get-ChocolateyVersion {
+    & $AppLog.Info "Branch: Get-ChocolateyVersion"
+    try {
+        return (choco --version).Trim()
+    } catch {
+        return "Nicht installiert"
+    }
 }
 
 function InstallChocoApps {
-    param ( $form )
+    param ( $take )
+    & $AppLog.Info "Branch: InstallChocoApps"
 
+    $form       = $take.FindForm()
     $packagePanel= $form.Controls["PackagePanel"]
     $addTab     = $packagePanel.Controls["TabControl"].Controls["AddTab"]
     $addList    = $addTab.Controls["AddList"]
-    $process    = $addTab.Controls["Process"]
     $packagePanel.Controls["SelectLabel"].Visible = $false
 
-    $ShowText = { param($msg, [switch]$Final) Update-Status -Label $process -Message $msg -Delay 2 -Final:$Final }
+    $ShowText = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $take) -Message $msg -Delay 2 -Final:$Final }
 
     & $ShowText "Installiere ausgewählte Pakete..."
     
@@ -231,51 +285,48 @@ function InstallChocoApps {
     foreach ($package in $addList.CheckedIndices) {
         $addList.SetItemChecked($package, $false)
     }
-    Show-MessageBox "PackagesInstalled"
+    Show-MessageBox "PackagesInstallSuccess"
 }
 function UpdateChocoApps {
-    param ( $form )
+    param ( $take )
+    & $AppLog.Info "Branch: UpdateChocoApps"
 
-    $packagePanel    = $form.Controls["PackagePanel"]
-    $manageTab       = $packagePanel.Controls["TabControl"].Controls["ManageTab"]
-    $installedList   = $manageTab.Controls["InstalledList"]
-    $process         = $manageTab.Controls["Process"]
+    $form           = $take.FindForm()
+    $packagePanel   = $form.Controls["PackagePanel"]
+    $manageTab      = $packagePanel.Controls["TabControl"].Controls["ManageTab"]
+    $installedList  = $manageTab.Controls["InstalledList"]
 
-    $ShowText = { param($msg, [switch]$Final) Update-Status -Label $process -Message $msg -Delay 2 -Final:$Final }
+    $ShowText = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $take) -Message $msg -Delay 2 -Final:$Final }
 
     # Prozesslabel für Statusinformationen abrufen und initialisieren
     & $ShowText "Aktualisiere ausgewählte Pakete..."
     
     # Cursor auf "Ladevorgang" setzen und ausgewählte Pakete abrufen
-    $form.Cursor            = [Cursors]::AppStarting
     $selectedPackages       = @($installedList.SelectedItems)
     Start-Sleep -Seconds 1
 
     foreach ($package in $selectedPackages) {
         & $ShowText "Aktualisiere $package..."
-        Start-Sleep -Seconds 1
         choco upgrade $package -y
-        & $ShowText "Abgeschlossen."
-        Start-Sleep -Seconds 1
     }
 
     # Aktualisierung abgeschlossen
-    $form.Cursor        = [Cursors]::Default
     & $ShowText "Alle ausgewählten Pakete wurden aktualisiert." -Final
     
     $installedList.ClearSelected()
-    Show-MessageBox "PackagesUpdated"
+    Show-MessageBox "PackagesUpdateSuccess"
 }
 function UninstallChocoApps {
-    param ($form)
+    param ($take)
+    & $AppLog.Info "Branch: UninstallChocoApps"
 
-    $packagePanel    = $form.Controls["PackagePanel"]
-    $manageTab       = $packagePanel.Controls["TabControl"].Controls["ManageTab"]
-    $installedList   = $manageTab.Controls["InstalledList"]
-    $process         = $manageTab.Controls["Process"]
-    $selectLabel     = $packagePanel.Controls["SelectLabel"]
+    $form           = $take.FindForm()
+    $packagePanel   = $form.Controls["PackagePanel"]
+    $manageTab      = $packagePanel.Controls["TabControl"].Controls["ManageTab"]
+    $installedList  = $manageTab.Controls["InstalledList"]
+    $selectLabel    = $packagePanel.Controls["SelectLabel"]
 
-    $ShowText = { param($msg, [switch]$Final) Update-Status -Label $process -Message $msg -Delay 2 -Final:$Final }
+    $ShowText = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $take) -Message $msg -Delay 2 -Final:$Final }
     
     $selectLabel.Visible    = $false
     & $ShowText "Deinstallation ausgewählter Pakete..."
@@ -301,5 +352,20 @@ function UninstallChocoApps {
     $installedList.ClearSelected()
     $selectLabel.Visible    = $true
 
-    Show-MessageBox "PackagesUninstalled"
+    Show-MessageBox "PackagesUninstallSuccess"
+}
+function Get-ChocoApps {
+    & $AppLog.Info "Branch: Get-ChocoApps"
+    try {
+        $apkList = @()
+        $rawList = choco list --idonly
+        foreach ($line in $rawList) {
+            if ($line -match '^\d+ packages installed\.$') { break }
+            if ($line -and $line -notmatch '^Chocolatey v') { $apkList += $line.Trim() }
+        }
+
+        return $apkList
+    } catch {
+        return @()
+    }
 }

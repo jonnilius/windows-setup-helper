@@ -14,29 +14,6 @@ Add-Type -AssemblyName System.Windows.Forms.DataVisualization
 #     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
 #     [System.Environment]::Exit(0)
 # }
-
-$global:AppInfo = @{
-    Name        = "Windows Setup Helper"
-    Version     = "0.9.8"
-    Author      = "jonnilius"
-    Company     = "BORINAS"
-    License     = "MIT License"
-
-    IsAdmin     = & {
-        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    }
-    Path        = $PSScriptRoot
-    DebugMode   = $true
-    DebugText   = {
-        param ([string]$message)
-        if ($AppInfo.DebugMode) { 
-            Write-Host "DEBUG: " -ForegroundColor Yellow -NoNewline
-            Write-Host $message 
-        }
-    }
-}
 $global:SystemInfo = @{
     ProductName     = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName
     DisplayVersion  = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
@@ -54,30 +31,53 @@ $global:SystemInfo = @{
 
     Architecture = if ([System.Environment]::Is64BitOperatingSystem) { "64-bit" } else { "32-bit" }
 }
-$global:AppDesign = @{
+
+$global:AppInfo = @{
+    Name        = "Windows Setup Helper"
+    Version     = "0.9.9"
+    Author      = "jonnilius"
+    Company     = "BORINAS"
+    License     = "MIT License"
+
+    IsAdmin     = & {
+        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+    Path        = $PSScriptRoot
+    DebugMode   = $false
+    DebugText   = {
+        param ([string]$message)
+        if ($AppInfo.DebugMode) { 
+            Write-Host "DEBUG: " -ForegroundColor Yellow -NoNewline
+            Write-Host $message 
+        }
+    }
+}
+$global:AppConfig = @{
+    IsAdmin     = & {
+        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    }
+}
+$global:AppColor = @{
     Accent = [ColorTranslator]::FromHtml("#C0393B")
     Dark   = [ColorTranslator]::FromHtml("#2D3436")
     White  = [ColorTranslator]::FromHtml("#EEEEEE")
     Debug1 = [ColorTranslator]::FromHtml("#27AE60")
     Debug2 = [ColorTranslator]::FromHtml("#2980B9")
 }
-$global:Colors = @{
-    Accent     = "#C0393B"
-    Dark       = "#2D3436"
-    White      = "#EEEEEE"
-    Debug1     = "#27AE60"
-    Debug2     = "#2980B9"
-}
-$global:FormColor = @{
-    Accent     = [ColorTranslator]::FromHtml("#C0393B")
-    Dark       = [ColorTranslator]::FromHtml("#2D3436")
-    White      = [ColorTranslator]::FromHtml("#EEEEEE")
-    Debug1     = [ColorTranslator]::FromHtml("#27AE60")
-    Debug2     = [ColorTranslator]::FromHtml("#2980B9")
+$global:AppLog = @{
+    Info  = { param($msg) Write-Information "[INFO]  $msg" }
+    Debug = { param($msg) Write-Debug       "[DEBUG] $msg" }
+    Warn  = { param($msg) Write-Warning     "[WARN]  $msg" }
+    Error = { param($msg) Write-Error       "[ERROR] $msg"; throw $msg }
 }
 
 # $ErrorActionPreference = "SilentlyContinue"
-& $AppInfo.DebugText "Lade Module..."
+& $AppLog.Info "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
+& $AppLog.Info "Lade Module..."
 $env:PSModulePath += ";$PSScriptRoot\Modules"
 Import-Module "$PSScriptRoot\Modules\Utils.psm1"
 Import-Module "$PSScriptRoot\Modules\FormBuilder.psm1"
@@ -86,7 +86,7 @@ Import-Module "$PSScriptRoot\Modules\Chocolatey.psm1"
 
 
 
-& $AppInfo.DebugText "Erstelle Hauptformular..."
+
 <# FORM-DATA ############################################################################>
 $FormConfig = @{
     Main        = @{
@@ -95,76 +95,80 @@ $FormConfig = @{
             ClientSize  = [Size]::new(400,370) # Breite, Höhe
             Icon        = Get-Icon "Main"
             Padding     = [Padding]::new(10,0,10,0)
-            ForeColor   = $AppDesign.Dark
-            BackColor   = $AppDesign.Accent
         }
         Controls    = [ordered]@{
             TabPanel = @{
-                Control = "Panel"
-                Dock = "Fill"
-                Padding = [Padding]::new(0)
-                BackColor = $AppDesign.Dark
-                ForeColor = $AppDesign.Accent
-                Controls = @{
+                Control   = "Panel"
+                Dock      = "Fill"
+                Padding   = [Padding]::new(0)
+                BackColor = Get-Color "Dark"
+                ForeColor = Get-Color "Accent"
+                Controls  = @{
                     ProcessLabel = @{
+                        Name        = "ProcessLabel"
                         Control     = "Label"
                         Height      = 50
-                        Font        = Get-Font "Label" -Name "Consolas"
+                        ForeColor   = Get-Color "Dark"
+                        BackColor   = Get-Color "Accent"
+                        Font        = Get-Font "Label" -Style "Italic"
                         Dock        = "Bottom"
                         TextAlign   = "MiddleCenter"
+                        Text        = "Status: Bereit"
                         Visible     = $false
+
                         Add_VisibleChanged = {
-                            $this.FindForm().ClientSize = if ($this.Visible) { [Size]::new(360,450) } else { [Size]::new(360,400) }
+                            $delta = if ($this.Visible) { 50 } else { -50 }
+                            $form = $this.FindForm()
+                            
+                            Start-Sleep -Milliseconds 200
+                            $form.ClientSize = [Size]::new($form.ClientSize.Width, $form.ClientSize.Height + $delta)
                         }
                     }
                     TabControl = @{
                         Control     = "TabControl"
                         Dock        = "Fill"
                         Font        = [Font]::new("Consolas", 10)
+                        MultiLine    = $true
                         Controls    = [ordered]@{
                             MainTab     = @{
                                 Control     = "TabPage"
                                 Text        = "Allgemein"
-                                Controls    = @{
+                                Controls    = [ordered]@{
                                     MainTable = @{
                                         Control     = "TableLayoutPanel"
                                         Dock        = "Fill"
                                         Padding     = [Padding]::new(0)
                                         Column      = @( "40", "40", "20" )
                                         Row         = @( 30, 30, 30, 30, 30, 30, 30, 30, "AutoSize" )
-                                        Controls    = @{
+                                        Controls    = [ordered]@{
                                             SystemLabel = @{
                                                 ColumnSpan  = 3
-                                                Position    = 0,0
+                                                # Position    = 0,0
                                                 Control     = "Label"
-                                                Text        = "System Einstellungen"
+                                                Text        = "System"
                                                 Font        = Get-Font "Subtitle"
-                                                Dock        = "Fill"
                                                 TextAlign   = "BottomCenter"
                                             }
 
                                             DeviceNameLabel = @{
-                                                Position    = 0,1
+                                                # Position    = 0,1
                                                 Control     = "Label"
                                                 Text        = "Gerätename:"
                                                 Font        = Get-Font "Label" -Style "Bold"
-                                                Dock        = "Fill"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             DeviceNameValue = @{
-                                                Position    = 1,1
+                                                # Position    = 1,1
                                                 Control     = "Label"
                                                 Text        = $($env:COMPUTERNAME)
                                                 Font        = Get-Font "Label"
-                                                Dock        = "Fill"
                                                 TextAlign   = "MiddleCenter"
                                             }
                                             DeviceNameButton = @{
-                                                Position    = 2,1
+                                                # Position    = 2,1
                                                 Control     = "Button"
                                                 Text        = "Ändern"
                                                 Font        = Get-Font "Button"
-                                                Dock        = "Fill"
                                                 Margin      = [Padding]::new(5,2,5,3)
                                                 Add_Click   = { Start-Form $FormConfig.DeviceName }
                                             }
@@ -177,18 +181,6 @@ $FormConfig = @{
                                 Control     = "TabPage"
                                 Text        = "Debloat"
                                 Controls    = @{
-                                    ProcessLabel = @{
-                                        Control     = "Label"
-                                        Height      = 50
-                                        Font        = Get-Font "Label"
-                                        Dock        = "Bottom"
-                                        TextAlign   = "MiddleCenter"
-                                        Visible     = $false
-                                        Add_VisibleChanged = {
-                                            $this.FindForm().ClientSize = if ($this.Visible) { [Size]::new(360,450) } else { [Size]::new(360,400) }
-                                        }
-
-                                    }
                                     TableLayout = @{
                                         Control     = "TableLayoutPanel"
                                         Dock        = "Fill"
@@ -233,13 +225,7 @@ $FormConfig = @{
                                                 Position    = 1,2
                                                 Dock        = "Fill"
                                                 Margin      = [Padding]::new(5)
-                                                Add_Click   = { 
-                                                    $processLabel = $this.FindForm().Controls.Find("ProcessLabel", $true)[0]
-                                                    Remove-Item "StartMenuIcons" { 
-                                                        param([string]$msg, [switch]$final) 
-                                                        Update-Status -Label $processLabel -Message $msg -Delay 1 -Final:$final 
-                                                    }
-                                                }
+                                                Add_Click   = { Remove-StartMenuIcons $this }
                                             }
 
                                         }
@@ -262,7 +248,7 @@ $FormConfig = @{
                                                 Control     = "Label"
                                                 Text        = "Paket-Manager"
                                                 Font        = Get-Font "Subtitle"
-                                                ForeColor   = [ColorTranslator]::FromHtml($Colors.Accent)
+                                                ForeColor   = $AppColor.Accent
                                                 Dock        = "Bottom"
                                                 TextAlign   = "MiddleCenter"
                                             }
@@ -536,12 +522,12 @@ $FormConfig = @{
                                 }
                                 Add_Enter = {
                                     $PowerValues = @{
-                                        "StandbyValueAC" = Get-PowerStatus "AC" "Standby" -TextOutput
-                                        "HibernateValueAC" = Get-PowerStatus "AC" "Hibernate" -TextOutput
-                                        "MonitorValueAC" = Get-PowerStatus "AC" "Monitor" -TextOutput
-                                        "StandbyValueDC" = Get-PowerStatus "DC" "Standby" -TextOutput
-                                        "HibernateValueDC" = Get-PowerStatus "DC" "Hibernate" -TextOutput
-                                        "MonitorValueDC" = Get-PowerStatus "DC" "Monitor" -TextOutput
+                                        "StandbyValueAC"    = Get-PowerStatus "AC" "Standby" -TextOutput
+                                        "HibernateValueAC"  = Get-PowerStatus "AC" "Hibernate" -TextOutput
+                                        "MonitorValueAC"    = Get-PowerStatus "AC" "Monitor" -TextOutput
+                                        "StandbyValueDC"    = Get-PowerStatus "DC" "Standby" -TextOutput
+                                        "HibernateValueDC"  = Get-PowerStatus "DC" "Hibernate" -TextOutput
+                                        "MonitorValueDC"    = Get-PowerStatus "DC" "Monitor" -TextOutput
                                     }
                                     foreach ($key in $PowerValues.Keys) {
                                         $label = $this.FindForm().Controls.Find($key, $true)[0]
@@ -573,8 +559,7 @@ $FormConfig = @{
                                 "Allgemein"         { $headerLabel.Text = $AppInfo.Name.ToUpper() }
                                 "Debloat"           { $headerLabel.Text = "WINDOWS DEBLOATER" }
                                 "Programme"         { $headerLabel.Text = "PROGRAMMVERWALTUNG" }
-                                "Energieoptionen"   { 
-                                    $headerLabel.Text = "ENERGIEOPTIONEN" 
+                                "Energieoptionen"   { $headerLabel.Text = "ENERGIEOPTIONEN" 
                                     $form.MinimumSize = [Size]::new(350,450)
                                 }
                             }
@@ -602,8 +587,8 @@ $FormConfig = @{
                 Height = 30
                 Column = @("AutoSize", "100", "AutoSize")
                 Dock = "Bottom"
-                ForeColor = [ColorTranslator]::FromHtml($Colors.Dark)
-                BackColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                ForeColor = $AppColor.Dark
+                BackColor = $AppColor.Accent
                 Controls = [ordered]@{
                     About = @{
                         Control = "Label"
@@ -624,13 +609,13 @@ $FormConfig = @{
                     }
                     Details = @{
                         Control = "Label"
-                        Text = "Optionen".ToUpper()
+                        Text = "Einstellungen".ToUpper()
                         Font = [Font]::new("Consolas", 8, [FontStyle]::Underline)
                         Anchor = "Right"
                         TextAlign = "MiddleRight"
                         Cursor = [Cursors]::Hand
                         ToolTip = "Weitere Optionen und Einstellungen"
-                        Add_Click = { Start-Form $FormConfig.Settings }
+                        Add_Click = { Show-MessageBox "ComingSoon" }
                     }
                 }
             }
@@ -677,7 +662,7 @@ $FormConfig = @{
                             Label = @{
                                 Control = "Label"
                                 Text = "WINDOWS SETUP HELPER"
-                                ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                                ForeColor = $AppColor.Accent
                                 Dock = "Fill"
                                 TextAlign = "MiddleCenter"
                                 Margin = [Padding]::new(0,10,0,10)
@@ -707,9 +692,9 @@ Lizenz: MIT
     }
     Chocolatey  = @{
         Properties  = @{
-            Text        = "$($AppInfo.Name) - Chocolatey"
+            Text        = "Paket Manager - Chocolatey"
             ClientSize  = [Size]::new(600,300)
-            Icon        = Get-Icon "Chocolatey"
+            Icon        = "Chocolatey"
         }
         Controls    = @{
             PackagePanel = @{
@@ -721,8 +706,8 @@ Lizenz: MIT
                     TabControl = @{
                         Control     = "TabControl"
                         Dock        = "Fill"
-                        BackColor   = $FormColor.Dark
-                        ForeColor   = $FormColor.Accent
+                        BackColor   = $AppColor.Dark
+                        ForeColor   = $AppColor.Accent
                         Font        = [Font]::new("Consolas", 10)
                         Controls    = [ordered]@{
                             ManageTab = @{
@@ -730,17 +715,30 @@ Lizenz: MIT
                                 Text        = "Verwalten"
                                 Name        = "ManageTab"
                                 Controls    = @{
+                                    LoadLabel = @{
+                                        Control     = "Label"
+                                        Text        = "Lade installierte Programme..."
+                                        Dock        = "Fill"
+                                        TextAlign   = "MiddleCenter"
+                                        ForeColor   = $AppColor.Accent
+                                        # Font        = [Font]::new("Consolas", 10, [FontStyle]::Italic)
+                                        Font        = Get-Font "Label" -Style "Italic"
+                                        Add_VisibleChanged = {
+                                            $this.Parent.Controls["InstalledList"].Visible = -not $this.Visible
+                                        }
+                                    }
                                     InstalledList = @{
                                         Control = "ListBox"
                                         Name    = "InstalledList"
                                         Dock    = "Fill"
+                                        Visible = $false
                                         Add_SelectedIndexChanged = {
                                             $sidebarPanel = $this.FindForm().Controls["SidebarPanel"]
                                             $sidebarPanel.Controls["UpdateButton"].Visible   = $this.SelectedItems.Count -gt 0
                                             $sidebarPanel.Controls["UninstallButton"].Visible   = $this.SelectedItems.Count -gt 0
                                             
                                             $packagePanel = $this.FindForm().Controls["PackagePanel"]
-                                            $packagePanel.Controls["SelectLabel"].Text      = if ($this.Items.Count -eq $this.SelectedItems.Count) { "Alle abwählen" } else { "Alle auswählen" }
+                                            $packagePanel.Controls["SelectLabel"].Text = if ($this.Items.Count -eq $this.SelectedItems.Count) { "Alle abwählen" } else { "Alle auswählen" }
                                         }
                                     }
                                     Process = @{
@@ -749,7 +747,7 @@ Lizenz: MIT
                                         TextAlign = "MiddleCenter"
                                         Visible = $false
                                         Height = 30
-                                        ForeColor = $AppDesign.Accent
+                                        ForeColor = $AppColor.Accent
                                     }
                                 }
                                 Add_Enter = {
@@ -763,7 +761,6 @@ Lizenz: MIT
                                     AddList = @{
                                         Control         = "CheckedListBox"
                                         Name            = "AddList"
-                                        Items           = Read-Chocolatey -SetupList
                                         Add_ItemCheck   = {
                                             param($src, $e)
                                             $count = $src.CheckedItems.Count
@@ -779,7 +776,7 @@ Lizenz: MIT
                                         TextAlign = "MiddleCenter"
                                         Visible = $false
                                         Height = 30
-                                        ForeColor = $AppDesign.Accent
+                                        ForeColor = $AppColor.Accent
                                     }
                                 }
                             }
@@ -797,32 +794,22 @@ Lizenz: MIT
                             switch ($selectedTab.Name) {
                                 "ManageTab" {
                                     if ($installedList.Items.Count -eq 0){
-                                        & $AppInfo.DebugText "Lade installierte Programme..."
-                                        foreach ($program in Read-Chocolatey -AppList) { 
-                                            [void]$installedList.Items.Add($program) 
-                                        }
+                                        foreach ($program in Get-ChocoApps) { [void]$installedList.Items.Add($program) }
                                     }
                                 }
-                                # "AddTab" {
-                                #     # $addList = $this.Controls["AddTab"].Controls["AddList"]
-                                #     if ($addList.Items.Count -eq 0) {
-                                #         & $AppInfo.DebugText "Lade verfügbare Programme..."
-                                #         foreach ($program in Read-Chocolatey -SetupList){
-                                #             $item = [PSCustomObject]@{
-                                #                 Id      = $program.Key
-                                #                 Name    = $program.Value
-                                #             }
-                                #             $addList.Items.Add($item, $false) | Out-Null
-
-                                #         }
-                                #     }
-                                # }
+                                "AddTab" {
+                                    if ($addList.Items.Count -eq 0){
+                                        $addList.Items.AddRange((Read-Chocolatey -SetupList))
+                                    }
+                                }
                                 {$_ -ne "ManageTab"} {
+                                    # Vorherige Auswahl zurücksetzen und Buttons ausblenden
                                     $installedList.ClearSelected()
                                     $updateButton.Visible   = $false
                                     $removeButton.Visible   = $false
                                 }
                                 {$_ -ne "AddTab"} {
+                                    # Vorherige Auswahl zurücksetzen und Installieren-Button ausblenden
                                     $addList.ClearSelected()
                                     foreach ($index in $addList.CheckedIndices) { $addList.SetItemChecked($index, $false) }
                                     $installButton.Visible  = $false
@@ -833,7 +820,7 @@ Lizenz: MIT
                     SelectLabel = @{
                         Control = "Label"
                         Text = "Alle auswählen"
-                        ForeColor = [ColorTranslator]::FromHtml($Colors.Accent)
+                        ForeColor = $AppColor.Accent
                         TextAlign = "MiddleCenter"
                         Height = 30
                         Font = [Font]::new("Consolas", 8)
@@ -867,215 +854,130 @@ Lizenz: MIT
                             }
                         }
                     }
+                    ProcessLabel = @{
+                        Control             = "Label"
+                        Dock                = "Bottom"
+                        Text                = "Starte..."
+                        TextAlign           = "MiddleCenter"
+                        Visible             = $false
+                        Height              = 30
+                        ForeColor           = $AppColor.Accent
+                        Add_VisibleChanged  = {
+                            $this.Parent.Controls["SelectLabel"].Visible = -not $this.Visible
+                        }
+                    }
                 }
             }
             SidebarPanel = @{
                 Control     = "Panel"
                 Name        = "SidebarPanel"
                 Dock        = "Right"
-                ForeColor   = [ColorTranslator]::FromHtml($Colors.Dark)
-                BackColor   = [ColorTranslator]::FromHtml($Colors.Accent)
+                ForeColor   = $AppColor.Dark
+                BackColor   = $AppColor.Accent
                 Padding     = [Padding]::new(10,5,0,0)
                 Controls    = [ordered]@{
+                    # Chocolatey deinstallieren Button
                     UninstallChocoButton = @{
-                        Control = "Button"
-                        Text    = "Chocolatey entfernen"
-                        Dock    = "Top"
-                        Enabled = $false
-                        Font    = Get-Font "Button"
-                        Add_Click = { 
-                            $tabControl = $this.FindForm().Controls["PackagePanel"].Controls["TabControl"]
-                            if ($tabControl.SelectedTab.Name -eq "ManageTab") { 
-                                $tabControl.Controls["ManageTab"].Controls["Process"].Visible = $true 
-                                $currentTab = $tabControl.Controls["ManageTab"]
-                            } elseif ($tabControl.SelectedTab.Name -eq "AddTab") { 
-                                $tabControl.Controls["AddTab"].Controls["Process"].Visible = $true 
-                                $currentTab = $tabControl.Controls["AddTab"]
-                            }
-
-                            if (-not (Show-MessageBox "ConfirmUninstallChocolatey")) { return }
-                            
-                            $this.FindForm().Cursor = [Cursors]::AppStarting
-                            
-                            Uninstall-Chocolatey { param($msg, [switch]$Final) Update-Status -Label $currentTab.Controls["Process"] -Message $msg -Delay 2 -Final:$Final }
-                            $this.FindForm().Cursor = [Cursors]::Default
-                            
-                            Show-MessageBox "UninstallChocolateySuccess"
+                        Control     = "Button"
+                        Text        = "Chocolatey entfernen"
+                        Dock        = "Top"
+                        Visible     = $false
+                        Font        = Get-Font "SidebarButton"
+                        Add_Click   = { 
+                            Uninstall-Chocolatey { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final }
                         }
                     }
+                    # Chocolatey installieren Button
                     InstallChocoButton = @{
-                        Control = "Button"
-                        Text    = "Chocolatey hinzufügen"
-                        Dock    = "Top"
-                        Enabled = $false
-                        Font    = Get-Font "Button"
-                        Add_Click = { 
-                            $tabControl = $this.FindForm().Controls["PackagePanel"].Controls["TabControl"]
-                            if ($tabControl.SelectedTab.Name -eq "ManageTab") { 
-                                $tabControl.Controls["ManageTab"].Controls["Process"].Visible = $true 
-                                $currentTab = $tabControl.Controls["ManageTab"]
-                            } elseif ($tabControl.SelectedTab.Name -eq "AddTab") { 
-                                $tabControl.Controls["AddTab"].Controls["Process"].Visible = $true 
-                                $currentTab = $tabControl.Controls["AddTab"]
-                            }
-
-                            $this.FindForm().Cursor = [Cursors]::AppStarting
-                            
-                            Install-Chocolatey { param($msg, [switch]$Final) Update-Status -Label $currentTab.Controls["Process"] -Message $msg -Delay 2 -Final:$Final }
-                            $this.FindForm().Cursor = [Cursors]::Default
-                            
-                            Show-MessageBox "InstallChocolateySuccess"
+                        Control     = "Button"
+                        Text        = "Chocolatey hinzufügen"
+                        Dock        = "Top"
+                        Visible     = $false
+                        Font        = Get-Font "SidebarButton"
+                        Add_Click   = { 
+                            Install-Chocolatey { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final }
                         }
                     }
+                    # Anzeige der Chocolatey-Version
                     VersionLabel = @{
-                        Control = "Label"
-                        Text = "Version: $(Read-Chocolatey -Version)"
-                        TextAlign = "MiddleCenter"
-                        Dock = "Top"
-                        Height = 20
-                        Font = [Font]::new("Consolas", 10, [FontStyle]::Bold)
+                        Control     = "Label"
+                        TextAlign   = "TopCenter"
+                        Dock        = "Top"
+                        Height      = 25
+                        Font        = Get-Font "SidebarLabel"
                     }
+                    # Chocolatey-Titel
                     NameLabel = @{
-                        Control = "Label"
-                        Text = "Chocolatey"
-                        TextAlign = "MiddleCenter"
-                        Dock = "Top"
-                        Font = [Font]::new("Cascadia Code", 14, [FontStyle]::Bold)
+                        Control     = "Label"
+                        Text        = "Chocolatey"
+                        TextAlign   = "MiddleCenter"
+                        Dock        = "Top"
+                        Height      = 35
+                        Font        = Get-Font "SidebarHeader"
                     }
 
+                    # Pakete aktualisieren Button
                     UpdateButton = @{
-                        Control = "Button"
-                        Name    = "UpdateButton"
-                        Text    = "Aktualisieren"
-                        Visible = $false
-                        Dock    = "Bottom"
-                        Font = [Font]::new("Tahoma", 8, [FontStyle]::Bold)
-                        Add_Click = { UpdateChocoApps $this.FindForm() }
+                        Control     = "Button"
+                        Text        = "Aktualisieren"
+                        Visible     = $false
+                        Dock        = "Bottom"
+                        Font        = Get-Font "SidebarButton"
+                        Add_Click   = { UpdateChocoApps $this }
                     }
+                    # Pakete installieren Button
                     InstallButton = @{
-                        Control = "Button"
-                        Name    = "InstallButton"
-                        Visible = $false
-                        Text    = "Installieren"
-                        Dock    = "Bottom"
-                        Font    = [Font]::new("Tahoma", 8, [FontStyle]::Bold)
-                        
-                        Add_Click = { InstallChocoApps $this.FindForm() }
+                        Control     = "Button"
+                        Name        = "InstallButton"
+                        Visible     = $false
+                        Text        = "Installieren"
+                        Dock        = "Bottom"
+                        Font        = Get-Font "SidebarButton"
+                        Add_Click   = { InstallChocoApps $this }
                     }
+                    # Pakete deinstallieren Button
                     UninstallButton = @{
-                        Control = "Button"
-                        Name    = "UninstallButton"
-                        Visible = $false
-                        Text    = "Deinstallieren"
-                        Dock    = "Bottom"
-                        Font    = [Font]::new("Tahoma", 8, [FontStyle]::Bold)
+                        Control     = "Button"
+                        Name        = "UninstallButton"
+                        Visible     = $false
+                        Text        = "Deinstallieren"
+                        Dock        = "Bottom"
+                        Font        = Get-Font "SidebarButton"
                         
-                        Add_Click = { UninstallChocoApps $this.FindForm() }
+                        Add_Click   = { UninstallChocoApps $this }
                     }
                 }
             }
         }
         Events      = @{
+            Load = { 
+                $this.Controls["SidebarPanel"].Controls["VersionLabel"].Text = "Version: " + (Get-ChocolateyVersion)
+            }
+
             Shown = { 
-                & $AppInfo.DebugText "Event: Chocolatey Form Shown"
                 $tabControl = $this.Controls["PackagePanel"].Controls["TabControl"]
+                $installedList  = $tabControl.Controls["ManageTab"].Controls["InstalledList"]
 
                 # Installierte Programme laden
-                $InstalledList = $tabControl.Controls["ManageTab"].Controls["InstalledList"]
-                & $AppInfo.DebugText "Lade installierte Programme..."
-                foreach ($program in Read-Chocolatey -AppList) { 
-                    [void]$InstalledList.Items.Add($program) 
-                }
+                $loadLabel      = $tabControl.Controls["ManageTab"].Controls["LoadLabel"]
+                foreach ($program in Get-ChocoApps) { [void]$installedList.Items.Add($program) }
+                $loadLabel.Visible = $false
+
 
 
                 # Chocolatey-Installationsstatus
                 $sidebarPanel   = $this.Controls["SidebarPanel"]
                 if (Get-Chocolatey) { 
-                    $sidebarPanel.Controls["UninstallChocoButton"].Enabled = $true 
+                    $sidebarPanel.Controls["UninstallChocoButton"].Visible = $true 
                 } else { 
-                    $sidebarPanel.Controls["InstallChocoButton"].Enabled = $true 
+                    $sidebarPanel.Controls["InstallChocoButton"].Visible = $true 
                 }
-
             }
         }
     }
-    Debloat     = @{
+    WinGet      = @{
         Properties  = @{
-            Text = "Tweaks & Debloat"
-            ClientSize = [Size]::new(300,150)
-            Icon = Get-Icon "Debloat"
-            FormBorderStyle = "FixedDialog"
-        }
-        Controls    = @{
-            TableLayout = @{
-                Control = "TableLayoutPanel"
-                Dock = "Fill"
-                Padding = [Padding]::new(0)
-                ColumnCount = 1
-                RowCount = 3
-                Column = @(
-                    [System.Windows.Forms.ColumnStyle]::new("Percent", 100)
-                )
-                Row = @(
-                    [System.Windows.Forms.RowStyle]::new("Percent", 33),
-                    [System.Windows.Forms.RowStyle]::new("Percent", 33),
-                    [System.Windows.Forms.RowStyle]::new("Percent", 33)
-                )
-                Controls = @{
-                    UninstallOneDrive = @{
-                        Control = "Button"
-                        Text = "OneDrive entfernen"
-                        Font = [Font]::new("Consolas", 10)
-                        Dock = "Fill"
-                        Add_Click = { Uninstall-OneDrive $this.findForm().Controls["ProcessLabel"] }
-                    }
-                    UninstallEdge = @{
-                        Control = "Button"
-                        Text = "Microsoft Edge entfernen"
-                        Font = [Font]::new("Consolas", 10)
-                        Dock = "Fill"
-                        Add_Click = { 
-                            $processLabel = $this.FindForm().Controls["ProcessLabel"]
-                            .\Debloat\UninstallEdge.ps1 { param($msg, $final) Update-Status -Label $processLabel -Message $msg -Delay 1 } 
-                            $processLabel.Visible = $false
-                        }
-                    }   
-                    HideStartMenuIcons = @{
-                        Control = "Button"
-                        Text = "Startmenü aufräumen"
-                        Font = [Font]::new("Consolas", 10)
-                        Dock = "Fill"
-                        Add_Click = { 
-                            $processLabel = $this.FindForm().Controls["ProcessLabel"]
-                            .\Debloat\DebloatStartMenu.ps1 { param($msg, $final) Update-Status -Label $processLabel -Message $msg -Delay 1 } 
-                            $processLabel.Visible = $false
-                        }
-                    }
-
-                }
-            }
-            ProcessLabel = @{
-                Control = "Label"
-                Height  = 50
-                Name    = "ProcessLabel"
-                Font    = [Font]::new("Consolas", 10, [FontStyle]::Italic)
-                Dock    = "Bottom"
-                Width   = 400
-                TextAlign = "MiddleCenter"
-                Visible = $false
-                Add_VisibleChanged = {
-                    $this.FindForm().ClientSize = if ($this.Visible) { [Size]::new(300,200) } else { [Size]::new(300,150) }
-                }
-
-            }
-        }
-        Events      = @{
-            Closed = { $this.Dispose() }
-        }
-    }
-    WinGet  = @{
-        Properties  = @{
-            Text        = "$($AppInfo.Name) - WinGet"
+            Text        = "Paket Manager - WinGet"
             ClientSize  = [Size]::new(600,300)
             Icon        = Get-Icon "WinGet"
         }
@@ -1088,8 +990,8 @@ Lizenz: MIT
                     TabControl = @{
                         Control     = "TabControl"
                         Dock        = "Fill"
-                        BackColor   = $AppDesign.Dark
-                        ForeColor   = $AppDesign.Accent
+                        BackColor   = $AppColor.Dark
+                        ForeColor   = $AppColor.Accent
                         Font        = Get-Font -Name "Consolas" -Size 10
                         Controls    = [ordered]@{
                             ManageTab = @{
@@ -1103,7 +1005,7 @@ Lizenz: MIT
                                             $sidebarPanel   = $this.FindForm().Controls["SidebarPanel"]
                                             $packagePanel   = $this.FindForm().Controls["PackagePanel"]
 
-                                            $sidebarPanel.Controls["UpdateAppButton"].Visible      = $this.SelectedItems.Count -gt 0
+                                            $sidebarPanel.Controls["UpdateAppButton"].Visible   = $this.SelectedItems.Count -gt 0
                                             $sidebarPanel.Controls["UninstallButton"].Visible   = $this.SelectedItems.Count -gt 0
                                             $packagePanel.Controls["SelectLabel"].Text          = & { 
                                                 if ($this.Items.Count -eq $this.SelectedItems.Count) { return "Alle Abwählen" } else { return "Alle Auswählen" } 
@@ -1178,7 +1080,7 @@ Lizenz: MIT
                     SelectLabel = @{
                         Control     = "Label"
                         Text        = "Alle Auswählen"
-                        ForeColor   = $AppDesign.Accent
+                        ForeColor   = $AppColor.Accent
                         TextAlign   = "MiddleCenter"
                         Height      = 30
                         Font        = Get-Font "LabelButton"
@@ -1212,7 +1114,7 @@ Lizenz: MIT
                     ProcessLabel = @{
                         Control     = "Label"
                         Text        = "Starten..."
-                        ForeColor   = $AppDesign.Accent
+                        ForeColor   = $AppColor.Accent
                         TextAlign   = "MiddleCenter"
                         Height      = 35
                         Font        = Get-Font -Name "Consolas" -Size 10 -Style "Italic"
@@ -1221,15 +1123,14 @@ Lizenz: MIT
                         Add_VisibleChanged = {
                             $this.Parent.Controls["SelectLabel"].Visible = -not $this.Visible
                         }
-
                     }
                 }
             }
             SidebarPanel = @{
                 Control     = "Panel"
                 Dock        = "Right"
-                ForeColor   = $AppDesign.Dark
-                BackColor   = $AppDesign.Accent
+                ForeColor   = $AppColor.Dark
+                BackColor   = $AppColor.Accent
                 Padding     = [Padding]::new(10,5,0,0)
                 Controls    = [ordered]@{
                     UninstallWinGetButton   = @{
@@ -1239,8 +1140,7 @@ Lizenz: MIT
                         Enabled     = $false
                         Font        = Get-Font "Button"
                         Add_Click = {                          
-                            $processLabel   = $this.FindForm().Controls["PackagePanel"].Controls["ProcessLabel"]
-                            Get-WinGet -ShowText { param($msg, [switch]$Final) Update-Status -Label $processLabel -Message $msg -Delay 2 -Final:$Final } -Uninstall
+                            Get-WinGet -ShowText { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final } -Uninstall
                         }
                     }
                     InstallWinGetButton     = @{
@@ -1277,8 +1177,7 @@ Lizenz: MIT
                         Dock        = "Bottom"
                         Font        = Get-Font "Button"
                         Add_Click   = { 
-                            $processLabel = $this.FindForm().Controls["PackagePanel"].Controls["ProcessLabel"]
-                            $ShowText = { param($msg, [switch]$Final) Update-Status -Label $processLabel -Message $msg -Delay 2 -Final:$Final }
+                            $ShowText = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final }
 
                             & $ShowText "Updates werden installiert..."
                             $installedList = $this.FindForm().Controls["PackagePanel"].Controls["TabControl"].Controls["ManageTab"].Controls["InstalledList"]
@@ -1337,7 +1236,6 @@ Lizenz: MIT
                             # Write-Host "Der Inhalt von `$checkedList: " $checkedList
                             Get-WinGet -ShowText { param($msg, [switch]$Final) Update-Status -Label $processLabel -Message $msg -Delay 2 -Final:$Final } -UninstallApps $checkedList
                             $installedList.SelectedItems.Clear() 
-                            
                         }
                     }
                 }
@@ -1367,15 +1265,14 @@ Lizenz: MIT
                 foreach ($program in Get-WinGet -List) { 
                     [void]$InstalledList.Items.Add($program) 
                 }
-                
-                
-
             }
         }
     }
 }
 
-& $AppInfo.DebugText "Starte Hauptformular..."
+
+
+
 Start-Form $FormConfig.Main
 # Start-Form $FormConfig.Chocolatey
 # Start-Form $FormConfig.WinGet

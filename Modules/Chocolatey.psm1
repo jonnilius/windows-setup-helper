@@ -87,10 +87,6 @@
         return $items
     }
 }
-function Get-Chocolatey {
-    & $AppLog.Info "Branch: Get-Chocolatey"
-    return !([string]::IsNullOrWhiteSpace((Get-Command choco -ErrorAction SilentlyContinue).Source))
-}
 
 function Install-Chocolatey {
     param ( [scriptblock]$ShowText )
@@ -235,14 +231,6 @@ function Uninstall-Chocolatey {
     & $ShowText "Deinstallation von Chocolatey abgeschlossen." -Final
     Show-MessageBox "UninstallChocolateySuccess"
 }
-function Get-ChocolateyVersion {
-    & $AppLog.Info "Branch: Get-ChocolateyVersion"
-    try {
-        return (choco --version).Trim()
-    } catch {
-        return "Nicht installiert"
-    }
-}
 
 function InstallChocoApps {
     param ( $take )
@@ -302,7 +290,8 @@ function UpdateChocoApps {
     & $ShowText "Aktualisiere ausgewählte Pakete..."
     
     # Cursor auf "Ladevorgang" setzen und ausgewählte Pakete abrufen
-    $selectedPackages       = @($installedList.SelectedItems)
+    
+    $selectedPackages       = $installedList.SelectedItems | ForEach-Object { $_.Name }
     Start-Sleep -Seconds 1
 
     foreach ($package in $selectedPackages) {
@@ -353,19 +342,4 @@ function UninstallChocoApps {
     $selectLabel.Visible    = $true
 
     Show-MessageBox "PackagesUninstallSuccess"
-}
-function Get-ChocoApps {
-    & $AppLog.Info "Branch: Get-ChocoApps"
-    try {
-        $apkList = @()
-        $rawList = choco list --idonly
-        foreach ($line in $rawList) {
-            if ($line -match '^\d+ packages installed\.$') { break }
-            if ($line -and $line -notmatch '^Chocolatey v') { $apkList += $line.Trim() }
-        }
-
-        return $apkList
-    } catch {
-        return @()
-    }
 }

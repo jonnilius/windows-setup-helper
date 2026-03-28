@@ -47,6 +47,167 @@ function Show-DialogBox {
 
     return $result -eq [System.Windows.Forms.DialogResult]::OK
 }
+
+function Show-MessageBox {
+    param (
+        [string]$Config,
+        [string]$Text,
+        [string]$Caption = "Information",
+        [string]$Icon = "Info",
+        [string]$Buttons = "OK"
+    )
+
+    # Konfigurationen für verschiedene Szenarien
+    switch($Config){
+        # WinGet
+        "ConfirmUninstallWinGet" {
+            $Text = "Möchten Sie WinGet wirklich deinstallieren?"
+            $Caption = "WinGet Deinstallation bestätigen"
+            $Icon = "Question"
+            $Buttons = "YesNo"
+        }
+        "UninstallWinGetSuccess" {
+            $Text = "WinGet wurde erfolgreich deinstalliert."
+            $Caption = "Deinstallation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "UninstallWinGetFailed" {
+            $Text = "Die Deinstallation von WinGet ist fehlgeschlagen."
+            $Caption = "Deinstallation fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+        "InstallWinGetSuccess" {
+            $Text = "WinGet wurde erfolgreich installiert."
+            $Caption = "Installation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "InstallWinGetFailed" {
+            $Text = "Die Installation von WinGet ist fehlgeschlagen."
+            $Caption = "Installation fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+
+        # Chocolatey
+        "ConfirmUninstallChocolatey" {
+            $Text       = "Möchten Sie Chocolatey wirklich deinstallieren?"
+            $Caption    = "Chocolatey Deinstallation bestätigen"
+            $Icon       = "Question"
+            $Buttons    = "YesNo"
+        }
+        "UninstallChocolateySuccess" {
+            $Text = "Chocolatey wurde erfolgreich deinstalliert."
+            $Caption = "Deinstallation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "UninstallChocolateyFailed" {
+            $Text = "Die Deinstallation von Chocolatey ist fehlgeschlagen."
+            $Caption = "Deinstallation fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+        "InstallChocolateySuccess" {
+            $Text = "Chocolatey wurde erfolgreich installiert."
+            $Caption = "Installation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "InstallChocolateyFailed" {
+            $Text = "Die Installation von Chocolatey ist fehlgeschlagen."
+            $Caption = "Installation fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+
+        # Packages
+        "ConfirmUninstallPackages" {
+            $Text = "Möchten Sie die ausgewählten Pakete wirklich deinstallieren?"
+            $Caption = "Paketdeinstallation bestätigen"
+            $Icon = "Warning"
+            $Buttons = "YesNo"
+        }
+        "UninstallPackagesSuccess" {
+            $Text = "Die ausgewählten Pakete wurden erfolgreich deinstalliert."
+            $Caption = "Deinstallation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "UninstallPackagesFailed" {
+            $Text = "Die Deinstallation der ausgewählten Pakete ist fehlgeschlagen."
+            $Caption = "Deinstallation fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+        "PackagesUpdateSuccess" {
+            $Text = "Die ausgewählten Pakete wurden erfolgreich aktualisiert."
+            $Caption = "Aktualisierung erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "PackagesInstallSuccess" {
+            $Text = "Die ausgewählten Pakete wurden erfolgreich installiert."
+            $Caption = "Installation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+        "PackagesUninstallSuccess" {
+            $Text = "Die ausgewählten Pakete wurden erfolgreich deinstalliert."
+            $Caption = "Deinstallation erfolgreich"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+
+        # Paket 
+        "ErrorUpdatingPackage" {
+            $Text = "Fehler beim Aktualisieren des Pakets. Bitte überprüfen Sie die Protokolle für weitere Details."
+            $Caption = "Paketaktualisierung fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+        "ComingSoon" {
+            $Text = "Diese Funktion ist noch in Arbeit. Bitte haben Sie etwas Geduld."
+            $Caption = "In Kürze verfügbar"
+            $Icon = "Info"
+            $Buttons = "OK"
+        }
+         default {
+            $Text = "Unbekannte Konfiguration: $Config"
+            $Caption = "Fehler"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+    }
+
+    # Icon validieren
+    $iconEnum = switch ($Icon.ToLower()) {
+        "info"      { [System.Windows.Forms.MessageBoxIcon]::Information }
+        "warning"   { [System.Windows.Forms.MessageBoxIcon]::Warning }
+        "question"  { [System.Windows.Forms.MessageBoxIcon]::Question }
+        "error"     { [System.Windows.Forms.MessageBoxIcon]::Error }
+        default     { [System.Windows.Forms.MessageBoxIcon]::None }
+    }
+
+    # Buttons validieren
+    $buttonsEnum = switch ($Buttons.ToUpper()) {
+        "OK"        { [System.Windows.Forms.MessageBoxButtons]::OK }
+        "OKCANCEL"  { [System.Windows.Forms.MessageBoxButtons]::OKCancel }
+        "YESNO"     { [System.Windows.Forms.MessageBoxButtons]::YesNo }
+        default     { [System.Windows.Forms.MessageBoxButtons]::OK }
+    }
+
+    # MessageBox anzeigen und Ergebnis zurückgeben
+    $result = [System.Windows.Forms.MessageBox]::Show($Text, $Caption, $buttonsEnum, $iconEnum)
+    switch ($buttonsEnum) {
+        [System.Windows.Forms.MessageBoxButtons]::YesNo     { return $result -eq [System.Windows.Forms.DialogResult]::Yes }
+        [System.Windows.Forms.MessageBoxButtons]::OKCancel  { return $result -eq [System.Windows.Forms.DialogResult]::OK }
+        [System.Windows.Forms.MessageBoxButtons]::OK        { return $result -eq [System.Windows.Forms.DialogResult]::OK }
+        default { return $result }
+    }
+}
 function Update-Status {
     param( 
         $Label, 

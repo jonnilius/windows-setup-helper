@@ -60,6 +60,7 @@ $global:AppConfig = @{
         $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
         return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     }
+    IconPath    = "$PSScriptRoot\Assets\Icons"
 }
 $global:AppColor = @{
     Accent = [ColorTranslator]::FromHtml("#C0393B")
@@ -82,6 +83,7 @@ $env:PSModulePath += ";$PSScriptRoot\Modules"
 Import-Module "$PSScriptRoot\Modules\Utils.psm1"
 Import-Module "$PSScriptRoot\Modules\FormBuilder.psm1"
 Import-Module "$PSScriptRoot\Modules\Chocolatey.psm1"
+Import-Module "$PSScriptRoot\Modules\PaketManager.psm1"
 
 
 
@@ -91,9 +93,8 @@ Import-Module "$PSScriptRoot\Modules\Chocolatey.psm1"
 $FormConfig = @{
     Main        = @{
         Properties  = @{
-            Text        = $AppInfo.Name
+            Icon        = Get-Icon "WindowsSetupHelper"
             ClientSize  = [Size]::new(400,370) # Breite, Höhe
-            Icon        = Get-Icon "Main"
             Padding     = [Padding]::new(10,0,10,0)
         }
         Controls    = [ordered]@{
@@ -234,7 +235,7 @@ $FormConfig = @{
                             }
                             PackageTab  = @{
                                 Control     = "TabPage"
-                                Text        = "Programme"
+                                Text        = "Paket-Manager"
                                 Controls    = @{
                                     PaketManagerTable = @{
                                         Control    = "TableLayoutPanel"
@@ -643,11 +644,11 @@ $FormConfig = @{
     }
     About       = @{
         Properties  = @{
-            Text = "About - $($AppInfo.Name)"
-            ClientSize = [Size]::new(350,400)
-            Icon = Get-Icon "About"
+            Text            = "About"
+            Icon            = Get-Icon "About"
+            ClientSize      = [Size]::new(350,400)
             FormBorderStyle = "FixedDialog"
-            KeyPreview = $true
+            KeyPreview      = $true
         }
         Controls    = @{
             Panel = @{
@@ -692,9 +693,9 @@ Lizenz: MIT
     }
     Chocolatey  = @{
         Properties  = @{
-            Text        = "Paket Manager - Chocolatey"
+            Text        = "Chocolatey"
             ClientSize  = [Size]::new(600,300)
-            Icon        = "Chocolatey"
+            Icon        = Get-Icon "Chocolatey"
         }
         Controls    = @{
             PackagePanel = @{
@@ -794,7 +795,7 @@ Lizenz: MIT
                             switch ($selectedTab.Name) {
                                 "ManageTab" {
                                     if ($installedList.Items.Count -eq 0){
-                                        foreach ($program in Get-ChocoApps) { [void]$installedList.Items.Add($program) }
+                                        foreach ($program in (Get-Chocolatey -List)) { [void]$installedList.Items.Add($program) }
                                     }
                                 }
                                 "AddTab" {
@@ -905,6 +906,7 @@ Lizenz: MIT
                         Dock        = "Top"
                         Height      = 25
                         Font        = Get-Font "SidebarLabel"
+                        Text        = "Version: "
                     }
                     # Chocolatey-Titel
                     NameLabel = @{
@@ -951,35 +953,29 @@ Lizenz: MIT
         }
         Events      = @{
             Load = { 
-                $this.Controls["SidebarPanel"].Controls["VersionLabel"].Text = "Version: " + (Get-ChocolateyVersion)
+                # Chocolatey-Installationsstatus prüfen
+                (Get-Ref $this "UninstallChocoButton").Visible  = [bool](Get-Chocolatey)
+                (Get-Ref $this "InstallChocoButton").Visible    = -not [bool](Get-Chocolatey)
+
+                # Version abrufen und anzeigen
+                (Get-Ref $this "VersionLabel").Text += (Get-Chocolatey -Version)
             }
-
             Shown = { 
-                $tabControl = $this.Controls["PackagePanel"].Controls["TabControl"]
-                $installedList  = $tabControl.Controls["ManageTab"].Controls["InstalledList"]
-
                 # Installierte Programme laden
-                $loadLabel      = $tabControl.Controls["ManageTab"].Controls["LoadLabel"]
-                foreach ($program in Get-ChocoApps) { [void]$installedList.Items.Add($program) }
-                $loadLabel.Visible = $false
-
-
-
-                # Chocolatey-Installationsstatus
-                $sidebarPanel   = $this.Controls["SidebarPanel"]
-                if (Get-Chocolatey) { 
-                    $sidebarPanel.Controls["UninstallChocoButton"].Visible = $true 
-                } else { 
-                    $sidebarPanel.Controls["InstallChocoButton"].Visible = $true 
+                foreach ($program in (Get-Chocolatey -List)) { 
+                    [void](Get-Ref $this "InstalledList").Items.Add($program)
                 }
+
+                # Lade-Label ausblenden
+                (Get-Ref $this "LoadLabel").Visible = $false
             }
         }
     }
     WinGet      = @{
         Properties  = @{
-            Text        = "Paket Manager - WinGet"
-            ClientSize  = [Size]::new(600,300)
+            Text        = "WinGet"
             Icon        = Get-Icon "WinGet"
+            ClientSize  = [Size]::new(600,300)
         }
         Controls    = @{
             PackagePanel = @{

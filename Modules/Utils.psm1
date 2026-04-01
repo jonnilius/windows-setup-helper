@@ -728,7 +728,7 @@ function Get-WinGet {
             & $ShowText "Die installierte WinGet-Version ist: $WinGetVersion"
             return $WinGetVersion
     } else {
-        & $ShowText "Funktion 'Get-WinGet' aufgerufen ohne (gültige) Parameter. Überprüfe, ob WinGet installiert ist..."
+        & $AppLog.Info "Funktion 'Get-WinGet' aufgerufen ohne (gültige) Parameter. Überprüfe, ob WinGet installiert ist..."
         return Get-Command -Name "winget.exe" -ErrorAction SilentlyContinue
     }
 }

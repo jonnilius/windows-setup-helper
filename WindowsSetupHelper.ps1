@@ -34,56 +34,36 @@ $global:SystemInfo = @{
 
 $global:AppInfo = @{
     Name        = "Windows Setup Helper"
-    Version     = "0.9.9"
+    Version     = "0.9.10"
     Author      = "jonnilius"
     Company     = "BORINAS"
     License     = "MIT License"
-
-    IsAdmin     = & {
-        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    }
-    Path        = $PSScriptRoot
-    DebugMode   = $false
-    DebugText   = {
-        param ([string]$message)
-        if ($AppInfo.DebugMode) { 
-            Write-Host "DEBUG: " -ForegroundColor Yellow -NoNewline
-            Write-Host $message 
-        }
-    }
 }
 $global:AppConfig = @{
-    IsAdmin     = & {
+    IconPath    = "$PSScriptRoot\Assets\Icons"
+}
+$script:ScriptInfo = @{
+    Name        = $MyInvocation.MyCommand.Name
+    FullName    = $MyInvocation.MyCommand.Path
+    Path        = Split-Path $MyInvocation.MyCommand.Path
+    Admin       = & {
         $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
         $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
         return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     }
-    IconPath    = "$PSScriptRoot\Assets\Icons"
-}
-$global:AppColor = @{
-    Accent = [ColorTranslator]::FromHtml("#C0393B")
-    Dark   = [ColorTranslator]::FromHtml("#2D3436")
-    White  = [ColorTranslator]::FromHtml("#EEEEEE")
-    Debug1 = [ColorTranslator]::FromHtml("#27AE60")
-    Debug2 = [ColorTranslator]::FromHtml("#2980B9")
-}
-$global:AppLog = @{
-    Info  = { param($msg) Write-Information "[INFO]  $msg" }
-    Debug = { param($msg) Write-Debug       "[DEBUG] $msg" }
-    Warn  = { param($msg) Write-Warning     "[WARN]  $msg" }
-    Error = { param($msg) Write-Error       "[ERROR] $msg"; throw $msg }
 }
 
-# $ErrorActionPreference = "SilentlyContinue"
-& $AppLog.Info "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
-& $AppLog.Info "Lade Module..."
+# $InformationPreference = 'Continue'
+# $DebugPreference = 'Continue'
+# $WarningPreference = 'Continue'
+
+Write-Information "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
+Write-Information "Lade Module..."
 $env:PSModulePath += ";$PSScriptRoot\Modules"
 Import-Module "$PSScriptRoot\Modules\Utils.psm1"
 Import-Module "$PSScriptRoot\Modules\FormBuilder.psm1"
-Import-Module "$PSScriptRoot\Modules\Chocolatey.psm1"
-Import-Module "$PSScriptRoot\Modules\PaketManager.psm1"
+Import-Module "$PSScriptRoot\Modules\OldChocolatey.psm1"
+Import-Module "$PSScriptRoot\Modules\Chocolatey\Chocolatey.psm1"
 
 
 
@@ -127,8 +107,8 @@ $FormConfig = @{
                     }
                     TabControl = @{
                         Control     = "TabControl"
-                        Dock        = "Fill"
-                        Font        = [Font]::new("Consolas", 10)
+                        # Dock        = "Fill"
+                        # Font        = [Font]::new("Consolas", 10)
                         MultiLine    = $true
                         Controls    = [ordered]@{
                             MainTab     = @{
@@ -249,7 +229,7 @@ $FormConfig = @{
                                                 Control     = "Label"
                                                 Text        = "Paket-Manager"
                                                 Font        = Get-Font "Subtitle"
-                                                ForeColor   = $AppColor.Accent
+                                                ForeColor   = Get-Color "Accent"
                                                 Dock        = "Bottom"
                                                 TextAlign   = "MiddleCenter"
                                             }
@@ -588,8 +568,8 @@ $FormConfig = @{
                 Height = 30
                 Column = @("AutoSize", "100", "AutoSize")
                 Dock = "Bottom"
-                ForeColor = $AppColor.Dark
-                BackColor = $AppColor.Accent
+                ForeColor = Get-Color "Dark"
+                BackColor = Get-Color "Accent"
                 Controls = [ordered]@{
                     About = @{
                         Control = "Label"
@@ -663,7 +643,7 @@ $FormConfig = @{
                             Label = @{
                                 Control = "Label"
                                 Text = "WINDOWS SETUP HELPER"
-                                ForeColor = $AppColor.Accent
+                                ForeColor = Get-Color "Accent"
                                 Dock = "Fill"
                                 TextAlign = "MiddleCenter"
                                 Margin = [Padding]::new(0,10,0,10)
@@ -700,156 +680,161 @@ Lizenz: MIT
         Controls    = @{
             PackagePanel = @{
                 Control     = "Panel"
-                Name        = "PackagePanel"
                 Dock        = "Fill"
-                Padding     = [Padding]::new(10,10,10,5)
+                Padding     = [Padding]::new(5)
                 Controls    = [ordered]@{
                     TabControl = @{
                         Control     = "TabControl"
-                        Dock        = "Fill"
-                        BackColor   = $AppColor.Dark
-                        ForeColor   = $AppColor.Accent
-                        Font        = [Font]::new("Consolas", 10)
                         Controls    = [ordered]@{
-                            ManageTab = @{
+                            InfoTab = @{
                                 Control     = "TabPage"
-                                Text        = "Verwalten"
-                                Name        = "ManageTab"
+                                Text        = "Info"
                                 Controls    = @{
-                                    LoadLabel = @{
-                                        Control     = "Label"
-                                        Text        = "Lade installierte Programme..."
-                                        Dock        = "Fill"
-                                        TextAlign   = "MiddleCenter"
-                                        ForeColor   = $AppColor.Accent
-                                        # Font        = [Font]::new("Consolas", 10, [FontStyle]::Italic)
-                                        Font        = Get-Font "Label" -Style "Italic"
-                                        Add_VisibleChanged = {
-                                            $this.Parent.Controls["InstalledList"].Visible = -not $this.Visible
-                                        }
-                                    }
-                                    InstalledList = @{
-                                        Control = "ListBox"
-                                        Name    = "InstalledList"
-                                        Dock    = "Fill"
-                                        Visible = $false
-                                        Add_SelectedIndexChanged = {
-                                            $sidebarPanel = $this.FindForm().Controls["SidebarPanel"]
-                                            $sidebarPanel.Controls["UpdateButton"].Visible   = $this.SelectedItems.Count -gt 0
-                                            $sidebarPanel.Controls["UninstallButton"].Visible   = $this.SelectedItems.Count -gt 0
-                                            
-                                            $packagePanel = $this.FindForm().Controls["PackagePanel"]
-                                            $packagePanel.Controls["SelectLabel"].Text = if ($this.Items.Count -eq $this.SelectedItems.Count) { "Alle abwählen" } else { "Alle auswählen" }
-                                        }
-                                    }
-                                    Process = @{
+                                    TabHeader = @{
                                         Control = "Label"
-                                        Dock = "Bottom"
-                                        TextAlign = "MiddleCenter"
-                                        Visible = $false
-                                        Height = 30
-                                        ForeColor = $AppColor.Accent
+                                        Text    = "Chocolatey"
+                                        Dock    = "Top"
+                                        Font    = Get-Font "ChocoHeader"
+                                        Height  = 100
                                     }
-                                }
-                                Add_Enter = {
-                                    $this.FindForm().Controls["SidebarPanel"].Controls["InstallButton"].Visible = $false
+                                    TabLabel = @{
+                                        Control = "Label"
+                                        Text    = "Software Management für Windows"
+                                        Dock    = "Top"
+                                        Font    = Get-Font "LabelItalic"
+                                    }
+                                    TextInput = @{
+                                        Control = "TextBox"
+                                        Dock = "Fill"
+                                        Visible = $false
+                                    }
                                 }
                             }
-                            AddTab = @{
+                            PackagesTab = @{
                                 Control     = "TabPage"
-                                Text        = "Hinzufügen"
+                                Text        = "Packages"
                                 Controls    = @{
-                                    AddList = @{
-                                        Control         = "CheckedListBox"
-                                        Name            = "AddList"
-                                        Add_ItemCheck   = {
+                                    TabLabel = @{
+                                        Control = "Label"
+                                        Text    = "Lade installierte Chocolatey-Pakete..."
+                                        Dock    = "Fill"
+                                        Font    = Get-Font "LabelItalic"
+                                    }
+                                    TabList = @{
+                                        Control     = "ListBox"
+                                        Dock        = "Fill"
+                                        Visible     = $false
+                                        Add_SelectedIndexChanged = {
+                                            (Get-Control $this "UpdateButton").Visible      = $this.SelectedItems.Count -gt 0
+                                            (Get-Control $this "UninstallButton").Visible   = $this.SelectedItems.Count -gt 0
+                                            (Get-Control $this "SelectLabel").Text      = if ($this.SelectedItems.Count -eq $this.Items.Count) { "Alle Abwählen" } else { "Alle Auswählen" }
+                                        }
+                                    }
+                                }
+                            }
+                            SuggestedTab = @{
+                                Control     = "TabPage"
+                                Text        = "Vorschläge"
+                                Controls    = @{
+                                    TabLabel = @{
+                                        Control = "Label"
+                                        Text    = "Lade vorgeschlagene Chocolatey-Pakete..."
+                                        Dock    = "Fill"
+                                        Font    = Get-Font "LabelItalic"
+                                    }
+                                    TabList = @{
+                                        Control = "CheckedListBox"
+                                        Dock    = "Fill"
+                                        Visible = $false
+                                        Add_ItemCheck = {
                                             param($src, $e)
                                             $count = $src.CheckedItems.Count
                                             if ($e.NewValue -eq [CheckState]::Checked) { $count++ } else { $count-- }
 
-                                            $form = $this.FindForm()
-                                            $form.Controls["SidebarPanel"].Controls["InstallButton"].Visible = $count -gt 0
+                                            (Get-Control $this "InstallButton").Visible = $count -gt 0
+                                            (Get-Control $this "SelectLabel").Text      = if ($count -eq $this.Items.Count) { "Alle Abwählen" } else { "Alle Auswählen" }
                                         }
                                     }
-                                    Process = @{
-                                        Control = "Label"
-                                        Dock = "Bottom"
-                                        TextAlign = "MiddleCenter"
-                                        Visible = $false
-                                        Height = 30
-                                        ForeColor = $AppColor.Accent
-                                    }
                                 }
                             }
                         }
+                        
                         Add_SelectedIndexChanged = {
-                            $selectedTab    = $this.SelectedTab
-                            $installedList  = $this.Controls["ManageTab"].Controls["InstalledList"]
-                            $addList        = $this.Controls["AddTab"].Controls["AddList"]
-                            # Sidebar-Buttons
-                            $sidebarPanel   = $this.FindForm().Controls["SidebarPanel"]
-                            $installButton  = $sidebarPanel.Controls["InstallButton"]
-                            $updateButton   = $sidebarPanel.Controls["UpdateButton"]
-                            $removeButton   = $sidebarPanel.Controls["UninstallButton"]
+                            param($src, $e)
 
-                            switch ($selectedTab.Name) {
-                                "ManageTab" {
-                                    if ($installedList.Items.Count -eq 0){
-                                        foreach ($program in (Get-Chocolatey -List)) { [void]$installedList.Items.Add($program) }
-                                    }
-                                }
-                                "AddTab" {
-                                    if ($addList.Items.Count -eq 0){
-                                        $addList.Items.AddRange((Read-Chocolatey -SetupList))
-                                    }
-                                }
-                                {$_ -ne "ManageTab"} {
-                                    # Vorherige Auswahl zurücksetzen und Buttons ausblenden
-                                    $installedList.ClearSelected()
-                                    $updateButton.Visible   = $false
-                                    $removeButton.Visible   = $false
-                                }
-                                {$_ -ne "AddTab"} {
-                                    # Vorherige Auswahl zurücksetzen und Installieren-Button ausblenden
-                                    $addList.ClearSelected()
-                                    foreach ($index in $addList.CheckedIndices) { $addList.SetItemChecked($index, $false) }
-                                    $installButton.Visible  = $false
-                                }
+                            # Verhindere das Laden von Daten, wenn der InfoTab ausgewählt wird, da dieser statische Informationen anzeigt
+                            $tabName     = $src.SelectedTab.Name
+                            if ($tabName -eq "InfoTab") { return }
+
+                            # Hole die Steuerelemente für das aktuelle Tab
+                            $tabLabel    = $src.SelectedTab.Controls["TabLabel"]
+                            $tabList     = $src.SelectedTab.Controls["TabList"]
+                            $selectLabel = (Get-Control $this "SelectLabel")
+
+
+                            # Lade die entsprechenden Daten, wenn der Tab gewechselt wird und die Liste noch leer ist
+                            if ($tabList.Items.Count -eq 0) {
+                                $tabLabel.Text = "Lade Chocolatey-Packages..."
+                                $tabList.Items.AddRange((Get-Chocolatey -TabName $tabName))
+                            }
+
+                            # Aktualisiere die Sichtbarkeit der Steuerelemente basierend auf dem ausgewählten Tab
+                            if ($tabList.Items.Count -eq 0) { 
+                                $tabLabel.Text = "Keine Informationen verfügbar." 
+                            } else { 
+                                $tabLabel.Visible       = $false
+                                $tabList.Visible        = $true
+                                $selectLabel.Visible    = $true
                             }
                         }
+                        Add_Deselected = {
+                            param($src, $e)
+                            if ($e.TabPage.Name -eq "InfoTab") { return }
+
+                            # Leere die Listen, wenn der Tab verlassen wird
+                            $tabList    = $e.TabPage.Controls["TabList"]
+                            $listType   = $tabList.GetType().Name
+                            if ($listType -eq "CheckedListBox") {
+                                foreach ($index in $tabList.CheckedIndices) { 
+                                    $tabList.SetItemChecked($index, $false) 
+                                }
+                            }
+                            $tabList.ClearSelected()
+
+                            # Sichtbarkeit der Steuerelemente zurücksetzen
+                            (Get-Control $this "UpdateButton").Visible = $false
+                            (Get-Control $this "UninstallButton").Visible = $false
+                            (Get-Control $this "InstallButton").Visible = $false
+                        }
+
                     }
                     SelectLabel = @{
-                        Control = "Label"
-                        Text = "Alle auswählen"
-                        ForeColor = $AppColor.Accent
-                        TextAlign = "MiddleCenter"
-                        Height = 30
-                        Font = [Font]::new("Consolas", 8)
-                        Dock = "Bottom"
-                        Cursor = [Cursors]::Hand
-                        Add_Click = {
-                            $tabControl     = $this.FindForm().Controls["PackagePanel"].Controls["TabControl"]
-                            $selectedTab    = $tabControl.SelectedTab
-
-                            switch ($selectedTab.Name) {
-                                "ManageTab" { 
-                                    $installedList = $tabControl.Controls["ManageTab"].Controls["InstalledList"]
-                                    if ($installedList.SelectedItems.Count -eq $installedList.Items.Count) {
-                                        $installedList.ClearSelected()
-                                        $this.Text = "Alle auswählen"
+                        Control     = "Label"
+                        Text        = "Alle auswählen"
+                        Height      = 30
+                        Font        = Get-Font "LabelButton"
+                        Dock        = "Bottom"
+                        Cursor      = Get-Cursor "Hand"
+                        Visible     = $false
+                        Add_Click   = {
+                            $selectedTab = $this.Parent.Controls["TabControl"].SelectedTab
+                            $tabList     = $selectedTab.Controls["TabList"]
+                            $listCount   = $tabList.Items.Count
+                            
+                            switch ($tabList.GetType().Name) {
+                                 "ListBox" { 
+                                    if ($tabList.SelectedItems.Count -eq $listCount) {
+                                        $tabList.ClearSelected()
                                     } else {
-                                        for ($i = 0; $i -lt $installedList.Items.Count; $i++) { $installedList.SetSelected($i, $true) }
-                                        $this.Text = "Alle abwählen"
+                                        for ($i = 0; $i -lt $listCount; $i++) { $tabList.SetSelected($i, $true) }
                                     }
                                 }
-                                "AddTab" { 
-                                    $addList = $tabControl.Controls["AddTab"].Controls["AddList"]
-                                    if ($addList.CheckedItems.Count -eq $addList.Items.Count) {
-                                        for ($i = 0; $i -lt $addList.Items.Count; $i++) { $addList.SetItemChecked($i, $false) }
-                                        $this.Text = "Alle auswählen"
+                                 "CheckedListBox" { 
+                                    if ($tabList.CheckedItems.Count -eq $listCount) {
+                                        $tabList.ClearSelected()
+                                        for ($i = 0; $i -lt $listCount; $i++) { $tabList.SetItemChecked($i, $false) }
                                     } else {
-                                        for ($i = 0; $i -lt $addList.Items.Count; $i++) { $addList.SetItemChecked($i, $true) }
-                                        $this.Text = "Alle abwählen"
+                                        for ($i = 0; $i -lt $listCount; $i++) { $tabList.SetItemChecked($i, $true) }
                                     }
                                 }
                             }
@@ -857,14 +842,13 @@ Lizenz: MIT
                     }
                     ProcessLabel = @{
                         Control             = "Label"
-                        Dock                = "Bottom"
                         Text                = "Starte..."
-                        TextAlign           = "MiddleCenter"
-                        Visible             = $false
                         Height              = 30
-                        ForeColor           = $AppColor.Accent
+                        Font                = Get-Font "LabelItalic"
+                        Dock                = "Bottom"
+                        Visible             = $false
                         Add_VisibleChanged  = {
-                            $this.Parent.Controls["SelectLabel"].Visible = -not $this.Visible
+                            if ($this.Visible) { (Get-Control $this "SelectLabel").Visible = $false }
                         }
                     }
                 }
@@ -873,8 +857,8 @@ Lizenz: MIT
                 Control     = "Panel"
                 Name        = "SidebarPanel"
                 Dock        = "Right"
-                ForeColor   = $AppColor.Dark
-                BackColor   = $AppColor.Accent
+                ForeColor   = Get-Color "Dark"
+                BackColor   = Get-Color "Accent"
                 Padding     = [Padding]::new(10,5,0,0)
                 Controls    = [ordered]@{
                     # Chocolatey deinstallieren Button
@@ -915,7 +899,7 @@ Lizenz: MIT
                         TextAlign   = "MiddleCenter"
                         Dock        = "Top"
                         Height      = 35
-                        Font        = Get-Font "SidebarHeader"
+                        Font        = Get-Font "HeaderLow"
                     }
 
                     # Pakete aktualisieren Button
@@ -940,11 +924,10 @@ Lizenz: MIT
                     # Pakete deinstallieren Button
                     UninstallButton = @{
                         Control     = "Button"
-                        Name        = "UninstallButton"
-                        Visible     = $false
                         Text        = "Deinstallieren"
                         Dock        = "Bottom"
                         Font        = Get-Font "SidebarButton"
+                        Visible     = $false
                         
                         Add_Click   = { UninstallChocoApps $this }
                     }
@@ -952,22 +935,28 @@ Lizenz: MIT
             }
         }
         Events      = @{
-            Load = { 
-                # Chocolatey-Installationsstatus prüfen
-                (Get-Ref $this "UninstallChocoButton").Visible  = [bool](Get-Chocolatey)
-                (Get-Ref $this "InstallChocoButton").Visible    = -not [bool](Get-Chocolatey)
+            Load = {
+                Write-Information "Lade Chocolatey-Tab..."
+                $selectedTab = (Get-Control $this "TabControl").SelectedTab
 
-                # Version abrufen und anzeigen
-                (Get-Ref $this "VersionLabel").Text += (Get-Chocolatey -Version)
+                if ($selectedTab.Text -eq "Info") {
+                    Write-Information "Aktualisiere Version-Label..."
+                    (Get-Control $this "TabLabel").Text = "Chocolatey Version: " + (Get-Chocolatey -Version)
+                    
+
+                }
             }
-            Shown = { 
-                # Installierte Programme laden
-                foreach ($program in (Get-Chocolatey -List)) { 
-                    [void](Get-Ref $this "InstalledList").Items.Add($program)
+            Shown = {
+                Write-Information "Prüfe Chocolatey-Installationsstatus..."
+                # Chocolatey-Installationsstatus prüfen
+                if (Get-Chocolatey -Test) {
+                    (Get-Control $this "UninstallChocoButton").Visible  = $true # Chocolatey deinstallieren Button anzeigen
+                    (Get-Control $this "VersionLabel").Text += (Get-Chocolatey -Version) # Chocolatey-Version anzeigen
+                } else {
+                    (Get-Control $this "InstallChocoButton").Visible    = $true # Chocolatey installieren Button anzeigen 
+                    (Get-Control $this "VersionLabel").Text += "Nicht installiert" # Hinweis auf fehlende Installation
                 }
 
-                # Lade-Label ausblenden
-                (Get-Ref $this "LoadLabel").Visible = $false
             }
         }
     }
@@ -985,10 +974,10 @@ Lizenz: MIT
                 Controls    = [ordered]@{
                     TabControl = @{
                         Control     = "TabControl"
-                        Dock        = "Fill"
-                        BackColor   = $AppColor.Dark
-                        ForeColor   = $AppColor.Accent
-                        Font        = Get-Font -Name "Consolas" -Size 10
+                        # Dock        = "Fill"
+                        BackColor   = Get-Color "Dark"
+                        ForeColor   = Get-Color "Accent"
+                        # Font        = Get-Font -Name "Consolas" -Size 10
                         Controls    = [ordered]@{
                             ManageTab = @{
                                 Control     = "TabPage"
@@ -1017,6 +1006,8 @@ Lizenz: MIT
                                 Controls    = @{
                                     AddList = @{
                                         Control     = "CheckedListBox"
+                                        Dock        = "Fill"
+
                                         Add_ItemCheck = {
                                             param($list, $item)
                                             $form = $this.FindForm()
@@ -1076,7 +1067,7 @@ Lizenz: MIT
                     SelectLabel = @{
                         Control     = "Label"
                         Text        = "Alle Auswählen"
-                        ForeColor   = $AppColor.Accent
+                        ForeColor   = Get-Color "Accent"
                         TextAlign   = "MiddleCenter"
                         Height      = 30
                         Font        = Get-Font "LabelButton"
@@ -1110,7 +1101,7 @@ Lizenz: MIT
                     ProcessLabel = @{
                         Control     = "Label"
                         Text        = "Starten..."
-                        ForeColor   = $AppColor.Accent
+                        ForeColor   = Get-Color "Accent"
                         TextAlign   = "MiddleCenter"
                         Height      = 35
                         Font        = Get-Font -Name "Consolas" -Size 10 -Style "Italic"
@@ -1125,8 +1116,8 @@ Lizenz: MIT
             SidebarPanel = @{
                 Control     = "Panel"
                 Dock        = "Right"
-                ForeColor   = $AppColor.Dark
-                BackColor   = $AppColor.Accent
+                ForeColor   = Get-Color "Dark"
+                BackColor   = Get-Color "Accent"
                 Padding     = [Padding]::new(10,5,0,0)
                 Controls    = [ordered]@{
                     UninstallWinGetButton   = @{
@@ -1270,5 +1261,6 @@ Lizenz: MIT
 
 
 Start-Form $FormConfig.Main
+# Start-Form $FormConfig.About
 # Start-Form $FormConfig.Chocolatey
 # Start-Form $FormConfig.WinGet

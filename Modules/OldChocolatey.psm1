@@ -26,7 +26,6 @@
         & $AppLog.Info "Key: [switch]`$Version "
         return (choco --version).Trim() 
     } elseif ($SetupList) { 
-        & $AppLog.Info "Key: [switch]`$SetupList "
         $list = [ordered]@{
             # Packagename bei Chocolatey | Anzeigename
             "7zip"                      = "7-Zip"

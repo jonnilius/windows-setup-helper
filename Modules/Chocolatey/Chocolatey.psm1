@@ -89,31 +89,8 @@ function Get-ChocolateyVersion {
         }
     }
 }
-<##>
-function Test-Chocolatey {
-    Write-Information "Prüfe, ob Chocolatey installiert ist..."
-    try {
-        # Prüfen, ob der Befehl "choco" verfügbar ist, ohne eine Fehlermeldung auszugeben
-        $CommandSource = (Get-Command choco -ErrorAction SilentlyContinue).Source
-        $NullOrWhitespace = [string]::IsNullOrWhiteSpace($CommandSource)
-        return -not $NullOrWhitespace
-    } catch {
-        # Wenn ein Fehler auftritt (z.B. Befehl nicht gefunden), wird false zurückgegeben
-        Write-Warning "Fehler beim Testen von Chocolatey: $_"
-        return $false
-    }
-}
-<##>
-function Uninstall-ChocolateyPackage {
-    param( [string]$PackageName )
-    Write-Information "Deinstalliere Chocolatey-Paket: $PackageName"
-    try {
-        choco uninstall $PackageName -y
-        Write-Information "Paket '$PackageName' wurde erfolgreich deinstalliert."
-    } catch {
-        Write-Warning "Fehler beim Deinstallieren des Pakets '$PackageName': $_"
-    }
-}
+
+
 
 <# Get-Chocolatey #########################################################################>
 function Get-Chocolatey {
@@ -139,14 +116,6 @@ function Get-Chocolatey {
      }
     else { return Test-Chocolatey }
 }
-function Uninstall-Chocolatey {
-    param( [string]$PackageName )
-    
-    if ($PackageName) { 
-        Uninstall-ChocolateyPackage -PackageName $PackageName 
-    } else { 
-        Write-Warning "Kein Paketname angegeben. Bitte geben Sie den Namen des zu deinstallierenden Pakets an." 
-    }
-}
 
-Export-ModuleMember -Function Get-Chocolatey, Uninstall-Chocolatey
+
+Export-ModuleMember -Function Get-Chocolatey

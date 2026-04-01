@@ -51,13 +51,14 @@ function Get-Font {
         Label           = @{ Size = 10; Name = "Tahoma";    Style = "Regular" }
         ListBox         = @{ Size = 10; Name = "Consolas";  Style = "Regular" }
         TabControl      = @{ Size = 10; Name = "Consolas";  Style = "Regular" }
+        TextBox         = @{ Size = 11; Name = "Segoe UI";    Style = "Bold" } # Tested: Consolas, Tahoma, Segoe UI
 
         # Hybrid Controls
         LabelButton   = @{ Size = 8;  Name = "Consolas";    Style = "Regular" }
         LabelItalic   = @{ Size = 10;  Name = "Tahoma";     Style = "Italic" }
 
         # Style Controls
-        ChocoHeader   = @{ Size = 46; Name = "Cascadia Code";   Style = "Bold" }
+        SearchHeader  = @{ Size = 30; Name = "Cascadia Code";   Style = @("Bold", "Italic") }
         HeaderLow     = @{ Size = 20; Name = "Cascadia Code";   Style = "Bold" }
         
         Title         = @{ Size = 18; Name = "Segoe UI";        Style = "Bold" }
@@ -711,7 +712,7 @@ function New-Label {
     param( [hashtable]$Config = @{} )
     $prep = Merge-Config @{
         Font        = Get-Font -Control "Label"
-        Text        = "Labeltext fehlt"
+        Text        = "New-Label Text"
         TextAlign   = "MiddleCenter"
     }, $Config
 
@@ -1142,8 +1143,8 @@ function Get-Ref {
     return $form.Tag.Refs[$name]
 }
 function Get-ProcessLabel {
-    param ( $s, [string]$category )
-    $form = $s.FindForm()
+    param ( $control, [string]$category = "Default" )
+    $form = $control.FindForm()
 
     switch ($category) {
         "Main" { $processLabel = $form.Controls["TabPanel"].Controls["ProcessLabel"]; break }

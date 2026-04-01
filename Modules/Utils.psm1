@@ -1,6 +1,23 @@
 ﻿using namespace System.Windows.Forms
 using namespace System.Drawing
 
+if (-not ("ConsoleWindowNativeMethods" -as [type])) {
+    Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class ConsoleWindowNativeMethods
+{
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetConsoleWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+"@
+}
+
 function Show-DialogBox {
     <#
     .SYNOPSIS
@@ -217,8 +234,7 @@ function Update-Status {
     
     # Überprüfen, ob das übergebene Objekt ein Label ist, und das zugehörige Formular abrufen
     if ($Label -isnot [System.Windows.Forms.Label]) { 
-        & $AppLog.Error "Ungültiges Label-Objekt übergeben: $Label"
-        Write-Host "--$Message--"
+        Write-Error "Ungültiges Label-Objekt übergeben: $Label"
         return 
     }
 
@@ -231,7 +247,7 @@ function Update-Status {
     
     # Aktualisiert den Text des Labels mit der übergebenen Nachricht und erzwingt die Aktualisierung der Benutzeroberfläche.
     $Label.Text = $Message
-    & $AppLog.Info "Status aktualisiert: $Message"
+    Write-Information "Status aktualisiert: $Message"
     [Application]::DoEvents()
     
     # Stellt sicher, dass das Label sichtbar wird, wenn der Status aktualisiert wird.
@@ -249,6 +265,20 @@ function Update-Status {
     }
     return
 }
+function Show-PSConsole {
+    param ( [switch]$Show, [bool]$Mode )
+    $consoleWindow = [ConsoleWindowNativeMethods]::GetConsoleWindow()
+    if ($consoleWindow -eq [IntPtr]::Zero) { return }
+
+    if ($Mode -eq $true) { $Show = -not $Show }
+
+    if ($Show) {
+        [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 5) # 5 = SW_SHOW
+    } else {
+        [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 0) # 0 = SW_HIDE
+    }
+} 
+
 function Uninstall-App {
     param ( $take, [string]$AppName )
     & $AppLog.Info "Funktion 'Uninstall-App' aufgerufen mit AppName: $AppName"
@@ -447,28 +477,6 @@ function Get-WinGet {
         [switch]$UpdateAvailable,
         [switch]$Version
     )
-
-    # App-Informationen abrufen
-    if ($App -or $AppName -or $AppId) {
-        $TargetAppId = if ($AppId) { $AppId } elseif ($App) { $App } else { $null }
-        $TargetAppName = if ($AppName) { $AppName } elseif ($App) { $App } else { $TargetAppId }
-
-        # App, AppName oder AppId
-        if ($App)           { $AppInfo = Get-WinGetPackage -Id $App -Source "winget" -ErrorAction SilentlyContinue }
-        elseif ($AppName)   { $AppInfo = Get-WinGetPackage -Name $AppName -Source "winget" -ErrorAction SilentlyContinue }
-        elseif ($AppId)     { $AppInfo = Get-WinGetPackage -Id $AppId -Source "winget" -ErrorAction SilentlyContinue }
-        elseif ($Apps)      { $AppInfo = Get-WinGetPackage -Id $Apps.Id -Source "winget" -ErrorAction SilentlyContinue } 
-        if (-not $AppInfo -and -not $Install) { throw "Die angegebene App ist nicht installiert oder wurde nicht gefunden." }
-        
-        $App = foreach ($app in $AppInfo) {
-            [PSCustomObject]@{
-                Id                  = $app.Id
-                Name                = $app.Name
-                Version             = if ($app.Version) { $app.Version } elseif ($app.InstalledVersion) { $app.InstalledVersion } else { winget show --id=$($app.Id) --source=winget | Where-Object { $_ -match "^Version:" } | ForEach-Object { ($_ -split ":")[1].Trim() } }
-                IsUpdateAvailable   = if ($app.IsUpdateAvailable) { $app.IsUpdateAvailable } else { $false }
-            }
-        }
-    }
 
     # WinGet-Installation, -Deinstallation, -Version, -Liste, -Updates
     if ($AppVersion) {

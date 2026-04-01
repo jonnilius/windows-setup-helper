@@ -7,13 +7,13 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Windows.Forms.DataVisualization
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
+#Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
+if ( -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')){
+    Write-Host "Starte als Administrator neu..."
+    Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
+    [System.Environment]::Exit(0)
+}
 
-# Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
-# if ( -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')){
-#     Write-Host "Starte als Administrator neu..."
-#     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-#     [System.Environment]::Exit(0)
-# }
 $global:SystemInfo = @{
     ProductName     = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName
     DisplayVersion  = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
@@ -41,16 +41,7 @@ $global:AppInfo = @{
 }
 $global:AppConfig = @{
     IconPath    = "$PSScriptRoot\Assets\Icons"
-}
-$script:ScriptInfo = @{
-    Name        = $MyInvocation.MyCommand.Name
-    FullName    = $MyInvocation.MyCommand.Path
-    Path        = Split-Path $MyInvocation.MyCommand.Path
-    Admin       = & {
-        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    }
+    HideShell   = $true
 }
 
 # $InformationPreference = 'Continue'
@@ -62,10 +53,12 @@ Write-Information "Lade Module..."
 $env:PSModulePath += ";$PSScriptRoot\Modules"
 Import-Module "$PSScriptRoot\Modules\Utils.psm1"
 Import-Module "$PSScriptRoot\Modules\FormBuilder.psm1"
-Import-Module "$PSScriptRoot\Modules\OldChocolatey.psm1"
 Import-Module "$PSScriptRoot\Modules\Chocolatey\Chocolatey.psm1"
+Import-Module "$PSScriptRoot\Modules\PacketManager\PacketManager.psm1"
 
+$script:ChocolateySearchToken = ""
 
+Show-PSConsole -Mode $true
 
 
 
@@ -590,13 +583,21 @@ $FormConfig = @{
                     }
                     Details = @{
                         Control = "Label"
-                        Text = "Einstellungen".ToUpper()
+                        Text = "Konsole anzeigen".ToUpper()
                         Font = [Font]::new("Consolas", 8, [FontStyle]::Underline)
                         Anchor = "Right"
                         TextAlign = "MiddleRight"
                         Cursor = [Cursors]::Hand
-                        ToolTip = "Weitere Optionen und Einstellungen"
-                        Add_Click = { Show-MessageBox "ComingSoon" }
+                        ToolTip = "Zeige die PowerShell-Konsole an"
+                        Add_Click = { 
+                            if ($this.Text -eq "KONSOLE ANZEIGEN") {
+                                Show-PSConsole -Show
+                                $this.Text = "KONSOLE VERSTECKEN"
+                            } else {
+                                Show-PSConsole -Show:$false
+                                $this.Text = "KONSOLE ANZEIGEN"
+                            }
+                        }
                     }
                 }
             }
@@ -674,7 +675,7 @@ Lizenz: MIT
     Chocolatey  = @{
         Properties  = @{
             Text        = "Chocolatey"
-            ClientSize  = [Size]::new(600,300)
+            ClientSize  = [Size]::new(600,350)
             Icon        = Get-Icon "Chocolatey"
         }
         Controls    = @{
@@ -686,27 +687,182 @@ Lizenz: MIT
                     TabControl = @{
                         Control     = "TabControl"
                         Controls    = [ordered]@{
-                            InfoTab = @{
+                            SearchTab = @{
                                 Control     = "TabPage"
-                                Text        = "Info"
-                                Controls    = @{
-                                    TabHeader = @{
-                                        Control = "Label"
-                                        Text    = "Chocolatey"
-                                        Dock    = "Top"
-                                        Font    = Get-Font "ChocoHeader"
-                                        Height  = 100
+                                Text        = "Suche"
+                                Padding    = [Padding]::new(10)
+                                Controls    = [ordered]@{
+                                    TabList = @{
+                                        Control         = "ListBox"
+                                        Dock            = "Fill"
+                                        SelectionMode   = "MultiExtended"
+                                        Visible         = $false
+                                        Add_SelectedIndexChanged = {
+                                            param($src, $e)
+                                            $selectedItems    = $src.SelectedItems
+                                            $installButton    = (Get-Control $this "InstallButton")
+                                            $searchInfo       = (Get-Control $this "SearchInfo")
+                                            $searchHeader     = $searchInfo.Controls["SearchHeader"]
+                                            $processLabel     = $searchInfo.Controls["ProcessLabel"]
+                                            $searchInfoLabel  = $searchInfo.Controls["SearchInfoLabel"]
+
+                                            $installButton.Visible = $selectedItems.Count -gt 0
+
+                                            if ($selectedItems.Count -eq 0) {
+                                                $searchHeader.Text    = "Wähle ein Paket aus, um Details anzuzeigen."
+                                                $processLabel.Visible = $false
+                                                $searchInfoLabel.Text = ""
+                                            } elseif ($selectedItems.Count -eq 1) {
+                                                $selectedPackage = $selectedItems[0]
+
+                                                $searchHeader.Text    = $selectedPackage.DisplayName
+                                                $processLabel.Text    = "Lade Details..."
+                                                $processLabel.Visible = $true
+                                                $searchInfoLabel.Text = ""
+
+                                                $details = Get-ApplicationDetails -Name $selectedPackage.Id -Manager "Chocolatey" -SearchDurationMs 6000
+                                                if ($details) {
+                                                    $lines = @()
+                                                    if (-not [string]::IsNullOrWhiteSpace($details.Authors))      { $lines += "Autor(en): $($details.Authors)" }
+                                                    if (-not [string]::IsNullOrWhiteSpace($details.Tags))         { $lines += "Tags: $($details.Tags)" }
+                                                    if (-not [string]::IsNullOrWhiteSpace($details.Summary))      { $lines += "$($details.Summary)" }
+                                                    if (-not [string]::IsNullOrWhiteSpace($details.SoftwareSite)) { $lines += "Website: $($details.SoftwareSite)" }
+
+                                                    $processLabel.Visible = $false
+                                                    $searchInfoLabel.Text = ($lines -join "`n")
+                                                } else {
+                                                    $processLabel.Text = "Details konnten nicht geladen werden."
+                                                }
+                                            } else {
+                                                $searchHeader.Text    = "$($selectedItems.Count) Pakete ausgewählt"
+                                                $processLabel.Visible = $false
+                                                $searchInfoLabel.Text = ""
+                                            }
+                                        }
+                                    }
+                                    Space = @{
+                                        Control = "Panel"
+                                        Height = 15
+                                        Dock = "Top"
+                                        BackColor = Get-Color "Transparent"
+                                    }
+                                    SearchBox = @{
+                                        Control         = "TextBox"
+                                        Dock            = "Top"
+                                        Font            = Get-Font "TextBox"
+                                        BackColor       = Get-Color "Accent"
+                                        ForeColor       = Get-Color "Dark"
+                                        BorderStyle     = "None"
+                                        Add_TextChanged = {
+                                            param($src, $e)
+                                            $query = $src.Text.Trim()
+
+                                            $tabLabel   = $this.Parent.Controls["TabLabel"]
+                                            $tabList    = $this.Parent.Controls["TabList"]
+                                            $header     = $this.Parent.Controls["SearchHeader"]
+                                            
+                                            if (-not ($src.Tag -is [hashtable])) { $src.Tag = @{} }
+
+                                            if ($src.Tag.ContainsKey("SearchTimer") -and $src.Tag.SearchTimer) {
+                                                $src.Tag.SearchTimer.Stop()
+                                                $src.Tag.SearchTimer.Dispose()
+                                                $src.Tag.SearchTimer = $null
+                                            }
+
+                                            # Wenn die Suchanfrage leer ist, zeige die Anweisungen an und verstecke die Ergebnisliste
+                                            if ([string]::IsNullOrWhiteSpace($query)) {
+                                                $script:ChocolateySearchToken = [guid]::NewGuid().ToString("N")
+                                                $header.Visible = $true
+                                                $tabList.Items.Clear()
+                                                $tabList.Visible = $false
+                                                $tabLabel.Text = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen. `n(mindestens 3 Zeichen eingeben)"
+                                                $tabLabel.Visible = $true
+                                                return
+                                            }
+
+                                            # Wenn die Suchanfrage weniger als 3 Zeichen enthält, zeige eine Warnung an und verstecke die Ergebnisliste
+                                            if ($query.Length -lt 3) {
+                                                $script:ChocolateySearchToken = [guid]::NewGuid().ToString("N")
+                                                $header.Visible = $false
+                                                $tabList.Items.Clear()
+                                                $tabList.Visible = $false
+                                                $tabLabel.Text = "Bitte mindestens 3 Zeichen eingeben."
+                                                $tabLabel.Visible = $true
+                                                return
+                                            }
+
+                                            # Generiere ein neues Such-Token, um veraltete Suchvorgänge zu invalidieren
+                                            $script:ChocolateySearchToken = [guid]::NewGuid().ToString("N")
+                                            $token = $script:ChocolateySearchToken
+
+                                            $tabLabel.Text      = "Suche nach '$($query)'... "
+                                            $tabLabel.Visible   = $true
+                                            $tabList.Visible    = $false
+                                            $header.Visible     = $false
+
+                                            # Suchzeitgeber erstellen, um die Suche um 300ms zu verzögern (debouncing)
+                                            $timer = [System.Windows.Forms.Timer]::new()
+                                            $timer.Interval = 300
+                                            $timer.Tag = @{
+                                                SearchBox = $src
+                                                Query = $query
+                                                TabLabel = $tabLabel
+                                                TabList = $tabList
+                                                Token = $token
+                                            }
+
+                                            # Ereignis-Handler für den Timer-Tick definieren
+                                            $timer.Add_Tick({
+                                                $this.Stop()
+
+                                                $state = $this.Tag
+                                                $this.Dispose()
+
+                                                if (-not $state -or $state.SearchBox.IsDisposed) { return }
+                                                if (-not ($state.SearchBox.Tag -is [hashtable])) { return }
+                                                $state.SearchBox.Tag.SearchTimer = $null
+
+                                                if ($state.Token -ne $script:ChocolateySearchToken) { return }
+
+                                                $results = Search-Application -Query $state.Query -Manager "Chocolatey" -SearchToken $state.Token -SearchBox $state.SearchBox -SearchDurationMs 12000
+
+                                                if ($state.Token -ne $script:ChocolateySearchToken) { return }
+                                                if ($state.SearchBox.Text.Trim() -ne $state.Query) { return }
+
+                                                $state.TabList.Items.Clear()
+                                                if ($results.Count -gt 0) {
+                                                    [void]$state.TabList.Items.AddRange($results)
+                                                    $state.TabList.DisplayMember = "DisplayName"
+                                                    $state.TabList.Visible = $true
+                                                    $state.TabLabel.Visible = $false
+                                                } else {
+                                                    $state.TabList.Visible = $false
+                                                    $state.TabLabel.Text = "Keine Pakete gefunden."
+                                                    $state.TabLabel.Visible = $true
+                                                }
+                                            })
+
+                                            $src.Tag.SearchTimer = $timer
+                                            $timer.Start()
+                                        }
+                                    }
+
+
+                                    SearchHeader = @{
+                                        Control     = "Label"
+                                        Text        = "Package suchen"
+                                        Dock        = "Top"
+                                        Font        = Get-Font "SearchHeader"
+                                        ForeColor   = Get-Color "Accent"
+                                        Height      = 100
                                     }
                                     TabLabel = @{
-                                        Control = "Label"
-                                        Text    = "Software Management für Windows"
-                                        Dock    = "Top"
-                                        Font    = Get-Font "LabelItalic"
-                                    }
-                                    TextInput = @{
-                                        Control = "TextBox"
-                                        Dock = "Fill"
-                                        Visible = $false
+                                        Control     = "Label"
+                                        Text        = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen. `n(mindestens 3 Zeichen eingeben)"
+                                        Dock        = "Bottom"
+                                        Font        = Get-Font "LabelItalic"
+                                        TextAlign   = "MiddleCenter"
+                                        Height      = 50
                                     }
                                 }
                             }
@@ -761,50 +917,61 @@ Lizenz: MIT
                         
                         Add_SelectedIndexChanged = {
                             param($src, $e)
-
-                            # Verhindere das Laden von Daten, wenn der InfoTab ausgewählt wird, da dieser statische Informationen anzeigt
                             $tabName     = $src.SelectedTab.Name
-                            if ($tabName -eq "InfoTab") { return }
 
                             # Hole die Steuerelemente für das aktuelle Tab
+                            $selectLabel = (Get-Control $this "SelectLabel")
                             $tabLabel    = $src.SelectedTab.Controls["TabLabel"]
                             $tabList     = $src.SelectedTab.Controls["TabList"]
-                            $selectLabel = (Get-Control $this "SelectLabel")
+                            
+                            # Buttons ausblenden, bis eine Auswahl getroffen wird
+                            (Get-Control $this "UpdateButton").Visible      = $false
+                            (Get-Control $this "UninstallButton").Visible   = $false
+                            (Get-Control $this "InstallButton").Visible     = $false
+                            $tabList.Items.Clear()
 
-
-                            # Lade die entsprechenden Daten, wenn der Tab gewechselt wird und die Liste noch leer ist
-                            if ($tabList.Items.Count -eq 0) {
-                                $tabLabel.Text = "Lade Chocolatey-Packages..."
-                                $tabList.Items.AddRange((Get-Chocolatey -TabName $tabName))
+                            # Lade die entsprechenden Daten, wenn der Tab gewechselt wird
+                            switch ($tabName) {
+                                "SearchTab" {
+                                    $selectLabel.Visible = $false
+                                    return
+                                }
+                                "PackagesTab" {
+                                    $tabLabel.Text = "Lade installierte Chocolatey-Pakete..."
+                                    [void]$tabList.Items.AddRange((Get-Chocolatey -List))
+                                    break
+                                }
+                                "SuggestedTab" {
+                                    $tabLabel.Text = "Lade vorgeschlagene Chocolatey-Pakete..."
+                                    [void]$tabList.Items.AddRange((Get-Chocolatey -Suggested))
+                                    break
+                                }
                             }
-
-                            # Aktualisiere die Sichtbarkeit der Steuerelemente basierend auf dem ausgewählten Tab
-                            if ($tabList.Items.Count -eq 0) { 
-                                $tabLabel.Text = "Keine Informationen verfügbar." 
-                            } else { 
-                                $tabLabel.Visible       = $false
-                                $tabList.Visible        = $true
-                                $selectLabel.Visible    = $true
-                            }
+                            
+                            # Sichtbarkeit der Steuerelemente anpassen
+                            $tabLabel.Visible    = $false
+                            $tabList.Visible     = $true
+                            $selectLabel.Visible = $true
+                            
                         }
                         Add_Deselected = {
                             param($src, $e)
-                            if ($e.TabPage.Name -eq "InfoTab") { return }
 
                             # Leere die Listen, wenn der Tab verlassen wird
                             $tabList    = $e.TabPage.Controls["TabList"]
                             $listType   = $tabList.GetType().Name
+                            $tabList.ClearSelected()
+
                             if ($listType -eq "CheckedListBox") {
                                 foreach ($index in $tabList.CheckedIndices) { 
                                     $tabList.SetItemChecked($index, $false) 
                                 }
                             }
-                            $tabList.ClearSelected()
 
                             # Sichtbarkeit der Steuerelemente zurücksetzen
-                            (Get-Control $this "UpdateButton").Visible = $false
-                            (Get-Control $this "UninstallButton").Visible = $false
-                            (Get-Control $this "InstallButton").Visible = $false
+                            (Get-Control $this "UpdateButton").Visible      = $false
+                            (Get-Control $this "UninstallButton").Visible   = $false
+                            (Get-Control $this "InstallButton").Visible     = $false
                         }
 
                     }
@@ -849,6 +1016,7 @@ Lizenz: MIT
                         Visible             = $false
                         Add_VisibleChanged  = {
                             if ($this.Visible) { (Get-Control $this "SelectLabel").Visible = $false }
+                                else { (Get-Control $this "SelectLabel").Visible = $true }
                         }
                     }
                 }
@@ -861,6 +1029,40 @@ Lizenz: MIT
                 BackColor   = Get-Color "Accent"
                 Padding     = [Padding]::new(10,5,0,0)
                 Controls    = [ordered]@{
+
+                    SearchInfo = @{
+                        Control     = "FlowLayoutPanel"
+                        Dock        = "Fill"
+                        FlowDirection= "TopDown"
+                        WrapContents = $false
+                        ForeColor           = Get-Color "Dark"
+                        BackColor   = Get-Color "Accent"
+                        # Visible     = $false
+                        Controls    = [ordered]@{
+                            SearchHeader = @{
+                                Control     = "Label"
+                                Text        = "Wähle ein Paket aus, um Details anzuzeigen."
+                                Dock        = "Top"
+                                Font        = Get-Font "Label" -Size 13 -Style "Bold"
+                                Height      = 60
+                            }
+                            ProcessLabel = @{
+                                Control             = "Label"
+                                Text                = "Starte..."
+                                Height              = 30
+                                Font                = Get-Font "LabelItalic"
+                                Dock                = "Top"
+                                Visible             = $false
+                            }
+                            SearchInfoLabel = @{
+                                Control     = "Label"
+                                Text        = ""
+                                Dock        = "Top"
+                                Font        = Get-Font "LabelItalic"
+                                AutoSize    = $true
+                            }
+                        }
+                    }
                     # Chocolatey deinstallieren Button
                     UninstallChocoButton = @{
                         Control     = "Button"
@@ -909,7 +1111,21 @@ Lizenz: MIT
                         Visible     = $false
                         Dock        = "Bottom"
                         Font        = Get-Font "SidebarButton"
-                        Add_Click   = { UpdateChocoApps $this }
+                        Add_Click   = { 
+                            $NewStatus          = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final }
+                            $selectedTab        = (Get-Control $this "TabControl").SelectedTab
+                            $tabList            = $selectedTab.Controls["TabList"]
+                            $selectedPackages   = @($tabList.SelectedItems)
+                                                        
+                            & $NewStatus "Aktualisiere ausgewählte Chocolatey-Pakete..."
+                            foreach ($package in $selectedPackages) {
+
+                                & $NewStatus "Aktualisiere $($package.Name)..."
+                                Update-Application -Name $package.Name -Manager "Chocolatey"
+                                $tabList.SetSelected($tabList.Items.IndexOf($package), $false)
+                            }
+                            & $NewStatus "Aktualisierung abgeschlossen." -Final
+                        }
                     }
                     # Pakete installieren Button
                     InstallButton = @{
@@ -919,7 +1135,23 @@ Lizenz: MIT
                         Text        = "Installieren"
                         Dock        = "Bottom"
                         Font        = Get-Font "SidebarButton"
-                        Add_Click   = { InstallChocoApps $this }
+                        Add_Click   = { 
+                            $NewStatus       = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final }
+                            $selectedTab     = (Get-Control $this "TabControl").SelectedTab
+                            $tabList         = $selectedTab.Controls["TabList"]
+                            $checkedPackages = @($tabList.CheckedItems)
+
+                            & $NewStatus "Installiere ausgewählte Chocolatey-Pakete..."
+                            $tabList.ClearSelected()
+                            foreach ($package in $checkedPackages) {
+
+                                & $NewStatus "Installiere $($package.Name)..."
+                                Install-Application -Name $package.Id -Manager "Chocolatey"
+                                $tabList.SetItemChecked($tabList.Items.IndexOf($package), $false)
+                            }
+                            & $NewStatus "Installation abgeschlossen." -Final
+
+                        }
                     }
                     # Pakete deinstallieren Button
                     UninstallButton = @{
@@ -928,8 +1160,21 @@ Lizenz: MIT
                         Dock        = "Bottom"
                         Font        = Get-Font "SidebarButton"
                         Visible     = $false
-                        
-                        Add_Click   = { UninstallChocoApps $this }
+                        Add_Click   = { 
+                            $NewStatus          = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final }
+                            $selectedTab        = (Get-Control $this "TabControl").SelectedTab
+                            $tabList            = $selectedTab.Controls["TabList"]
+                            $selectedPackages   = @($tabList.SelectedItems)
+
+                            & $NewStatus "Deinstalliere ausgewählte Chocolatey-Pakete..."
+                            foreach ($package in $selectedPackages) {
+
+                                & $NewStatus "Deinstalliere $($package.Name)..."
+                                Uninstall-Application -Name $package.Name -Manager "Chocolatey"
+                                $tabList.Items.Remove($package)
+                            }
+                            & $NewStatus "Deinstallation abgeschlossen." -Final
+                        }
                     }
                 }
             }
@@ -955,6 +1200,10 @@ Lizenz: MIT
                 } else {
                     (Get-Control $this "InstallChocoButton").Visible    = $true # Chocolatey installieren Button anzeigen 
                     (Get-Control $this "VersionLabel").Text += "Nicht installiert" # Hinweis auf fehlende Installation
+                }
+
+                if ((Get-Control $this "TabControl").SelectedTab.Text -eq "Suche") {
+                    (Get-Control $this "SearchBox").Focus() # Fokus auf Suchbox setzen, wenn Suche-Tab aktiv ist
                 }
 
             }

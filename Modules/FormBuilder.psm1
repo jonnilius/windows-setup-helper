@@ -57,10 +57,16 @@ function Get-Font {
         LabelButton   = @{ Size = 8;  Name = "Consolas";    Style = "Regular" }
         LabelItalic   = @{ Size = 10;  Name = "Tahoma";     Style = "Italic" }
 
-        # Style Controls
+        # Table Presets
+        TableTitle  = @{ Size = 15; Name = "Cascadia Code";   Style = @("Bold", "Underline") }
+        TableLabel  = @{ Size = 10; Name = "Cascadia Code";   Style = @("Bold") }
+        TableText   = @{ Size = 10; Name = "Cascadia Code";   Style = "Regular" }
+        TableLink   = @{ Size = 9;  Name = "Cascadia Code";   Style = "Italic" }
+        TableButton = @{ Size = 8;  Name = "Cascadia Code";   Style = "Bold" }
+        ### TabControl Presets ###
+        
         SearchHeader  = @{ Size = 30; Name = "Cascadia Code";   Style = @("Bold", "Italic") }
         HeaderLow     = @{ Size = 20; Name = "Cascadia Code";   Style = "Bold" }
-        
         Title         = @{ Size = 18; Name = "Segoe UI";        Style = "Bold" }
         SidebarButton = @{ Size = 8;  Name = "Tahoma";          Style = "Bold" }
         SidebarLabel  = @{ Size = 10; Name = "Tahoma";          Style = "Regular" }
@@ -128,7 +134,6 @@ function Get-Icon {
     # Icon laden und zurückgeben
     return [Icon]::new($iconPath)
 }
-
 function Merge-Config {
     param( [hashtable[]]$Configs )
     # param( [hashtable]$DefaultConfig, [hashtable]$CustomConfig )
@@ -197,23 +202,24 @@ $global:ToolTip = & {
 <### LAYOUT-CONTAINER ###>
 function New-Panel {
     param( [hashtable]$Config = @{} )
-    $panel = [Panel]::new()
-
-    # Config mit Standardwerten mergen
-    $prep = Merge-Config @{
+    $panel   = [Panel]::new()
+    $default = @{
+        Dock = "Fill"
         ForeColor = Get-Color "Accent"
         BackColor = Get-Color "Dark"
-    }, $Config
+    }
 
+    # Config mit Standardwerten mergen
+    $defaultConfig = Merge-Config $default, $Config
 
     # Properties und Events dynamisch setzen
     $type   = $panel.GetType()
     $events = $type.GetEvents().Name
     $prop   = $type.GetProperties().Name
 
-    foreach ($key in $prep.Keys) {
+    foreach ($key in $defaultConfig.Keys) {
         if ($key -eq "Controls") { 
-            $ControlConfig = $prep[$key]
+            $ControlConfig = $defaultConfig[$key]
             foreach ($cfg in $ControlConfig.GetEnumerator()) {
                 $control        = New-Control $cfg.Value
                 $control.Name   = $cfg.Key
@@ -221,15 +227,15 @@ function New-Panel {
             }
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $panel.$key($prep[$key]) }
+            if ($events -contains $name) { $panel.$key($defaultConfig[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $panel.$key($prep[$key]) }
+            if ($events -contains $name) { $panel.$key($defaultConfig[$key]) }
         } elseif ($prop -contains $key) { 
-            $panel.$key = $prep[$key] 
+            $panel.$key = $defaultConfig[$key] 
         } else {
             if ($panel.PSObject.Properties[$key]) {
-                $panel.$key = $prep[$key]
+                $panel.$key = $defaultConfig[$key]
             }
         }
     }
@@ -284,20 +290,27 @@ function New-FlowLayoutPanel {
 }
 function New-TableLayoutPanel {
     param ( $Config = @{} )
-    
     $table = [TableLayoutPanel]::new()
-    $table.ForeColor = Get-Color "Accent"
-    $table.BackColor = Get-Color "Dark"
+    $default = @{
+        Dock = "Fill"
+        ForeColor = Get-Color "Accent"
+        BackColor = Get-Color "Dark"
+    }
+    
+    # Config mit Standardwerten mergen
+    $defaultConfig = Merge-Config $default, $Config
 
     # Properties und Events dynamisch setzen
     $type   = $table.GetType()
     $events = $type.GetEvents().Name
-    foreach ($key in $Config.Keys) {
+    $props  = $type.GetProperties().Name
+
+    foreach ($key in $defaultConfig.Keys) {
         if ($key -eq "Controls") { 
-            foreach ($item in $Config[$key].GetEnumerator()) {
-                $controlConfig  = $item.Value
+            foreach ($cfg in $defaultConfig[$key].GetEnumerator()) {
+                $controlConfig  = $cfg.Value
                 $control        = New-Control $controlConfig
-                $control.Name   = $item.Key
+                $control.Name   = $cfg.Key
                 $control.Dock   = "Fill"
                 if ($controlConfig.Position) {
                     $pos = $controlConfig.Position
@@ -315,7 +328,7 @@ function New-TableLayoutPanel {
                     # Control hinzufügen
                     $table.Controls.Add($control, $colPos, $rowPos)
 
-                    # Spanning
+                    # Span setzen, falls angegeben
                     if ($colSpan -gt 1) { $table.SetColumnSpan($control, $colSpan) }
                     if ($rowSpan -gt 1) { $table.SetRowSpan($control, $rowSpan) }
 
@@ -326,58 +339,85 @@ function New-TableLayoutPanel {
             continue
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $table.$key($Config[$key]) }
+            if ($events -contains $name) { $table.$key($defaultConfig[$key]) }
             continue
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $table.$key($Config[$key]) }
+            if ($events -contains $name) { $table.$key($defaultConfig[$key]) }
             continue
         } elseif ($key -in @("Column", "Row")) {
-            $keyConfig  = $Config[$key]
+            # Spezialbehandlung für RowStyles und ColumnStyles, da diese komplexe Objekte sind und nicht direkt über die Property gesetzt werden können
+            $keyConfig  = $defaultConfig[$key]
             $isColumn   = $key -eq "Column"
             $sizeTypes  = "Percent", "AutoSize", "Absolute"
 
-            if ($isColumn) { $table.ColumnStyles.Clear(); $table.ColumnCount = $keyConfig.Count }
-            else { $table.RowStyles.Clear(); $table.RowCount = $keyConfig.Count }
+            # Alte Styles entfernen
+            if ($isColumn) { $table.ColumnStyles.Clear() } else { $table.RowStyles.Clear() }
 
+            # Anzahl der Spalten/Zeilen setzen
+            if ($isColumn) { $table.ColumnCount = $keyConfig.Count } else { $table.RowCount = $keyConfig.Count }
+            
+            # Neue Styles hinzufügen
             foreach ($style in $keyConfig) { 
-                $keyStyle = if ($style -is [System.Windows.Forms.TableLayoutStyle]) { $style } 
-                else {
+
+                # Wenn bereits ein gültiges TableLayoutStyle-Objekt übergeben wird, dieses direkt verwenden
+                $keyStyle = if ($style -is [System.Windows.Forms.TableLayoutStyle]) { $style 
+
+                # Andernfalls versuchen, die übergebenen Werte zu interpretieren und ein neues TableLayoutStyle-Objekt zu erstellen.
+                } else {
+
+                    # Startwerte für SizeType und Dimension festlegen
                     $sizeType   = "AutoSize"
                     $dimension  = 0
 
-                    if ($style -is [string]) {
+                    
+                    # Wenn ein String übergeben wird, könnte es sich um einen Prozentwert oder einen SizeType handeln
+                    if ($style -is [string]) { 
+
+                        # Wenn der String nur aus Ziffern besteht und zwischen 0 und 100 liegt, interpretieren wir ihn als Prozentwert
                         if ($style -match '^\d+$' -and ([int]$style -ge 0 -and [int]$style -le 100)) {
-                            $sizeType = "Percent"
-                            $dimension = [int]$style
-                        } elseif ($sizeTypes -contains $style) {
-                            $sizeType = $style
-                        }
+                            $sizeType   = "Percent"
+                            $dimension  = [int]$style
+
+                        # Wenn der String einem der SizeTypes entspricht, verwenden wir diesen SizeType mit der Standarddimension von 0 (für AutoSize) oder 100 (für Percent)
+                        } elseif ($sizeTypes -contains $style) { $sizeType = $style }
+
+                    # Wenn ein Integer übergeben wird, interpretieren wir ihn als absoluten Wert in Pixeln
                     } elseif ($style -is [int]) {
-                        $sizeType = "Absolute"
-                        $dimension = $style
+                        $sizeType   = "Absolute"
+                        $dimension  = $style
+
+                    # Wenn ein Array übergeben wird, könnte es sich um eine Kombination aus SizeType und Dimension handeln, z.B. ["Percent", 50] oder ["Absolute", 100]
                     } elseif ($style -is [array]) {
+
+                        # Wenn der erste Wert ein gültiger SizeType ist, verwenden wir diesen. Ansonsten bleibt der Standard-SizeType "AutoSize" erhalten.
                         if ($style[0] -in $sizeTypes) { $sizeType = $style[0] } 
+
+                        # Wenn ein zweiter Wert vorhanden ist und eine gültige Dimension darstellt (z.B. eine positive Zahl), verwenden wir diesen als Dimension. Ansonsten bleibt die Standard-Dimension 0 (für AutoSize) oder 100 (für Percent) erhalten.
                         if ($style.Count -gt 1 -and $style[1] -ge 0) { $dimension = $style[1] } 
                     } 
 
+                    # Neues ColumnStyle- oder RowStyle-Objekt basierend auf den ermittelten SizeType- und Dimension-Werten erstellen
                     if ($isColumn) { [ColumnStyle]::new([SizeType]::$sizeType, $dimension) }
                     else { [RowStyle]::new([SizeType]::$sizeType, $dimension) }
-
                 }
                 
+                # Neuen Style zum TableLayoutPanel hinzufügen
                 if ($isColumn) { [void]$table.ColumnStyles.Add($keyStyle) }
                 else { [void]$table.RowStyles.Add($keyStyle) }
             }
             continue
         } elseif ($key -eq "Position") {
-            # Position wird speziell bei Controls innerhalb eines TableLayoutPanels behandelt, daher hier übersprungen
-            continue
+            continue # Position wird speziell bei Controls innerhalb eines TableLayoutPanels behandelt, daher hier übersprungen
         } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($table, $Config[$key])
+            $ToolTip.SetToolTip($table, $defaultConfig[$key])
             continue
-        } elseif ($table.PSObject.Properties.Match($key)) { 
-             $table.$key = $Config[$key]
+        } elseif ($props -contains $key) { 
+            $table.$key = $defaultConfig[$key] 
+        } else {
+            if ($table.PSObject.Properties[$key]) {
+                $table.$key = $defaultConfig[$key]
+            }
         }
     }    
 
@@ -505,42 +545,35 @@ function New-TabPage {
 
 <### HYBRID-CONTAINER ###>
 function New-PanelTabControl {
+    param ( $Config = @{} )
+    $panel = [Panel]::new()
+
+    # Config mit Standardwerten mergen
+    $copy = Merge-Config @{
+        Dock = "Fill"
+    }, $Config
+
     <#
-    Properties:
+    Eigenschaften für Panel extrahieren:
     - Dock = TabControl füllt den gesamten Platz des Panels aus. Dock wird nur auf das Panel angewendet.
     - Margin = funktioniert weder bei TabControl noch bei Panel, daher wird das Margin auf das Panel angewendet.
     - Padding = funktioniert beim Panel, aber nicht beim TabControl, daher wird das Padding auf das Panel angewendet.
     #>
-    param ( $Config = @{} )
-
-    # Clone der Config, um sie für Panel und TabControl anzupassen, ohne die Original-Config zu verändern
-    $tabControlConfig = $Config.Clone()
-    
-    # Erstelle Panel, das als Container für TabControl dient, damit wir Eigenschaften wie Margin und Padding anwenden können, die direkt auf TabControl nicht funktionieren
-    $tabControlPanel = [Panel]::new()
-    $tabControlPanel.Dock = "Fill"
-
-    
-    # Spezielle Behandlung für Margin, Padding und Dock, da diese Eigenschaften direkt auf das TabControl nicht wie erwartet funktionieren
-    foreach ($prop in @("Margin", "Padding", "Dock")) {
-        if ($tabControlConfig.ContainsKey($prop)) { 
-
-            # Setze die Panel-spezifischen Properties auf das Panel, da sie direkt auf das TabControl nicht funktionieren
-            $tabControlPanel.$prop = $tabControlConfig[$prop]
-
-            # Entferne das Property aus der TabControl-Config, damit es nicht fälschlicherweise auf das TabControl angewendet wird
-            [void]$tabControlConfig.Remove($prop)
+    $panelProps = @("Margin", "Padding", "Dock", "BackColor", "ForeColor")
+    foreach ($prop in $panelProps) {
+        if ($copy.ContainsKey($prop)) {
+            $panel.$prop = $copy[$prop]
+            [void]$copy.Remove($prop) # Entferne die Panel-spezifischen Properties aus der Config, damit sie nicht fälschlicherweise auf das TabControl angewendet werden
         }
     }
 
-    # Setze Dock auf Fill, damit das TabControl den gesamten Platz des Panels ausfüllt, da Dock direkt auf das TabControl nicht wie erwartet funktioniert
-    $tabControlConfig.Add("Dock", "Fill") # TabControl soll den gesamten Platz des Panels ausfüllen
-
     # TabControl erstellen
-    $tabControl = New-TabControl $tabControlConfig
-    $tabControlPanel.Controls.Add($tabControl)
+    $tabControl = New-TabControl $copy
+    $tabControl.Dock = "Fill" 
 
-    return $tabControlPanel
+    $panel.Controls.Add($tabControl)
+
+    return $panel
 }
 
 
@@ -710,6 +743,8 @@ function New-ComboBox {
 }
 function New-Label {
     param( [hashtable]$Config = @{} )
+    $label = [Label]::new()
+    
     $prep = Merge-Config @{
         Font        = Get-Font -Control "Label"
         Text        = "New-Label Text"
@@ -717,7 +752,6 @@ function New-Label {
     }, $Config
 
     # Label erstellen und mit Default-Werten initialisieren
-    $label = [Label]::new()
     
     # Properties und Events dynamisch setzen
     $type   = $label.GetType()
@@ -741,6 +775,8 @@ function New-Label {
             }
         }
     }
+
+    
 
     $label
 }
@@ -894,31 +930,39 @@ function New-RichTextBox {
 }
 function New-TextBox {
     param ( [hashtable]$Config = @{} )
-
     $textbox = [TextBox]::new()
 
+    # Config mit Standardwerten mergen
+    $copy = Merge-Config @{
+        Font    = Get-Font -Control "TextBox"
+        Text    = "New-TextBox Text"
+    }, $Config
+
+
+
     # Properties und Events dynamisch setzen
-    $events = $textbox.GetType().GetEvents().Name
-    $prop   = $textbox.GetType().GetProperties().Name
-    foreach ($key in $Config.Keys) {
-        if ($prop -contains $key) { 
-            $textbox.$key = $Config[$key] 
+    $type   = $textbox.GetType()
+    $events = $type.GetEvents().Name
+    $prop   = $type.GetProperties().Name
+
+    foreach ($key in $copy.Keys) {
+        if ($key -eq "ToolTip") {
+            $ToolTip.SetToolTip($textbox, $copy[$key])
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $textbox.$key($Config[$key]) }
+            if ($events -contains $name) { $textbox.$key($copy[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $textbox.$key($Config[$key]) }
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($textbox, $Config[$key])
+            if ($events -contains $name) { $textbox.$key($copy[$key]) }
+        } elseif ($prop -contains $key) { 
+            $textbox.$key = $copy[$key] 
         } else {
-            if ($textbox.PSObject.Properties[$key]) {
-                $textbox.$key = $Config[$key]
-            }
+            if ($textbox.PSObject.Properties[$key]) { $textbox.$key = $copy[$key] }
         }
     }
 
-    $textbox
+    # Return
+    return $textbox
 }
 
 

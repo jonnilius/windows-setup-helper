@@ -44,10 +44,6 @@ $global:AppConfig = @{
     HideShell   = $true
 }
 
-# $InformationPreference = 'Continue'
-# $DebugPreference = 'Continue'
-# $WarningPreference = 'Continue'
-
 Write-Information "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
 Write-Information "Lade Module..."
 $env:PSModulePath += ";$PSScriptRoot\Modules"
@@ -58,16 +54,13 @@ Import-Module "$PSScriptRoot\Modules\PacketManager\PacketManager.psm1"
 
 $script:ChocolateySearchToken = ""
 
-Show-PSConsole -Mode $true
-
-
-
+if ($AppConfig.HideShell) { Hide-PSConsole }
 <# FORM-DATA ############################################################################>
 $FormConfig = @{
     Main        = @{
         Properties  = @{
             Icon        = Get-Icon "WindowsSetupHelper"
-            ClientSize  = [Size]::new(400,370) # Breite, Höhe
+            ClientSize  = [Size]::new(420,370) # Breite, Höhe
             Padding     = [Padding]::new(10,0,10,0)
         }
         Controls    = [ordered]@{
@@ -75,75 +68,81 @@ $FormConfig = @{
                 Control   = "Panel"
                 Dock      = "Fill"
                 Padding   = [Padding]::new(0)
-                BackColor = Get-Color "Dark"
-                ForeColor = Get-Color "Accent"
                 Controls  = @{
-                    ProcessLabel = @{
-                        Name        = "ProcessLabel"
-                        Control     = "Label"
-                        Height      = 50
-                        ForeColor   = Get-Color "Dark"
-                        BackColor   = Get-Color "Accent"
-                        Font        = Get-Font "Label" -Style "Italic"
-                        Dock        = "Bottom"
-                        TextAlign   = "MiddleCenter"
-                        Text        = "Status: Bereit"
-                        Visible     = $false
+                    # ProcessLabel = @{
+                    #     Name        = "ProcessLabel"
+                    #     Control     = "Label"
+                    #     Height      = 50
+                    #     ForeColor   = Get-Color "Dark"
+                    #     BackColor   = Get-Color "Accent"
+                    #     Font        = Get-Font "Label" -Style "Italic"
+                    #     Dock        = "Bottom"
+                    #     TextAlign   = "MiddleCenter"
+                    #     Text        = "Status: Bereit"
+                    #     Visible     = $false
 
-                        Add_VisibleChanged = {
-                            $delta = if ($this.Visible) { 50 } else { -50 }
-                            $form = $this.FindForm()
+                    #     Add_VisibleChanged = {
+                    #         $delta = if ($this.Visible) { 50 } else { -50 }
+                    #         $form = $this.FindForm()
                             
-                            Start-Sleep -Milliseconds 200
-                            $form.ClientSize = [Size]::new($form.ClientSize.Width, $form.ClientSize.Height + $delta)
-                        }
-                    }
+                    #         Start-Sleep -Milliseconds 200
+                    #         $form.ClientSize = [Size]::new($form.ClientSize.Width, $form.ClientSize.Height + $delta)
+                    #     }
+                    # }
                     TabControl = @{
                         Control     = "TabControl"
-                        # Dock        = "Fill"
-                        # Font        = [Font]::new("Consolas", 10)
-                        MultiLine    = $true
+                        MultiLine   = $true
                         Controls    = [ordered]@{
                             MainTab     = @{
                                 Control     = "TabPage"
-                                Text        = "Allgemein"
+                                Text        = "System"
                                 Controls    = [ordered]@{
                                     MainTable = @{
                                         Control     = "TableLayoutPanel"
                                         Dock        = "Fill"
-                                        Padding     = [Padding]::new(0)
-                                        Column      = @( "40", "40", "20" )
-                                        Row         = @( 30, 30, 30, 30, 30, 30, 30, 30, "AutoSize" )
+                                        Padding     = [Padding]::new(10)
+                                        Column      = @( "35", "50" )
+                                        Row         = @( 35, 25, 25, 30, 30, 30, 30, 30, "AutoSize" )
                                         Controls    = [ordered]@{
+                                            # Row 1 – Systeminformationen
                                             SystemLabel = @{
-                                                ColumnSpan  = 3
-                                                # Position    = 0,0
+                                                ColumnSpan  = 2
                                                 Control     = "Label"
-                                                Text        = "System"
-                                                Font        = Get-Font "Subtitle"
-                                                TextAlign   = "BottomCenter"
-                                            }
-
-                                            DeviceNameLabel = @{
-                                                # Position    = 0,1
-                                                Control     = "Label"
-                                                Text        = "Gerätename:"
-                                                Font        = Get-Font "Label" -Style "Bold"
-                                                TextAlign   = "MiddleRight"
-                                            }
-                                            DeviceNameValue = @{
-                                                # Position    = 1,1
-                                                Control     = "Label"
-                                                Text        = $($env:COMPUTERNAME)
-                                                Font        = Get-Font "Label"
+                                                Text        = "Systeminformationen"
+                                                Font        = Get-Font "TableTitle"
                                                 TextAlign   = "MiddleCenter"
                                             }
-                                            DeviceNameButton = @{
-                                                # Position    = 2,1
-                                                Control     = "Button"
-                                                Text        = "Ändern"
-                                                Font        = Get-Font "Button"
-                                                Margin      = [Padding]::new(5,2,5,3)
+                                            # Row 2 – Windows-Version
+                                            WindowsVersionLabel = @{
+                                                Control     = "Label"
+                                                Text        = "Windows-Version:"
+                                                Font        = Get-Font "TableLabel" 
+                                                TextAlign   = "MiddleLeft"
+                                            }
+                                            WindowsVersionValue = @{
+                                                Control     = "Label"
+                                                Text        = $SystemInfo.ProductName
+                                                Font        = Get-Font "TableText"
+                                                TextAlign   = "MiddleLeft"
+
+                                                ToolTip     = "Version ändern"
+                                            }
+
+                                            # Row 3 – Gerätename
+                                            DeviceNameLabel = @{
+                                                Control     = "Label"
+                                                Text        = "Gerätename:"
+                                                Font        = Get-Font "TableLabel"
+                                                TextAlign   = "MiddleLeft"
+                                            }
+                                            DeviceNameValue = @{
+                                                Control     = "Label"
+                                                Text        = $($env:COMPUTERNAME)
+                                                Font        = Get-Font "TableText"
+                                                TextAlign   = "MiddleLeft"
+
+                                                Cursor      = Get-Cursor "Hand"
+                                                ToolTip     = "Gerätename ändern"
                                                 Add_Click   = { Start-Form $FormConfig.DeviceName }
                                             }
 
@@ -157,19 +156,29 @@ $FormConfig = @{
                                 Controls    = @{
                                     TableLayout = @{
                                         Control     = "TableLayoutPanel"
-                                        Dock        = "Fill"
                                         Padding     = [Padding]::new(0)
                                         Column      = @( "50", "50" )
-                                        Row         = @( 50, 50, 50, "AutoSize" )
-                                        Controls    = @{
+                                        Row         = @( 40, 25, 25, 50, "AutoSize" )
+                                        Controls    = [ordered]@{
+                                            # Column 1 – Programme 
+                                            ProgramLabel = @{
+                                                Control     = "Label"
+                                                Text        = "Programme"
+                                                Font        = Get-Font "TableTitle"
+                                                TextAlign   = "MiddleCenter"
+                                                Position    = 0,0
+                                            }
                                             UninstallOneDrive = @{
-                                                Control     = "Button"
+                                                Control     = "Label"
                                                 Text        = "OneDrive entfernen"
-                                                Font        = Get-Font "Button"
-                                                Position    = 1,0
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5)
-                                                Add_Click   = { 
+                                                Font        = Get-Font "TableLink"
+                                                Position    = 0,1
+                                                Hover       = "Underline"
+                                                Cursor      = Get-Cursor "Hand"
+                                                
+                                                Add_MouseEnter  = { $this.Font = Get-Font "TableLink" -Style @("Italic","Underline") }
+                                                Add_MouseLeave  = { $this.Font = Get-Font "TableLink" -Style "Italic" }
+                                                Add_Click       = { 
                                                     $processLabel = $this.FindForm().Controls.Find("ProcessLabel", $true)[0]
                                                     Remove-Item "OneDrive" { 
                                                         param([string]$msg, [switch]$final) 
@@ -178,13 +187,15 @@ $FormConfig = @{
                                                 }
                                             }
                                             UninstallEdge = @{
-                                                Control     = "Button"
+                                                Control     = "Label"
                                                 Text        = "Microsoft Edge entfernen"
-                                                Font        = Get-Font "Button"
-                                                Position    = 1,1
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5)
-                                                Add_Click   = { 
+                                                Font        = Get-Font "TableLink"
+                                                Position    = 0,2
+                                                Cursor      = Get-Cursor "Hand"
+
+                                                Add_MouseEnter  = { $this.Font = Get-Font "TableLink" -Style @("Italic","Underline") }
+                                                Add_MouseLeave  = { $this.Font = Get-Font "TableLink" -Style "Italic" }
+                                                Add_Click       = { 
                                                     $processLabel = $this.FindForm().Controls.Find("ProcessLabel", $true)[0]
                                                     Remove-Item "Edge" { 
                                                         param([string]$msg, [switch]$final) 
@@ -192,13 +203,20 @@ $FormConfig = @{
                                                     } 
                                                 }
                                             }   
+                                            # Column 2 – System aufräumen
+                                            CleanerLabel = @{
+                                                Control     = "Label"
+                                                Text        = "System aufräumen"
+                                                Font        = Get-Font "TableTitle"
+                                                TextAlign   = "MiddleCenter"
+                                                Position    = 1,0
+                                            }
                                             HideStartMenuIcons = @{
                                                 Control     = "Button"
                                                 Text        = "Startmenü aufräumen"
-                                                Font        = Get-Font "Button"
-                                                Position    = 1,2
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5)
+                                                Font        = Get-Font "TableButton"
+                                                Position    = 1,1
+                                                Margin      = [Padding]::new(20,0,20,0)
                                                 Add_Click   = { Remove-StartMenuIcons $this }
                                             }
 
@@ -208,13 +226,13 @@ $FormConfig = @{
                             }
                             PackageTab  = @{
                                 Control     = "TabPage"
-                                Text        = "Paket-Manager"
+                                Text        = "Programme"
                                 Controls    = @{
                                     PaketManagerTable = @{
                                         Control    = "TableLayoutPanel"
                                         Dock       = "Bottom"
                                         Column      = @( "50", "50" )
-                                        Row         = @( "AutoSize", 50, 20 )
+                                        Row         = @( 30, 25 )
                                         Controls    = @{
                                             PaketManagerLabel = @{
                                                 ColumnSpan  = 2
@@ -246,10 +264,73 @@ $FormConfig = @{
                                             }
                                         }
                                     }
-                                    ProgramList = @{
-                                        Control     = "ListBox"
-                                        Name        = "ProgramList"
-                                        Dock        = "Fill"
+                                    TableLayout = @{
+                                        Control     = "TableLayoutPanel"
+                                        Padding     = [Padding]::new(0)
+                                        Column      = @( "50", "50" )
+                                        Row         = @( 40, 25, 25, 50, "AutoSize" )
+                                        Controls    = [ordered]@{
+                                            # Column 1 – Programme 
+                                            ProgramLabel = @{
+                                                Control     = "Label"
+                                                Text        = "Programme"
+                                                Font        = Get-Font "TableTitle"
+                                                TextAlign   = "MiddleCenter"
+                                                Position    = 0,0
+                                            }
+                                            UninstallOneDrive = @{
+                                                Control     = "Label"
+                                                Text        = "OneDrive entfernen"
+                                                Font        = Get-Font "TableLink"
+                                                Position    = 0,1
+                                                Hover       = "Underline"
+                                                Cursor      = Get-Cursor "Hand"
+                                                
+                                                Add_MouseEnter  = { $this.Font = Get-Font "TableLink" -Style @("Italic","Underline") }
+                                                Add_MouseLeave  = { $this.Font = Get-Font "TableLink" -Style "Italic" }
+                                                Add_Click       = { 
+                                                    $processLabel = $this.FindForm().Controls.Find("ProcessLabel", $true)[0]
+                                                    Remove-Item "OneDrive" { 
+                                                        param([string]$msg, [switch]$final) 
+                                                        Update-Status -Label $processLabel -Message $msg -Delay 1 -Final:$final 
+                                                    } 
+                                                }
+                                            }
+                                            UninstallEdge = @{
+                                                Control     = "Label"
+                                                Text        = "Microsoft Edge entfernen"
+                                                Font        = Get-Font "TableLink"
+                                                Position    = 0,2
+                                                Cursor      = Get-Cursor "Hand"
+
+                                                Add_MouseEnter  = { $this.Font = Get-Font "TableLink" -Style @("Italic","Underline") }
+                                                Add_MouseLeave  = { $this.Font = Get-Font "TableLink" -Style "Italic" }
+                                                Add_Click       = { 
+                                                    $processLabel = $this.FindForm().Controls.Find("ProcessLabel", $true)[0]
+                                                    Remove-Item "Edge" { 
+                                                        param([string]$msg, [switch]$final) 
+                                                        Update-Status -Label $processLabel -Message $msg -Delay 1 -Final:$final 
+                                                    } 
+                                                }
+                                            }   
+                                            # Column 2 – System aufräumen
+                                            CleanerLabel = @{
+                                                Control     = "Label"
+                                                Text        = "System aufräumen"
+                                                Font        = Get-Font "TableTitle"
+                                                TextAlign   = "MiddleCenter"
+                                                Position    = 1,0
+                                            }
+                                            HideStartMenuIcons = @{
+                                                Control     = "Button"
+                                                Text        = "Startmenü aufräumen"
+                                                Font        = Get-Font "TableButton"
+                                                Position    = 1,1
+                                                Margin      = [Padding]::new(20,0,20,0)
+                                                Add_Click   = { Remove-StartMenuIcons $this }
+                                            }
+
+                                        }
                                     }
                                 }
                             }
@@ -259,45 +340,38 @@ $FormConfig = @{
                                 Controls    = @{
                                     PowerTable = @{
                                         Control     = "TableLayoutPanel"
-                                        Dock        = "Fill"
-                                        Padding     = [Padding]::new(0)
-                                        Column      = @( "70", 80, 70 )
-                                        Row         = @( 35, 30, 30, 30, 35, 30, 30, 30, "AutoSize" )
+                                        Padding     = [Padding]::new(10)
+                                        Column      = @( "70", 80, 60 )
+                                        Row         = @( 35, 30, 30, 30, 35, 30, 30, 30, 30 )
                                         Controls    = [ordered]@{
                                             # Row 1 – Im Netzbetrieb
                                             PowerLabelDC = @{
-                                                ColumnSpan  = 3
                                                 # Position    = 0,0
+                                                ColumnSpan  = 3
                                                 Control     = "Label"
                                                 Text        = "Im Netzbetrieb"
-                                                Font        = Get-Font "Subtitle"
-                                                Dock        = "Fill"
-                                                TextAlign   = "BottomCenter"
+                                                Font        = Get-Font "TableTitle"
+                                                # TextAlign   = "TopCenter"
                                             }
                                             # Row 2 – Im Netzbetrieb (Energiesparmodus)
                                             StandbyLabelAC = @{
                                                 # Position    = 0,1
                                                 Control     = "Label"
                                                 Text        = "Energiesparmodus:"
-                                                Font        = Get-Font "Label" -Style "Bold"
-                                                Dock        = "Fill"
+                                                Font        = Get-Font "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             StandbyValueAC = @{
                                                 # Position    = 1,1
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Standby" -TextOutput
-                                                Font        = Get-Font "Label"
-                                                Dock        = "Fill"
-                                                TextAlign   = "MiddleCenter"
+                                                Font        = Get-Font "TableLink"
                                             }
                                             StandbyButtonAC = @{
                                                 # Position    = 2,1
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "Button"
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5,2,5,3)
+                                                Font        = Get-Font "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Standby"
                                                     $this.FindForm().Controls.Find("StandbyValueAC", $true)[0].Text = Get-PowerStatus "AC" "Standby" -TextOutput
@@ -308,25 +382,20 @@ $FormConfig = @{
                                                 # Position    = 0,2
                                                 Control     = "Label"
                                                 Text        = "Ruhezustand:"
-                                                Font        = Get-Font "Label" -Style "Bold"
-                                                Dock        = "Fill"
+                                                Font        = Get-Font "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             HibernateValueAC = @{
                                                 # Position    = 1,2
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Hibernate" -TextOutput
-                                                Font        = Get-Font "Label"
-                                                Dock        = "Fill"
-                                                TextAlign   = "MiddleCenter"
+                                                Font        = Get-Font "TableLink"
                                             }
                                             HibernateButtonAC = @{
                                                 # Position    = 2,2
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "Button"
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5,2,5,3)
+                                                Font        = Get-Font "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Hibernate"
                                                     $this.FindForm().Controls.Find("HibernateValueAC", $true)[0].Text = Get-PowerStatus "AC" "Hibernate" -TextOutput
@@ -337,25 +406,20 @@ $FormConfig = @{
                                                 # Position    = 0,3
                                                 Control     = "Label"
                                                 Text        = "Monitor ausschalten:"
-                                                Font        = Get-Font "Label" -Style "Bold"
-                                                Dock        = "Fill"
+                                                Font        = Get-Font "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             MonitorValueAC = @{
                                                 # Position    = 1,3
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Monitor" -TextOutput
-                                                Font        = Get-Font "Label"
-                                                Dock        = "Fill"
-                                                TextAlign   = "MiddleCenter"
+                                                Font        = Get-Font "TableLink"
                                             }
                                             MonitorButtonAC = @{
                                                 # Position    = 2,3
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "Button"
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5,2,5,3)
+                                                Font        = Get-Font "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Monitor"
                                                     $this.FindForm().Controls.Find("MonitorValueAC", $true)[0].Text = Get-PowerStatus "AC" "Monitor" -TextOutput
@@ -368,34 +432,28 @@ $FormConfig = @{
                                                 # Position    = 0,4
                                                 Control     = "Label"
                                                 Text        = "Im Akkubetrieb"
-                                                Font        = Get-Font "Subtitle"
-                                                Dock        = "Fill"
-                                                TextAlign   = "BottomCenter"
+                                                Font        =  Get-Font "TableTitle"
+                                                TextAlign   = "TopCenter"
                                             }
                                             # Row 6 – Im Akkubetrieb (Energiesparmodus)
                                             StandbyLabelDC = @{
                                                 # Position    = 0,5
                                                 Control     = "Label"
                                                 Text        = "Energiesparmodus:"
-                                                Font        = Get-Font "Label" -Style "Bold"
-                                                Dock        = "Fill"
+                                                Font        = Get-Font "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             StandbyValueDC = @{
                                                 # Position    = 1,5
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Standby" -TextOutput
-                                                Font        = Get-Font "Label"
-                                                Dock        = "Fill"
-                                                TextAlign   = "MiddleCenter"
+                                                Font        = Get-Font "TableLink"
                                             }
                                             StandbyButtonDC = @{
                                                 # Position    = 2,5
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "Button"
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5,2,5,3)
+                                                Font        = Get-Font "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Standby"
                                                     $this.FindForm().Controls.Find("StandbyValueDC", $true)[0].Text = Get-PowerStatus "DC" "Standby" -TextOutput
@@ -406,25 +464,20 @@ $FormConfig = @{
                                                 # Position    = 0,6
                                                 Control     = "Label"
                                                 Text        = "Ruhezustand:"
-                                                Font        = Get-Font "Label" -Style "Bold"
-                                                Dock        = "Fill"
+                                                Font        = Get-Font "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             HibernateValueDC = @{
                                                 # Position    = 1,6
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Hibernate" -TextOutput
-                                                Font        = Get-Font "Label"
-                                                Dock        = "Fill"
-                                                TextAlign   = "MiddleCenter"
+                                                Font        = Get-Font "TableLink"
                                             }
                                             HibernateButtonDC = @{
                                                 # Position    = 2,6
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "Button"
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5,2,5,3)
+                                                Font        = Get-Font "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Hibernate"
                                                     $this.FindForm().Controls.Find("HibernateValueDC", $true)[0].Text = Get-PowerStatus "DC" "Hibernate" -TextOutput
@@ -435,40 +488,33 @@ $FormConfig = @{
                                                 # Position    = 0,7
                                                 Control     = "Label"
                                                 Text        = "Monitor ausschalten:"
-                                                Font        = Get-Font "Label" -Style "Bold"
-                                                Dock        = "Fill"
+                                                Font        = Get-Font "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             MonitorValueDC = @{
                                                 # Position    = 1,7
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Monitor" -TextOutput
-                                                Font        = Get-Font "Label"
-                                                Dock        = "Fill"
-                                                TextAlign   = "MiddleCenter"
+                                                Font        = Get-Font "TableLink"
                                             }
                                             MonitorButtonDC = @{
                                                 # Position    = 2,7
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "Button"
-                                                Dock        = "Fill"
-                                                Margin      = [Padding]::new(5,2,5,3)
+                                                Font        = Get-Font "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Monitor"
                                                     $this.FindForm().Controls.Find("MonitorValueDC", $true)[0].Text = Get-PowerStatus "DC" "Monitor" -TextOutput
                                                 }
                                             }
+                                            # Row 9 – Energiesparmodus deaktivieren
                                             DisableSleep = @{
                                                 ColumnSpan  = 3
                                                 # Position    = 0,8
                                                 Control     = "Button"
                                                 Text        = "Energiesparmodus deaktivieren"
-                                                Font        = Get-Font "Button"
-                                                Dock        = "Fill"
-                                                TextAlign   = "MiddleCenter"
+                                                Font        = Get-Font "TableButton"
                                                 Visible     = $false
-                                                Margin      = [Padding]::new(25,10,25,10)
                                                 Add_Click = { 
                                                     Set-PowerStatus -PowerScheme "AC" -StatusType "Standby" -Minutes 0
                                                     $this.FindForm().Controls.Find("StandbyValueAC", $true)[0].Text = Get-PowerStatus "AC" "Standby" -TextOutput
@@ -489,6 +535,9 @@ $FormConfig = @{
                                                     $this.FindForm().Controls.Find("MonitorValueDC", $true)[0].Text = Get-PowerStatus "DC" "Monitor" -TextOutput
 
                                                     $this.Visible = $false
+                                                }
+                                                Add_VisibleChanged = {
+                                                    if ($this.Visible) { $this.FindForm().MinimumSize = [Size]::new(350,450) } else { $this.FindForm().MinimumSize = [Size]::new(350,420) }
                                                 }
                                             }
                                         }
@@ -518,24 +567,19 @@ $FormConfig = @{
                                         })
                                     }
                                 }
-                                Add_Leave = {
-                                    $this.FindForm().MinimumSize = [Size]::new(0,0)
-                                }
                             }
                         }
                         Add_SelectedIndexChanged = {
-                            $form           = $this.FindForm()
-                            $selectedTab    = $this.SelectedTab
-
-                            $headerLabel    = $form.Controls["Header"]
-
-                            switch ($selectedTab.Text) {
-                                "Allgemein"         { $headerLabel.Text = $AppInfo.Name.ToUpper() }
-                                "Debloat"           { $headerLabel.Text = "WINDOWS DEBLOATER" }
-                                "Programme"         { $headerLabel.Text = "PROGRAMMVERWALTUNG" }
-                                "Energieoptionen"   { $headerLabel.Text = "ENERGIEOPTIONEN" 
-                                    $form.MinimumSize = [Size]::new(350,450)
+                            # Beim Wechseln der Registerkarte den Titel anpassen, um den aktuellen Bereich anzuzeigen
+                            switch ($this.SelectedTab.Name) {
+                                "MainTab"       { (Get-Control $this "Header").Text = $AppInfo.Name.ToUpper() }
+                                "DebloatTab"    { (Get-Control $this "Header").Text = "WINDOWS DEBLOATER" }
+                                "PackageTab"    { (Get-Control $this "Header").Text = "PROGRAMMVERWALTUNG" }
+                                "PowerTab"      { (Get-Control $this "Header").Text = "ENERGIEOPTIONEN" 
+                                
+                                    $this.FindForm().MinimumSize = [Size]::new(350,420)
                                 }
+
                             }
                         }
                     }
@@ -543,12 +587,14 @@ $FormConfig = @{
             }
             Header = @{
                 Control = "Label"
-                Text = "WINDOWS SETUP HELPER"
-                Font = [Font]::new("Consolas", 22, [FontStyle]::Bold)
-                Dock = "Top"
-                Height = 50
-                TextAlign = "MiddleCenter"
                 ToolTip = "Doppelklicken zum Neustarten des Skripts (als Administrator)"
+
+                Text        = "WINDOWS SETUP HELPER"
+                Font        = Get-Font -Name "Consolas" -Size 22 -Style "Bold"
+                Dock        = "Top"
+                Height      = 50
+                # TextAlign   = "MiddleCenter"
+
                 Add_DoubleClick = {
                     $this.FindForm().Dispose()
                     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
@@ -558,44 +604,51 @@ $FormConfig = @{
             }
             Footer = @{
                 Control = "TableLayoutPanel"
-                Height = 30
-                Column = @("AutoSize", "100", "AutoSize")
-                Dock = "Bottom"
-                ForeColor = Get-Color "Dark"
-                BackColor = Get-Color "Accent"
+
+                Height      = 30
+                Column      = @(150, "100", 150)
+                Dock        = "Bottom"
+                ForeColor   = Get-Color "Dark"
+                BackColor   = Get-Color "Accent"
+
                 Controls = [ordered]@{
                     About = @{
                         Control = "Label"
-                        Text = "About".ToUpper()
-                        Font = [Font]::new("Consolas", 8, [FontStyle]::Underline)
-                        Anchor = "Left"
-                        TextAlign = "MiddleLeft"
-                        Cursor = [Cursors]::Hand
+                        Cursor  = Get-Cursor "Hand"
                         ToolTip = "Informationen über das Skript"
+
+                        Text        = "ABOUT"
+                        Font        = Get-Font -Name "Consolas" -Size 8 -Style "Underline"
+                        Anchor      = "Left"
+                        TextAlign   = "MiddleLeft"
+
                         Add_Click = { Start-Form $FormConfig.About }
                     }
                     Version = @{
                         Control = "Label"
-                        Text = "Version $($AppInfo.Version)"
-                        Font = [Font]::new("Consolas", 8, [FontStyle]::Italic)
-                        Anchor = "None"
-                        TextAlign = "MiddleCenter"
+
+                        Text        = "Version $($AppInfo.Version)"
+                        Font        = Get-Font -Name "Consolas" -Size 8 -Style "Italic"
+                        Anchor      = "None"
+                        TextAlign   = "MiddleCenter"
                     }
-                    Details = @{
+                    PSConsole = @{
                         Control = "Label"
-                        Text = "Konsole anzeigen".ToUpper()
-                        Font = [Font]::new("Consolas", 8, [FontStyle]::Underline)
-                        Anchor = "Right"
-                        TextAlign = "MiddleRight"
-                        Cursor = [Cursors]::Hand
-                        ToolTip = "Zeige die PowerShell-Konsole an"
-                        Add_Click = { 
-                            if ($this.Text -eq "KONSOLE ANZEIGEN") {
-                                Show-PSConsole -Show
-                                $this.Text = "KONSOLE VERSTECKEN"
-                            } else {
-                                Show-PSConsole -Show:$false
-                                $this.Text = "KONSOLE ANZEIGEN"
+                        Cursor  = Get-Cursor "Hand"
+                        ToolTip = "PowerShell-Konsole anzeigen oder verstecken"
+                        
+                        Text        = if ($AppConfig.HideShell) { "KONSOLE ANZEIGEN" } else { "KONSOLE VERSTECKEN" }
+                        Font        = Get-Font -Name "Consolas" -Size 8 -Style "Underline"
+                        Anchor      = "Right"
+                        TextAlign   = "MiddleRight"
+
+                        Add_Click = {
+                            $this.Text = if ($this.Text -eq "KONSOLE ANZEIGEN") { 
+                                Show-PSConsole
+                                "KONSOLE VERSTECKEN" 
+                            } else { 
+                                Hide-PSConsole
+                                "KONSOLE ANZEIGEN" 
                             }
                         }
                     }
@@ -604,22 +657,23 @@ $FormConfig = @{
         }
         Events      = @{
             FormClosed  = { 
+                # Beim Schließen vom Form die Konsole ebenfalls schließen, um sicherzustellen, dass keine Prozesse offen bleiben
                 [System.Environment]::Exit(0) 
             }
             Load        = { 
-                $this.Text += if ($AppInfo.IsAdmin) { " – Administrator".ToUpper() }
+                # Beim Laden des Forms den Titel anpassen, um anzuzeigen, ob das Skript mit Administratorrechten läuft
+                $this.Text += if (Get-Administrator) { " – Administrator".ToUpper() }
+
+                # Beim Laden des Forms den Text der PSConsole-Schaltfläche basierend auf der aktuellen Einstellung anpassen
+                (Get-Control $this "PSConsole").Text = if ($AppConfig.HideShell) { "KONSOLE ANZEIGEN" } else { "KONSOLE VERSTECKEN" }
             }
             Resize      = { 
-                $header = $this.Controls["Header"]
-                $header.Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
+                # Beim Ändern der Fenstergröße die Schriftgröße der Überschrift dynamisch anpassen, damit sie immer gut lesbar ist
+                (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
             }
             Shown       = { 
-                $this.Activate()
-                $header     = $this.Controls["Header"]
-                $header.Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-
-                $tabControl = $this.Controls["TabPanel"].Controls["TabControl"]
-                $tabControl.SelectedIndex = 0
+                # Beim ersten Anzeigen des Forms die Überschrift anpassen und die erste Registerkarte auswählen
+                (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
             }
         }
     }
@@ -689,7 +743,7 @@ Lizenz: MIT
                         Controls    = [ordered]@{
                             SearchTab = @{
                                 Control     = "TabPage"
-                                Text        = "Suche"
+                                Text        = "Suchen"
                                 Padding    = [Padding]::new(10)
                                 Controls    = [ordered]@{
                                     TabList = @{
@@ -699,44 +753,71 @@ Lizenz: MIT
                                         Visible         = $false
                                         Add_SelectedIndexChanged = {
                                             param($src, $e)
-                                            $selectedItems    = $src.SelectedItems
-                                            $installButton    = (Get-Control $this "InstallButton")
+                                            $listbox = $src
+                                            $selectedItems    = $listbox.SelectedItems
+
+                                            # Schutz gegen unbeabsichtigte Auslösung während der Aktualisierung der Liste
+                                            if ($listbox.Tag -is [hashtable] -and $listbox.Tag.SuppressSelectionChanged) { return }
+
+                                            # Sidebar-Steuerelemente abrufen
+                                            (Get-Control $this "InstallButton").Visible = $selectedItems.Count -gt 0
                                             $searchInfo       = (Get-Control $this "SearchInfo")
                                             $searchHeader     = $searchInfo.Controls["SearchHeader"]
                                             $processLabel     = $searchInfo.Controls["ProcessLabel"]
                                             $searchInfoLabel  = $searchInfo.Controls["SearchInfoLabel"]
-
-                                            $installButton.Visible = $selectedItems.Count -gt 0
-
+                                            
+                                            # Kein Paket ausgewählt
                                             if ($selectedItems.Count -eq 0) {
+
+
                                                 $searchHeader.Text    = "Wähle ein Paket aus, um Details anzuzeigen."
                                                 $processLabel.Visible = $false
-                                                $searchInfoLabel.Text = ""
+                                                Set-SearchInfoLabelText -Label $searchInfoLabel
                                             } elseif ($selectedItems.Count -eq 1) {
                                                 $selectedPackage = $selectedItems[0]
 
                                                 $searchHeader.Text    = $selectedPackage.DisplayName
                                                 $processLabel.Text    = "Lade Details..."
                                                 $processLabel.Visible = $true
-                                                $searchInfoLabel.Text = ""
+                                                Set-SearchInfoLabelText -Label $searchInfoLabel
 
-                                                $details = Get-ApplicationDetails -Name $selectedPackage.Id -Manager "Chocolatey" -SearchDurationMs 6000
+                                                $details = Get-CachedApplicationDetails -Name $selectedPackage.Id -Manager "Chocolatey" -SearchDurationMs 6000 -FallbackVersion $selectedPackage.Version
                                                 if ($details) {
+                                                    $searchHeader.Text = if (-not [string]::IsNullOrWhiteSpace($details.Title)) {
+                                                        $details.Title
+                                                    } else {
+                                                        $selectedPackage.DisplayName
+                                                    }
+
                                                     $lines = @()
+                                                    $meta = @(
+                                                        "Id: $($details.Id)",
+                                                        "Version: $($details.Version)"
+                                                    )
+                                                    if (-not [string]::IsNullOrWhiteSpace($details.Published)) {
+                                                        $meta += "Veröffentlicht: $($details.Published)"
+                                                    }
+
                                                     if (-not [string]::IsNullOrWhiteSpace($details.Authors))      { $lines += "Autor(en): $($details.Authors)" }
                                                     if (-not [string]::IsNullOrWhiteSpace($details.Tags))         { $lines += "Tags: $($details.Tags)" }
-                                                    if (-not [string]::IsNullOrWhiteSpace($details.Summary))      { $lines += "$($details.Summary)" }
+                                                    if (-not [string]::IsNullOrWhiteSpace($details.Summary))      { $lines += "Kurzbeschreibung: $($details.Summary)" }
                                                     if (-not [string]::IsNullOrWhiteSpace($details.SoftwareSite)) { $lines += "Website: $($details.SoftwareSite)" }
 
-                                                    $processLabel.Visible = $false
-                                                    $searchInfoLabel.Text = ($lines -join "`n")
+                                                    $processLabel.Text = ($meta -join " | ")
+                                                    $processLabel.Visible = $true
+                                                    Set-SearchInfoLabelText -Label $searchInfoLabel -Lines $lines -Description $details.Description
+
+                                                    $details.DisplayName = Get-ApplicationDisplayName -Package $details
+                                                    if ($selectedPackage.DisplayName -ne $details.DisplayName) {
+                                                        Update-ChocolateySearchListItem -ListBox $src -Package $details
+                                                    }
                                                 } else {
                                                     $processLabel.Text = "Details konnten nicht geladen werden."
                                                 }
                                             } else {
                                                 $searchHeader.Text    = "$($selectedItems.Count) Pakete ausgewählt"
                                                 $processLabel.Visible = $false
-                                                $searchInfoLabel.Text = ""
+                                                Set-SearchInfoLabelText -Label $searchInfoLabel -Lines @("Mehrfachauswahl aktiv. Wähle ein Paket für Details.")
                                             }
                                         }
                                     }
@@ -757,11 +838,13 @@ Lizenz: MIT
                                             param($src, $e)
                                             $query = $src.Text.Trim()
 
-                                            $tabLabel   = $this.Parent.Controls["TabLabel"]
-                                            $tabList    = $this.Parent.Controls["TabList"]
-                                            $header     = $this.Parent.Controls["SearchHeader"]
+                                            $tabLabel   = $src.Parent.Controls["TabLabel"]
+                                            $tabList    = $src.Parent.Controls["TabList"]
+                                            $header     = $src.Parent.Controls["SearchHeader"]
                                             
                                             if (-not ($src.Tag -is [hashtable])) { $src.Tag = @{} }
+
+                                            Stop-ChocolateySearchTitleEnrichment -SearchBox $src
 
                                             if ($src.Tag.ContainsKey("SearchTimer") -and $src.Tag.SearchTimer) {
                                                 $src.Tag.SearchTimer.Stop()
@@ -835,6 +918,7 @@ Lizenz: MIT
                                                     $state.TabList.DisplayMember = "DisplayName"
                                                     $state.TabList.Visible = $true
                                                     $state.TabLabel.Visible = $false
+                                                    Start-ChocolateySearchTitleEnrichment -SearchBox $state.SearchBox -ListBox $state.TabList -Results $results -Token $state.Token
                                                 } else {
                                                     $state.TabList.Visible = $false
                                                     $state.TabLabel.Text = "Keine Pakete gefunden."
@@ -846,8 +930,6 @@ Lizenz: MIT
                                             $timer.Start()
                                         }
                                     }
-
-
                                     SearchHeader = @{
                                         Control     = "Label"
                                         Text        = "Package suchen"
@@ -866,31 +948,9 @@ Lizenz: MIT
                                     }
                                 }
                             }
-                            PackagesTab = @{
-                                Control     = "TabPage"
-                                Text        = "Packages"
-                                Controls    = @{
-                                    TabLabel = @{
-                                        Control = "Label"
-                                        Text    = "Lade installierte Chocolatey-Pakete..."
-                                        Dock    = "Fill"
-                                        Font    = Get-Font "LabelItalic"
-                                    }
-                                    TabList = @{
-                                        Control     = "ListBox"
-                                        Dock        = "Fill"
-                                        Visible     = $false
-                                        Add_SelectedIndexChanged = {
-                                            (Get-Control $this "UpdateButton").Visible      = $this.SelectedItems.Count -gt 0
-                                            (Get-Control $this "UninstallButton").Visible   = $this.SelectedItems.Count -gt 0
-                                            (Get-Control $this "SelectLabel").Text      = if ($this.SelectedItems.Count -eq $this.Items.Count) { "Alle Abwählen" } else { "Alle Auswählen" }
-                                        }
-                                    }
-                                }
-                            }
                             SuggestedTab = @{
                                 Control     = "TabPage"
-                                Text        = "Vorschläge"
+                                Text        = "Hinzufügen"
                                 Controls    = @{
                                     TabLabel = @{
                                         Control = "Label"
@@ -909,6 +969,28 @@ Lizenz: MIT
 
                                             (Get-Control $this "InstallButton").Visible = $count -gt 0
                                             (Get-Control $this "SelectLabel").Text      = if ($count -eq $this.Items.Count) { "Alle Abwählen" } else { "Alle Auswählen" }
+                                        }
+                                    }
+                                }
+                            }
+                            PackagesTab = @{
+                                Control     = "TabPage"
+                                Text        = "Verwalten"
+                                Controls    = @{
+                                    TabLabel = @{
+                                        Control = "Label"
+                                        Text    = "Lade installierte Chocolatey-Pakete..."
+                                        Dock    = "Fill"
+                                        Font    = Get-Font "LabelItalic"
+                                    }
+                                    TabList = @{
+                                        Control     = "ListBox"
+                                        Dock        = "Fill"
+                                        Visible     = $false
+                                        Add_SelectedIndexChanged = {
+                                            (Get-Control $this "UpdateButton").Visible      = $this.SelectedItems.Count -gt 0
+                                            (Get-Control $this "UninstallButton").Visible   = $this.SelectedItems.Count -gt 0
+                                            (Get-Control $this "SelectLabel").Text      = if ($this.SelectedItems.Count -eq $this.Items.Count) { "Alle Abwählen" } else { "Alle Auswählen" }
                                         }
                                     }
                                 }
@@ -1060,6 +1142,14 @@ Lizenz: MIT
                                 Dock        = "Top"
                                 Font        = Get-Font "LabelItalic"
                                 AutoSize    = $true
+                                Cursor      = [Cursors]::Default
+                                ToolTip     = "Klicken, um lange Beschreibungen ein- oder auszuklappen."
+                                Add_Click   = {
+                                    if ($this.Tag -is [hashtable] -and $this.Tag.ToggleEnabled) {
+                                        $this.Tag.Expanded = -not $this.Tag.Expanded
+                                        $this.Text = if ($this.Tag.Expanded) { $this.Tag.ExpandedText } else { $this.Tag.CollapsedText }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1504,6 +1594,52 @@ Lizenz: MIT
             }
         }
     }
+    DeviceName  = @{
+        Properties = @{
+            Text = "Neuer Gerätename"
+            ClientSize  = [Size]::new(350,50)
+            Padding     = [Padding]::new(5)
+            FormBorderStyle = "FixedDialog"
+            Icon = Get-Icon "Default"
+        }
+        Controls = @{
+            TableLayout = @{
+                Control = "TableLayoutPanel"
+                Dock    = "Fill"
+                Padding = [Padding]::new(0)
+                Column  = @( 220, , "30" )
+                Row     = @( "AutoSize" )
+                Controls = @{
+                    TextBox = @{
+                        Control = "TextBox"
+                        Position = 0,0
+                        Font = [Font]::new("Consolas", 17)
+                        ForeColor = Get-Color "Accent"
+                        BackColor = Get-Color "Dark"
+                        TextAlign = "Center"
+                        BorderStyle = "None"
+                        Text = $env:COMPUTERNAME
+                        Multiline = $false
+                    }
+                    Button = @{
+                        Control = "Button"
+                        Position = 2,0
+                        Text = "Ändern"
+                        FlatStyle = "Flat"
+                        TextAlign = "MiddleCenter"
+                        BackColor = Get-Color "Dark"
+                        ForeColor = Get-Color "Accent"
+                        Add_Click = { Set-DeviceName -NewName $this.Controls["TextBox"].Text }
+                    }
+                }
+            }
+        }
+        Events = @{
+            Shown = { 
+                (Get-Control $this "TextBox").Focus()
+             }
+        }
+    }
 }
 
 
@@ -1513,3 +1649,4 @@ Start-Form $FormConfig.Main
 # Start-Form $FormConfig.About
 # Start-Form $FormConfig.Chocolatey
 # Start-Form $FormConfig.WinGet
+# Start-Form $FormConfig.DeviceName

@@ -1,6 +1,7 @@
 ﻿using namespace System.Windows.Forms
 using namespace System.Drawing
 
+<## PSConsole #########################################################################>
 if (-not ("ConsoleWindowNativeMethods" -as [type])) {
     Add-Type @"
 using System;
@@ -17,6 +18,36 @@ public static class ConsoleWindowNativeMethods
 }
 "@
 }
+function Show-PSConsole {
+    $consoleWindow = [ConsoleWindowNativeMethods]::GetConsoleWindow()
+    if ($consoleWindow -eq [IntPtr]::Zero) { return }
+    [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 4) # 4 = SW_SHOW without activating
+}
+function Hide-PSConsole {
+    $consoleWindow = [ConsoleWindowNativeMethods]::GetConsoleWindow()
+    if ($consoleWindow -eq [IntPtr]::Zero) { return }
+    [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 0) # 0 = SW_HIDE
+}
+
+function Get-Administrator {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Set-DeviceName {
+    param ( [string]$NewName )
+    if ($NewName -eq $null -or $NewName.Trim() -eq "") {
+        Show-DialogBox -Message "Der Gerätename wurde nicht geändert!" -Title "Fehler" -Buttons "OK" -Icon "Error"
+    }
+    else {
+        Rename-Computer -NewName $NewName -Force
+        Show-DialogBox -Message "Der Gerätename wurde erfolgreich geändert! `nIhr neuer Gerätename: $NewName" -Title "Erfolg" -Buttons "OK" -Icon "Information"
+        Show-DialogBox -Message "Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!" -Title "Neustart erforderlich" -Buttons "OK" -Icon "Warning"
+    }
+}
+
+##############################################################################################################
 
 function Show-DialogBox {
     <#
@@ -265,19 +296,6 @@ function Update-Status {
     }
     return
 }
-function Show-PSConsole {
-    param ( [switch]$Show, [bool]$Mode )
-    $consoleWindow = [ConsoleWindowNativeMethods]::GetConsoleWindow()
-    if ($consoleWindow -eq [IntPtr]::Zero) { return }
-
-    if ($Mode -eq $true) { $Show = -not $Show }
-
-    if ($Show) {
-        [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 5) # 5 = SW_SHOW
-    } else {
-        [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 0) # 0 = SW_HIDE
-    }
-} 
 
 function Uninstall-App {
     param ( $take, [string]$AppName )
@@ -311,19 +329,7 @@ function Remove-StartMenuIcons {
     & "$RootPath\Debloat\Remove-StartMenuIcons.ps1" $take
 }
 
-function ChangeDeviceName {
-    param (
-        [string]$NewName
-    )
-    if ($NewName -eq "") {
-        Show-DialogBox -Message "Der Gerätename wurde nicht geändert!" -Title "Fehler" -Buttons "OK" -Icon "Error"
-    }
-    else {
-        Rename-Computer -NewName $NewName -Force
-        Show-DialogBox -Message "Der Gerätename wurde erfolgreich geändert! `nIhr neuer Gerätename: $NewName" -Title "Erfolg" -Buttons "OK" -Icon "Information"
-        Show-DialogBox -Message "Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!" -Title "Neustart erforderlich" -Buttons "OK" -Icon "Warning"
-    }
-}
+
 <# ENERGIEOPTIONEN #>
 function Get-PowerStatus {
     param ( 
@@ -739,72 +745,4 @@ function Get-WinGet {
         & $AppLog.Info "Funktion 'Get-WinGet' aufgerufen ohne (gültige) Parameter. Überprüfe, ob WinGet installiert ist..."
         return Get-Command -Name "winget.exe" -ErrorAction SilentlyContinue
     }
-}
-
-
-
-
-<# FORMS #>
-
-function DebloatForm {
-    param( $FormConfig )
-
-    $Form = New-Form $FormConfig
-    $Form.ShowDialog()
-    $Form.Dispose()
-}
-function DeviceNameForm {    
-    $Config = @{
-        Properties = @{
-            Text = "Neuer Gerätename"
-            ClientSize  = [Size]::new(300,40)
-            Padding     = [Padding]::new(5)
-            FormBorderStyle = "FixedDialog"
-            Icon = Get-Icon "DeviceName"
-        }
-        Controls = @{
-            TableLayout = @{
-                Control = "TableLayoutPanel"
-                Dock = "Fill"
-                Padding = [Padding]::new(0)
-                ColumnCount = 2
-                RowCount = 1
-                ColumnStyles = @(
-                    [System.Windows.Forms.ColumnStyle]::new("Percent", 100),
-                    [System.Windows.Forms.ColumnStyle]::new("AutoSize")
-                )
-                RowStyles = @(
-                    [System.Windows.Forms.RowStyle]::new("Percent", 100)
-                )
-                Controls = @{
-                    TextBox = @{
-                        Control = "TextBox"
-                        Font = [Font]::new("Consolas", 15)
-                        # Width = 200
-                        ForeColor = $AppColor.Accent
-                        BackColor = $AppColor.Dark
-                        TextAlign = "Center"
-                        BorderStyle = "None"
-                        Text = $env:COMPUTERNAME
-                        Multiline = $false
-                    }
-                    Button = @{
-                        Control = "Button"
-                        Text = "Ändern"
-                        Size = [Size]::new(100,25)
-                        FlatStyle = "Flat"
-                        TextAlign = "MiddleCenter"
-                        BackColor = $AppColor.Dark
-                        ForeColor = $AppColor.Accent
-                        Add_Click = { ChangeDeviceName -NewName $this.Controls["TextBox"].Text }
-                    }
-                }
-            }
-        }
-        Events = @{
-            Shown = { $this.Controls["Button"].Focus() }
-        }
-    }
-    $Form = New-Form $Config
-    $Form.ShowDialog()
 }

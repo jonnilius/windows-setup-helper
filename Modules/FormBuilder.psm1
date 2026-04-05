@@ -46,38 +46,43 @@ function Get-Font {
     # Vordefinierte Schriftart-Einstellungen für verschiedene Steuerelemente
     $fontPreset = @{
         # Controls
-        Button          = @{ Size = 9;  Name = "Tahoma";    Style = "Bold" }
-        CheckedListBox  = @{ Size = 9;  Name = "Consolas";  Style = "Regular" }
-        Label           = @{ Size = 10; Name = "Tahoma";    Style = "Regular" }
-        ListBox         = @{ Size = 10; Name = "Consolas";  Style = "Regular" }
-        TabControl      = @{ Size = 10; Name = "Consolas";  Style = "Regular" }
-        TextBox         = @{ Size = 11; Name = "Segoe UI";    Style = "Bold" } # Tested: Consolas, Tahoma, Segoe UI
+        Button          = @{ Size = 10; Name = "Consolas";      Style = "Regular" }
+        CheckedListBox  = @{ Size = 9;  Name = "Consolas";      Style = "Regular" }
+        Label           = @{ Size = 10; Name = "Tahoma";        Style = "Regular" }
+        ListBox         = @{ Size = 10; Name = "Consolas";      Style = "Regular" }
+        TabControl      = @{ Size = 10; Name = "Consolas";      Style = "Regular" }
+        TextBox         = @{ Size = 11; Name = "Segoe UI";      Style = "Bold" }
 
         # Hybrid Controls
-        LabelButton   = @{ Size = 8;  Name = "Consolas";    Style = "Regular" }
-        LabelItalic   = @{ Size = 10;  Name = "Tahoma";     Style = "Italic" }
+        LabelButton     = @{ Size = 8;  Name = "Consolas";      Style = "Regular" }
+        LabelItalic     = @{ Size = 10; Name = "Tahoma";        Style = "Italic" }
 
         # Table Presets
-        TableTitle  = @{ Size = 15; Name = "Cascadia Code";   Style = @("Bold", "Underline") }
-        TableLabel  = @{ Size = 10; Name = "Cascadia Code";   Style = @("Bold") }
-        TableText   = @{ Size = 10; Name = "Cascadia Code";   Style = "Regular" }
-        TableLink   = @{ Size = 9;  Name = "Cascadia Code";   Style = "Italic" }
-        TableButton = @{ Size = 8;  Name = "Cascadia Code";   Style = "Bold" }
-        ### TabControl Presets ###
+        TableTitle      = @{ Size = 15; Name = "Cascadia Code"; Style = @("Bold", "Underline") }
+        TableLabel      = @{ Size = 10; Name = "Cascadia Code"; Style = "Bold" }
+        TableText       = @{ Size = 10; Name = "Cascadia Code"; Style = "Regular" }
+        TableLink       = @{ Size = 9;  Name = "Cascadia Code"; Style = "Italic" }
+        TableButton     = @{ Size = 8;  Name = "Cascadia Code"; Style = "Bold" }
+
+        # Sidebar Presets
+        SearchInfoTitle   = @{ Size = 10; Name = "Tahoma";      Style = "Bold" }
+        SearchInfoLabel   = @{ Size = 9;  Name = "Segoe UI";      Style = "Bold" }
+        SearchInfoText    = @{ Size = 9;  Name = "Segoe UI";      Style = "Regular" }
         
-        SearchHeader  = @{ Size = 30; Name = "Cascadia Code";   Style = @("Bold", "Italic") }
-        HeaderLow     = @{ Size = 20; Name = "Cascadia Code";   Style = "Bold" }
-        Title         = @{ Size = 18; Name = "Segoe UI";        Style = "Bold" }
-        SidebarButton = @{ Size = 8;  Name = "Tahoma";          Style = "Bold" }
-        SidebarLabel  = @{ Size = 10; Name = "Tahoma";          Style = "Regular" }
-        Subtitle      = @{ Size = 13; Name = "Segoe UI";        Style = @("Bold", "Underline") }
+        # Other Presets
+        SearchHeader    = @{ Size = 20; Name = "Cascadia Code"; Style = "Bold" }
+        HeaderLow       = @{ Size = 20; Name = "Cascadia Code"; Style = "Bold" }
+        Title           = @{ Size = 18; Name = "Segoe UI";      Style = "Bold" }
+        SidebarButton   = @{ Size = 8;  Name = "Tahoma";        Style = "Bold" }
+        SidebarLabel    = @{ Size = 10; Name = "Tahoma";        Style = "Regular" }
+        Subtitle        = @{ Size = 13; Name = "Segoe UI";      Style = @("Bold", "Underline") }
     }[$Control]
     if (-not $fontPreset) { $fontPreset = @{ Size = 10; Name = "Consolas"; Style = "Regular" } }
 
     # Bevorzugte Schriftarten definieren und die erste verfügbare auswählen
-    $Style = If ($Style) { $Style } else { $fontPreset.Style }
     $Size  = If ($Size) { $Size } else { $fontPreset.Size }
     $Name  = If ($Name) { $Name } else { $fontPreset.Name }
+    $Style = If ($Style) { $Style } else { $fontPreset.Style }
 
 
     # FontStyle-Enum aus einem oder mehreren übergebenen Styles aufbauen
@@ -311,7 +316,15 @@ function New-TableLayoutPanel {
                 $controlConfig  = $cfg.Value
                 $control        = New-Control $controlConfig
                 $control.Name   = $cfg.Key
-                $control.Dock   = "Fill"
+
+                # Nur automatisch auf Fill docken, wenn kein explizites Layout im Control gesetzt ist.
+                $hasExplicitDock = $controlConfig.ContainsKey("Dock")
+                $hasExplicitAnchor = $controlConfig.ContainsKey("Anchor")
+                $disableAutoCellDock = $controlConfig.ContainsKey("AutoCellDock") -and -not [bool]$controlConfig["AutoCellDock"]
+                if (-not $hasExplicitDock -and -not $hasExplicitAnchor -and -not $disableAutoCellDock) {
+                    $control.Dock = "Fill"
+                }
+
                 if ($controlConfig.Position) {
                     $pos = $controlConfig.Position
                     
@@ -582,35 +595,44 @@ function New-PanelTabControl {
 <### LEAF CONTROLS ###>
 function New-Button {
     param( [hashtable]$Config = @{} )
-
     $button = [Button]::new()
-
-    # Default-Stil anwenden
-    $button.Height = 30
-    $button.FlatStyle = "Flat"
-    $button.Cursor = [Cursors]::Hand
-    $button.Font = [Font]::new("Consolas", 10)
-    $button.ForeColor = Get-Color "Accent"
-    $button.BackColor = Get-Color "Dark"
+    
+    # Standardwerte für Buttons definieren, die bei Bedarf überschrieben werden können
+    $default = @{
+        Height = 30
+        FlatStyle = "Flat"
+        Cursor = Get-Cursor "Hand"
+        Font = Get-Font -Control "Button"
+        ForeColor = Get-Color "Accent"
+        BackColor = Get-Color "Dark"
+    }
+    $Config = Merge-Config $default, $Config
 
     # Properties und Events dynamisch setzen
-    $events = $button.GetType().GetEvents().Name
-    $prop   = $button.GetType().GetProperties().Name
+    $type   = $button.GetType()
+    $events = $type.GetEvents().Name
+    $prop   = $type.GetProperties().Name
+
     foreach ($key in $Config.Keys) {
-        if ($prop -contains $key) { 
-            $button.$key = $Config[$key]
+        if ($key -eq "ToolTip") {
+            $ToolTip.SetToolTip($button, $Config[$key])
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
             if ($events -contains $name) { $button.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
             if ($events -contains $name) { $button.$key($Config[$key]) }
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($button, $Config[$key])
+        } elseif ($prop -contains $key) { 
+            $button.$key = $Config[$key]
+        } else {
+            if ($button.PSObject.Properties[$key]) {
+                $button.$key = $Config[$key]
+            }
         }
     }
 
-    $button
+    # Return
+    return $button
 }
 function New-CheckBox {
     param ( [hashtable]$Config = @{} )
@@ -742,43 +764,42 @@ function New-ComboBox {
     $comboBox
 }
 function New-Label {
-    param( [hashtable]$Config = @{} )
-    $label = [Label]::new()
-    
-    $prep = Merge-Config @{
+    param( [hashtable]$Config = @{}  )
+    $default = @{
         Font        = Get-Font -Control "Label"
         Text        = "New-Label Text"
         TextAlign   = "MiddleCenter"
-    }, $Config
-
-    # Label erstellen und mit Default-Werten initialisieren
+    }
+    
+    # Label erstellen und Standardwerte mergen
+    $label  = [Label]::new()
+    $Config = Merge-Config $default, $Config
     
     # Properties und Events dynamisch setzen
     $type   = $label.GetType()
     $events = $type.GetEvents().Name
     $prop   = $type.GetProperties().Name
 
-    foreach ($key in $prep.Keys) {
+    foreach ($key in $Config.Keys) {
         if ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($label, $prep[$key])
+            $ToolTip.SetToolTip($label, $Config[$key])
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $label.$key($prep[$key]) }
+            if ($events -contains $name) { $label.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $label.$key($prep[$key]) }
+            if ($events -contains $name) { $label.$key($Config[$key]) }
         } elseif ($prop -contains $key) {
-            $label.$key = $prep[$key]
+            $label.$key = $Config[$key]
         } else {
             if ($label.PSObject.Properties[$key]) {
-                $label.$key = $prep[$key]
+                $label.$key = $Config[$key]
             }
         }
     }
 
-    
-
-    $label
+    # Return
+    return $label
 }
 function New-ListBox {
     param ( [hashtable]$Config = @{} )
@@ -930,34 +951,35 @@ function New-RichTextBox {
 }
 function New-TextBox {
     param ( [hashtable]$Config = @{} )
+    $default = @{
+        Font        = Get-Font -Control "TextBox"
+        BorderStyle = "None"
+    }
+    
+    # TextBox erstellen und Standardwerte mergen
     $textbox = [TextBox]::new()
-
-    # Config mit Standardwerten mergen
-    $copy = Merge-Config @{
-        Font    = Get-Font -Control "TextBox"
-        Text    = "New-TextBox Text"
-    }, $Config
-
-
+    $Config = Merge-Config $default, $Config
 
     # Properties und Events dynamisch setzen
     $type   = $textbox.GetType()
     $events = $type.GetEvents().Name
     $prop   = $type.GetProperties().Name
 
-    foreach ($key in $copy.Keys) {
+    foreach ($key in $Config.Keys) {
         if ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($textbox, $copy[$key])
+            $ToolTip.SetToolTip($textbox, $Config[$key])
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $textbox.$key($copy[$key]) }
+            if ($events -contains $name) { $textbox.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $textbox.$key($copy[$key]) }
+            if ($events -contains $name) { $textbox.$key($Config[$key]) }
         } elseif ($prop -contains $key) { 
-            $textbox.$key = $copy[$key] 
+            $textbox.$key = $Config[$key] 
         } else {
-            if ($textbox.PSObject.Properties[$key]) { $textbox.$key = $copy[$key] }
+            if ($textbox.PSObject.Properties[$key]) { 
+                $textbox.$key = $Config[$key] 
+            }
         }
     }
 

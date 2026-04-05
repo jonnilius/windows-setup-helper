@@ -47,6 +47,51 @@ function Set-DeviceName {
     }
 }
 
+function Start-ShellProcess {
+    <# 
+    .SYNOPSIS
+        Erstellt ein Process-Objekt mit den angegebenen Parametern.
+    .PARAMETER FileName
+        Der Name oder Pfad der ausführbaren Datei oder des Skripts, das gestartet werden soll.
+    .PARAMETER Arguments
+        Zusätzliche Argumente oder Parameter, die an die ausführbare Datei oder das Skript übergeben werden sollen.
+    .EXAMPLE
+        $process = Start-ShellProcess -FileName "notepad.exe" -Arguments "C:\example.txt"
+    #>
+    param( [string]$FileName, [string]$Arguments = "" )
+    
+    # Erstelle ein neues ProcessStartInfo-Objekt mit den angegebenen Parametern und konfiguriere es für die Ausführung eines Shell-Befehls.
+    $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $processStartInfo.FileName                  = $FileName  # Der Name oder Pfad der ausführbaren Datei oder des Skripts, das gestartet werden soll.
+    $processStartInfo.Arguments                 = $Arguments # Zusätzliche Argumente oder Parameter, die an die ausführbare Datei oder das Skript übergeben werden sollen.
+    $processStartInfo.UseShellExecute           = $false     # Shell-Execute deaktivieren, um die Standardausgabe umzuleiten
+    $processStartInfo.CreateNoWindow            = $true      # Kein neues Fenster erstellen
+    $processStartInfo.RedirectStandardOutput    = $true      # Standardausgabe umleiten
+    $processStartInfo.RedirectStandardError     = $true      # Fehlerausgabe umleiten
+
+    # Starte den Prozess mit den konfigurierten Einstellungen
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $processStartInfo
+    $process.Start() | Out-Null 
+
+    # Gebe das Process-Objekt zurück
+    return $process
+}
+function Stop-ShellProcess {
+    param ( [System.Diagnostics.Process]$Process )
+    if ($Process -and -not $Process.HasExited) {
+        $Process.Kill()
+        $Process.WaitForExit(500) | Out-Null  # Warte bis zu 500ms, um sicherzustellen, dass der Prozess vollständig beendet ist
+    }
+}
+
+function Test-Empty {
+    param ( $Value )
+    
+    if ($Value -is [string]) { return [string]::IsNullOrWhiteSpace($Value) }
+    else { return $false }
+}
+
 ##############################################################################################################
 
 function Show-DialogBox {

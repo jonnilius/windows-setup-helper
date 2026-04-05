@@ -54,6 +54,8 @@ Import-Module "$PSScriptRoot\Modules\PacketManager\PacketManager.psm1"
 
 $script:ChocolateySearchToken = ""
 
+$script:SearchToken = ""
+$script:ApplicationCache = @{}
 if ($AppConfig.HideShell) { Hide-PSConsole }
 <# FORM-DATA ############################################################################>
 $FormConfig = @{
@@ -250,9 +252,9 @@ $FormConfig = @{
                                             ChocolateyButton = @{
                                                 Position    = 0,1
                                                 Control     = "Button"
-                                                Text        = "Chocolatey Software"
+                                                Text        = "Chocolatey"
                                                 Font        = Get-Font "TableButton"
-                                                Width       = 150
+                                                Width       = 100
                                                 Anchor      = "Right"
                                                 Add_Click   = { Start-Form $FormConfig.Chocolatey }
                                             }
@@ -261,7 +263,7 @@ $FormConfig = @{
                                                 Control     = "Button"
                                                 Text        = "WinGet"
                                                 Font        = Get-Font "TableButton"
-                                                Width       = 150
+                                                Width       = 100
                                                 Anchor      = "Left"
                                                 Add_Click   = { Start-Form $FormConfig.Winget }
                                             }
@@ -292,9 +294,10 @@ $FormConfig = @{
                                     PowerTable = @{
                                         Control     = "TableLayoutPanel"
                                         Padding     = [Padding]::new(10)
-                                        Column      = @( "70", 80, 60 )
+                                        Column      = @( "70", 80, "AutoSize" )
                                         Row         = @( 35, 30, 30, 30, 35, 30, 30, 30, 30 )
                                         Controls    = [ordered]@{
+
                                             # Row 1 – Im Netzbetrieb
                                             PowerLabelDC = @{
                                                 # Position    = 0,0
@@ -302,32 +305,36 @@ $FormConfig = @{
                                                 Control     = "Label"
                                                 Text        = "Im Netzbetrieb"
                                                 Font        = Get-Font "TableTitle"
-                                                # TextAlign   = "TopCenter"
+                                                TextAlign   = "TopCenter"
                                             }
+
                                             # Row 2 – Im Netzbetrieb (Energiesparmodus)
                                             StandbyLabelAC = @{
                                                 # Position    = 0,1
                                                 Control     = "Label"
                                                 Text        = "Energiesparmodus:"
-                                                Font        = Get-Font "TableLabel"
                                                 TextAlign   = "MiddleRight"
+                                                Font        = Get-Font "TableLabel"
                                             }
                                             StandbyValueAC = @{
                                                 # Position    = 1,1
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Standby" -TextOutput
-                                                Font        = Get-Font "TableLink"
+                                                Font        = Get-Font "TableText"
                                             }
                                             StandbyButtonAC = @{
                                                 # Position    = 2,1
                                                 Control     = "Button"
                                                 Text        = "Ändern"
+                                                Anchor      = "Left"
                                                 Font        = Get-Font "TableButton"
+
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Standby"
                                                     $this.FindForm().Controls.Find("StandbyValueAC", $true)[0].Text = Get-PowerStatus "AC" "Standby" -TextOutput
                                                 }
                                             }
+
                                             # Row 3 – Im Netzbetrieb (Ruhezustand)
                                             HibernateLabelAC = @{
                                                 # Position    = 0,2
@@ -340,7 +347,7 @@ $FormConfig = @{
                                                 # Position    = 1,2
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Hibernate" -TextOutput
-                                                Font        = Get-Font "TableLink"
+                                                Font        = Get-Font "TableText"
                                             }
                                             HibernateButtonAC = @{
                                                 # Position    = 2,2
@@ -352,6 +359,7 @@ $FormConfig = @{
                                                     $this.FindForm().Controls.Find("HibernateValueAC", $true)[0].Text = Get-PowerStatus "AC" "Hibernate" -TextOutput
                                                  }
                                             }
+
                                             # Row 4 – Im Netzbetrieb (Monitor ausschalten)
                                             MonitorLabelAC = @{
                                                 # Position    = 0,3
@@ -364,7 +372,7 @@ $FormConfig = @{
                                                 # Position    = 1,3
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Monitor" -TextOutput
-                                                Font        = Get-Font "TableLink"
+                                                Font        = Get-Font "TableText"
                                             }
                                             MonitorButtonAC = @{
                                                 # Position    = 2,3
@@ -379,13 +387,14 @@ $FormConfig = @{
                                             
                                             # Row 5 – Im Akkubetrieb
                                             BatteryLabelDC = @{
-                                                ColumnSpan  = 3
                                                 # Position    = 0,4
+                                                ColumnSpan  = 3
                                                 Control     = "Label"
                                                 Text        = "Im Akkubetrieb"
                                                 Font        =  Get-Font "TableTitle"
                                                 TextAlign   = "TopCenter"
                                             }
+
                                             # Row 6 – Im Akkubetrieb (Energiesparmodus)
                                             StandbyLabelDC = @{
                                                 # Position    = 0,5
@@ -398,7 +407,7 @@ $FormConfig = @{
                                                 # Position    = 1,5
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Standby" -TextOutput
-                                                Font        = Get-Font "TableLink"
+                                                Font        = Get-Font "TableText"
                                             }
                                             StandbyButtonDC = @{
                                                 # Position    = 2,5
@@ -410,6 +419,7 @@ $FormConfig = @{
                                                     $this.FindForm().Controls.Find("StandbyValueDC", $true)[0].Text = Get-PowerStatus "DC" "Standby" -TextOutput
                                                  }
                                             }
+
                                             # Row 7 – Im Akkubetrieb (Ruhezustand)
                                             HibernateLabelDC = @{
                                                 # Position    = 0,6
@@ -422,7 +432,7 @@ $FormConfig = @{
                                                 # Position    = 1,6
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Hibernate" -TextOutput
-                                                Font        = Get-Font "TableLink"
+                                                Font        = Get-Font "TableText"
                                             }
                                             HibernateButtonDC = @{
                                                 # Position    = 2,6
@@ -434,6 +444,7 @@ $FormConfig = @{
                                                     $this.FindForm().Controls.Find("HibernateValueDC", $true)[0].Text = Get-PowerStatus "DC" "Hibernate" -TextOutput
                                                 }
                                             }
+
                                             # Row 8 – Im Akkubetrieb (Monitor ausschalten)
                                             MonitorLabelDC = @{
                                                 # Position    = 0,7
@@ -446,7 +457,7 @@ $FormConfig = @{
                                                 # Position    = 1,7
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Monitor" -TextOutput
-                                                Font        = Get-Font "TableLink"
+                                                Font        = Get-Font "TableText"
                                             }
                                             MonitorButtonDC = @{
                                                 # Position    = 2,7
@@ -458,14 +469,16 @@ $FormConfig = @{
                                                     $this.FindForm().Controls.Find("MonitorValueDC", $true)[0].Text = Get-PowerStatus "DC" "Monitor" -TextOutput
                                                 }
                                             }
+
                                             # Row 9 – Energiesparmodus deaktivieren
                                             DisableSleep = @{
-                                                ColumnSpan  = 3
+                                                Visible     = $false
                                                 # Position    = 0,8
+                                                ColumnSpan  = 3
                                                 Control     = "Button"
                                                 Text        = "Energiesparmodus deaktivieren"
                                                 Font        = Get-Font "TableButton"
-                                                Visible     = $false
+
                                                 Add_Click = { 
                                                     Set-PowerStatus -PowerScheme "AC" -StatusType "Standby" -Minutes 0
                                                     $this.FindForm().Controls.Find("StandbyValueAC", $true)[0].Text = Get-PowerStatus "AC" "Standby" -TextOutput
@@ -626,7 +639,7 @@ $FormConfig = @{
                 # Beim ersten Anzeigen des Forms die Überschrift anpassen und die erste Registerkarte auswählen
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
 
-                (Get-Control $this "TabControl").SelectedIndex = 2
+                (Get-Control $this "TabControl").SelectedIndex = 3
             }
         }
     }
@@ -682,7 +695,7 @@ Lizenz: MIT
     Chocolatey  = @{
         Properties  = @{
             Text        = "Chocolatey"
-            ClientSize  = [Size]::new(600,350)
+            ClientSize  = [Size]::new(650,440)
             Icon        = Get-Icon "Chocolatey"
         }
         Controls    = @{
@@ -712,65 +725,152 @@ Lizenz: MIT
                                             # Schutz gegen unbeabsichtigte Auslösung während der Aktualisierung der Liste
                                             if ($listbox.Tag -is [hashtable] -and $listbox.Tag.SuppressSelectionChanged) { return }
 
-                                            # Sidebar-Steuerelemente abrufen
+                                            # Installieren-Button nur anzeigen, wenn mindestens ein Paket ausgewählt ist
                                             (Get-Control $this "InstallButton").Visible = $selectedItems.Count -gt 0
+
+                                            # Steuerelemente für die Anzeige von Paketdetails abrufen
                                             $searchInfo       = (Get-Control $this "SearchInfo")
-                                            $searchHeader     = $searchInfo.Controls["SearchHeader"]
+                                            $searchInfoTitle  = $searchInfo.Controls["SearchInfoTitle"]
                                             $processLabel     = $searchInfo.Controls["ProcessLabel"]
                                             $searchInfoLabel  = $searchInfo.Controls["SearchInfoLabel"]
+
+                                            function Set-Title {
+                                                param( 
+                                                    [bool]$Visible = $true,
+                                                    [string]$text, 
+                                                    [System.Windows.Forms.Label]$Label = $searchInfoTitle 
+                                                )
+                                                $Label.Visible = $Visible
+
+                                                $Label.Text = $text
+                                                if ($text.Length -le 15) {
+                                                    $Label.Height = 30
+                                                    $Label.Font = Get-Font "SearchInfoTitle" -Size 12
+                                                } elseif ($text.Length -le 30) {
+                                                    $Label.Height = 35
+                                                    $Label.Font = Get-Font "SearchInfoTitle" -Size 11
+                                                } else {
+                                                    $Label.Height = 40
+                                                    $Label.Font = Get-Font "SearchInfoTitle" -Size 10
+                                                }
+                                            }
+                                            function Set-Label {
+                                                param( 
+                                                    [bool]$Visible = $true,
+                                                    [string]$Text = "",
+                                                    [string]$TextAlign = "TopLeft",
+                                                    [System.Windows.Forms.Label]$Label = $processLabel
+                                                )
+                                                $Label.Visible      = $Visible
+                                                $Label.Text         = $Text
+                                                $Label.TextAlign    = $TextAlign
+                                            }
+                                            function Set-Text {
+                                                param( 
+                                                    [string[]]$Lines = @(),
+                                                    [string]$Description = "",
+                                                    [int]$DescriptionMaxLength = 300,
+                                                    [System.Windows.Forms.Label]$Label = $searchInfoLabel
+                                                )
+
+                                                # Vorhandene Toggle-Daten zurücksetzen, damit alte Zustände nicht in neue Paketdetails hineinragen.
+                                                $baseText = ($Lines | Where-Object { -not (Test-Empty $_) }) -join "`n"
+                                                $Label.Tag = $null
+                                                $Label.Cursor = Get-Cursor "Default"
+
+                                                # Wenn keine Langbeschreibung vorhanden ist, reicht der normale Textblock ohne Ein-/Ausklapp-Logik.
+                                                if (Test-Empty $Description) {
+                                                    $Label.Text = $baseText
+                                                    return
+                                                }
+
+                                                # Metadaten und Beschreibung zu einem gemeinsamen Volltext zusammensetzen.
+                                                if (Test-Empty $baseText) {
+                                                    $fullText = "$Description"
+                                                } else {
+                                                    $fullText = "$baseText`n$Description"
+                                                }
+
+                                                # Kürzere Beschreibungen vollständig anzeigen, damit kein unnötiger Klick nötig ist.
+                                                if ($Description.Length -le $DescriptionMaxLength) {
+                                                    $Label.Text = $fullText
+                                                    return
+                                                }
+
+                                                # Für lange Beschreibungen eine gekürzte Vorschau erzeugen und möglichst an einer Wortgrenze abschneiden.
+                                                $shortDescription = $Description.Substring(0, $DescriptionMaxLength)
+                                                $lastWordBoundary = $shortDescription.LastIndexOf(' ')
+                                                if ($lastWordBoundary -gt 0) {
+                                                    $shortDescription = $shortDescription.Substring(0, $lastWordBoundary)
+                                                }
+
+                                                # Eingeklappte und ausgeklappte Ansicht vorbereiten; der Click-Handler des Labels nutzt diese Werte direkt.
+                                                if (Test-Empty $baseText) {
+                                                    $collapsedText = "$shortDescription...`n`n[Klicken zum Ausklappen]"
+                                                } else {
+                                                    $collapsedText = "$baseText`n$shortDescription...`n`n[Klicken zum Ausklappen]"
+                                                }
+                                                $expandedText = "$fullText`n`n[Klicken zum Einklappen]"
+
+                                                $Label.Tag = @{
+                                                    ToggleEnabled   = $true
+                                                    Expanded        = $false
+                                                    CollapsedText   = $collapsedText
+                                                    ExpandedText    = $expandedText
+                                                }
+                                                $Label.Cursor = Get-Cursor "Hand"
+                                                $Label.Text = $collapsedText
+                                            }
                                             
                                             # Kein Paket ausgewählt
                                             if ($selectedItems.Count -eq 0) {
-
-
-                                                $searchHeader.Text    = "Wähle ein Paket aus, um Details anzuzeigen."
-                                                $processLabel.Visible = $false
-                                                Set-SearchInfoLabelText -Label $searchInfoLabel
+                                                Set-Title -Text "Wähle ein Paket aus, um Details anzuzeigen."
+                                                Set-Label $false
+                                                # Den Detailtext ebenfalls leeren, damit keine Informationen des zuvor gewählten Pakets stehen bleiben.
+                                                Set-Text
                                             } elseif ($selectedItems.Count -eq 1) {
+                                                # Das ausgewählte Paket zuerst referenzieren, damit Anzeigename und Detailabruf mit demselben Objekt arbeiten.
                                                 $selectedPackage = $selectedItems[0]
+                                                Set-Title -Text $selectedPackage.DisplayName
+                                                Set-Label $true "Lade Details..." "MiddleCenter"
+                                                # Während der Detailabfrage den Textbereich zurücksetzen, damit kein alter Inhalt sichtbar bleibt.
+                                                Set-Text
 
-                                                $searchHeader.Text    = $selectedPackage.DisplayName
-                                                $processLabel.Text    = "Lade Details..."
-                                                $processLabel.Visible = $true
-                                                Set-SearchInfoLabelText -Label $searchInfoLabel
-
-                                                $details = Get-CachedApplicationDetails -Name $selectedPackage.Id -Manager "Chocolatey" -SearchDurationMs 6000 -FallbackVersion $selectedPackage.Version
+                                                $details = Get-Cache -Name $selectedPackage.Id -Manager "Chocolatey" -ApplicationDetails
                                                 if ($details) {
-                                                    $searchHeader.Text = if (-not [string]::IsNullOrWhiteSpace($details.Title)) {
-                                                        $details.Title
-                                                    } else {
-                                                        $selectedPackage.DisplayName
-                                                    }
+                                                    $displayName = if (-not (Test-Empty $details.Title)) { $details.Title } else { $selectedPackage.DisplayName }
+                                                    Set-Title -Text $displayName
+                                                    
+                                                    # Metainformationen zum Paket formatieren und anzeigen
+                                                    $meta = @( "Id: $($details.Id)", "Version: $($details.Version)" )
+                                                    if (-not (Test-Empty $details.Published)) { $meta += "Veröffentlicht: $($details.Published)" }
+                                                    Set-Label -Text ($meta -join "`n") -TextAlign "MiddleLeft"
 
+                                                    # Zusätzliche Informationen sammeln, wenn verfügbar, und in einer Liste formatieren
                                                     $lines = @()
-                                                    $meta = @(
-                                                        "Id: $($details.Id)",
-                                                        "Version: $($details.Version)"
-                                                    )
-                                                    if (-not [string]::IsNullOrWhiteSpace($details.Published)) {
-                                                        $meta += "Veröffentlicht: $($details.Published)"
-                                                    }
+                                                    # if (-not (Test-Empty $details.Summary))      { $lines += "Kurzbeschreibung: $($details.Summary)" }
+                                                    # if (-not (Test-Empty $details.Authors))      { $lines += "Autor(en): $($details.Authors)" }
+                                                    # if (-not (Test-Empty $details.SoftwareSite)) { $lines += "Website: $($details.SoftwareSite)" }
+                                                    # if (-not (Test-Empty $details.Tags))         { $lines += "Tags: $($details.Tags)" }
 
-                                                    if (-not [string]::IsNullOrWhiteSpace($details.Authors))      { $lines += "Autor(en): $($details.Authors)" }
-                                                    if (-not [string]::IsNullOrWhiteSpace($details.Tags))         { $lines += "Tags: $($details.Tags)" }
-                                                    if (-not [string]::IsNullOrWhiteSpace($details.Summary))      { $lines += "Kurzbeschreibung: $($details.Summary)" }
-                                                    if (-not [string]::IsNullOrWhiteSpace($details.SoftwareSite)) { $lines += "Website: $($details.SoftwareSite)" }
-
-                                                    $processLabel.Text = ($meta -join " | ")
-                                                    $processLabel.Visible = $true
-                                                    Set-SearchInfoLabelText -Label $searchInfoLabel -Lines $lines -Description $details.Description
+                                                    # Beschreibung und Zusatzinfos gemeinsam in den Detailbereich schreiben; lange Texte werden einklappbar vorbereitet.
+                                                    Set-Text -Lines $lines -Description $details.Description
 
                                                     $details.DisplayName = Get-ApplicationDisplayName -Package $details
                                                     if ($selectedPackage.DisplayName -ne $details.DisplayName) {
-                                                        Update-ChocolateySearchListItem -ListBox $src -Package $details
+                                                        Update-Search -ListBox $src -Package $details
                                                     }
                                                 } else {
-                                                    $processLabel.Text = "Details konnten nicht geladen werden."
+                                                    Set-Label -Text "Details konnten nicht geladen werden." -TextAlign "MiddleCenter"
+                                                    # Auch bei Fehlern den eigentlichen Beschreibungstext leeren, damit keine veralteten Inhalte stehen bleiben.
+                                                    Set-Text
                                                 }
                                             } else {
-                                                $searchHeader.Text    = "$($selectedItems.Count) Pakete ausgewählt"
-                                                $processLabel.Visible = $false
-                                                Set-SearchInfoLabelText -Label $searchInfoLabel -Lines @("Mehrfachauswahl aktiv. Wähle ein Paket für Details.")
+                                                Set-Title -Text "$($selectedItems.Count) Pakete ausgewählt"
+                                                Set-Label $false
+
+                                                # Bei Mehrfachauswahl bewusst nur einen kurzen Hinweis anzeigen; Detailtexte wären hier missverständlich.
+                                                Set-Text -Lines @("Mehrfachauswahl aktiv. Wähle ein Paket für Details.")
                                             }
                                         }
                                     }
@@ -780,120 +880,127 @@ Lizenz: MIT
                                         Dock = "Top"
                                         BackColor = Get-Color "Transparent"
                                     }
+                                    ListLabel = @{
+                                        Control = "Label"
+                                        Text = "Suchergebnisse"
+                                        Font = Get-Font "LabelItalic"
+                                        Dock = "Top"
+                                        ForeColor = Get-Color "Accent"
+                                        Height = 20
+                                        Visible = $false
+                                    }
                                     SearchBox = @{
                                         Control         = "TextBox"
                                         Dock            = "Top"
                                         Font            = Get-Font "TextBox"
                                         BackColor       = Get-Color "Accent"
                                         ForeColor       = Get-Color "Dark"
-                                        BorderStyle     = "None"
                                         Add_TextChanged = {
-                                            param($src, $e)
-                                            $query = $src.Text.Trim()
+                                            param($searchBox, $e)
+                                            $query = $searchBox.Text.Trim()
+                                            if (-not ($searchBox.Tag -is [hashtable])) { $searchBox.Tag = @{} }
 
-                                            $tabLabel   = $src.Parent.Controls["TabLabel"]
-                                            $tabList    = $src.Parent.Controls["TabList"]
-                                            $header     = $src.Parent.Controls["SearchHeader"]
+                                            function Receive-Search {
+                                                param ( [switch]$short, [switch]$empty, [switch]$new, [string]$query, $control = $searchBox )
+
+                                                # Steuerelemente abrufen
+                                                $header     = $control.Parent.Controls["SearchHeader"]
+                                                $listLabel  = $control.Parent.Controls["ListLabel"]
+                                                $tabList    = $control.Parent.Controls["TabList"]
+                                                $infoLabel  = $control.Parent.Controls["InfoLabel"]
+
+                                                # Token aktualisieren, um veraltete Suchergebnisse zu ignorieren, wenn die Suchanfrage geändert wird
+                                                $script:searchToken = [guid]::NewGuid().ToString("N")
+
+                                                # Statusmeldung basierend auf dem Suchstatus anzeigen
+                                                switch ($true) {
+                                                    $new    { $infoLabel.Text = "Suche nach '$query'..."; $header.Visible = $false; break }
+                                                    $short  { $infoLabel.Text = "Bitte mindestens 3 Zeichen eingeben, um nach Paketen zu suchen."; $header.Visible = $false; break }
+                                                    $empty  { $infoLabel.Text = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen."; $header.Visible = $true; break }
+                                                }
+
+                                                # Suchergebnisse zurücksetzen
+                                                $tabList.Items.Clear()          # Packetliste leeren und ausblenden
+                                                $tabList.Visible    = $false
+                                                $listLabel.Visible  = $false    # ListLabel ausblenden
+                                                $infoLabel.Visible  = $true     # InfoLabel anzeigen
+                                            }
+
+                                            # Vorhandenen Suchzeitgeber stoppen und entfernen, wenn die Suchanfrage geändert wird, um unnötige Suchen zu vermeiden
+                                            Stop-Search -SearchBox $searchBox
+                                            if ($searchBox.Tag.ContainsKey("SearchTimer") -and $searchBox.Tag.SearchTimer) {
+                                                $searchBox.Tag.SearchTimer.Stop()
+                                                $searchBox.Tag.SearchTimer.Dispose()
+                                                $searchBox.Tag.SearchTimer = $null
+                                            }
+
+                                            # Suchanfrage validieren und entsprechenden Status anzeigen
+                                            if (Test-Empty $query){     Receive-Search -empty; return } # Suchanfrage leer
+                                            if ($query.Length -lt 3) {  Receive-Search -short; return } # Suchanfrage zu kurz
+                                            Receive-Search -new -query $query
+                                            $token = $script:SearchToken
                                             
-                                            if (-not ($src.Tag -is [hashtable])) { $src.Tag = @{} }
-
-                                            Stop-ChocolateySearchTitleEnrichment -SearchBox $src
-
-                                            if ($src.Tag.ContainsKey("SearchTimer") -and $src.Tag.SearchTimer) {
-                                                $src.Tag.SearchTimer.Stop()
-                                                $src.Tag.SearchTimer.Dispose()
-                                                $src.Tag.SearchTimer = $null
-                                            }
-
-                                            # Wenn die Suchanfrage leer ist, zeige die Anweisungen an und verstecke die Ergebnisliste
-                                            if ([string]::IsNullOrWhiteSpace($query)) {
-                                                $script:ChocolateySearchToken = [guid]::NewGuid().ToString("N")
-                                                $header.Visible = $true
-                                                $tabList.Items.Clear()
-                                                $tabList.Visible = $false
-                                                $tabLabel.Text = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen. `n(mindestens 3 Zeichen eingeben)"
-                                                $tabLabel.Visible = $true
-                                                return
-                                            }
-
-                                            # Wenn die Suchanfrage weniger als 3 Zeichen enthält, zeige eine Warnung an und verstecke die Ergebnisliste
-                                            if ($query.Length -lt 3) {
-                                                $script:ChocolateySearchToken = [guid]::NewGuid().ToString("N")
-                                                $header.Visible = $false
-                                                $tabList.Items.Clear()
-                                                $tabList.Visible = $false
-                                                $tabLabel.Text = "Bitte mindestens 3 Zeichen eingeben."
-                                                $tabLabel.Visible = $true
-                                                return
-                                            }
-
-                                            # Generiere ein neues Such-Token, um veraltete Suchvorgänge zu invalidieren
-                                            $script:ChocolateySearchToken = [guid]::NewGuid().ToString("N")
-                                            $token = $script:ChocolateySearchToken
-
-                                            $tabLabel.Text      = "Suche nach '$($query)'... "
-                                            $tabLabel.Visible   = $true
-                                            $tabList.Visible    = $false
-                                            $header.Visible     = $false
-
                                             # Suchzeitgeber erstellen, um die Suche um 300ms zu verzögern (debouncing)
-                                            $timer = [System.Windows.Forms.Timer]::new()
+                                            $timer = [Timer]::new()
                                             $timer.Interval = 300
                                             $timer.Tag = @{
-                                                SearchBox = $src
-                                                Query = $query
-                                                TabLabel = $tabLabel
-                                                TabList = $tabList
-                                                Token = $token
+                                                SearchBox = $searchBox
+                                                Query     = $query
+                                                TabList   = $searchBox.Parent.Controls["TabList"]
+                                                ListLabel = $searchBox.Parent.Controls["ListLabel"]
+                                                InfoLabel = $searchBox.Parent.Controls["InfoLabel"]
+                                                Token     = $token
                                             }
 
                                             # Ereignis-Handler für den Timer-Tick definieren
                                             $timer.Add_Tick({
                                                 $this.Stop()
-
-                                                $state = $this.Tag
+                                                if ( -not $this.Tag ) { return }
+                                                else { $state = $this.Tag }
                                                 $this.Dispose()
+                                                
+                                                
+                                                $searchBox  = $state.SearchBox
+                                                if ($searchBox.IsDisposed) { return }
+                                                if (-not ($searchBox.Tag -is [hashtable])) { return }
+                                                $searchBox.Tag.SearchTimer = $null
 
-                                                if (-not $state -or $state.SearchBox.IsDisposed) { return }
-                                                if (-not ($state.SearchBox.Tag -is [hashtable])) { return }
-                                                $state.SearchBox.Tag.SearchTimer = $null
+                                                $results = Search-Application -Query $state.Query -Manager "Chocolatey" -SearchToken $state.Token -SearchBox $searchBox -Time 12
 
-                                                if ($state.Token -ne $script:ChocolateySearchToken) { return }
-
-                                                $results = Search-Application -Query $state.Query -Manager "Chocolatey" -SearchToken $state.Token -SearchBox $state.SearchBox -SearchDurationMs 12000
-
-                                                if ($state.Token -ne $script:ChocolateySearchToken) { return }
-                                                if ($state.SearchBox.Text.Trim() -ne $state.Query) { return }
+                                                if ($state.Token -ne $script:SearchToken) { return }
+                                                if ($searchBox.Text.Trim() -ne $state.Query) { return }
 
                                                 $state.TabList.Items.Clear()
                                                 if ($results.Count -gt 0) {
                                                     [void]$state.TabList.Items.AddRange($results)
                                                     $state.TabList.DisplayMember = "DisplayName"
                                                     $state.TabList.Visible = $true
-                                                    $state.TabLabel.Visible = $false
-                                                    Start-ChocolateySearchTitleEnrichment -SearchBox $state.SearchBox -ListBox $state.TabList -Results $results -Token $state.Token
+                                                    $state.ListLabel.Visible = $true
+                                                    $state.InfoLabel.Visible = $false
+                                                    Start-Search -SearchBox $searchBox -ListBox $state.TabList -Results $results -Token $state.Token
                                                 } else {
                                                     $state.TabList.Visible = $false
-                                                    $state.TabLabel.Text = "Keine Pakete gefunden."
-                                                    $state.TabLabel.Visible = $true
+                                                    $state.ListLabel.Visible = $false
+                                                    $state.InfoLabel.Text = "Keine Pakete gefunden."
+                                                    $state.InfoLabel.Visible = $true
                                                 }
                                             })
 
-                                            $src.Tag.SearchTimer = $timer
+                                            $searchBox.Tag.SearchTimer = $timer
                                             $timer.Start()
                                         }
                                     }
                                     SearchHeader = @{
                                         Control     = "Label"
-                                        Text        = "Package suchen"
+                                        Text        = "Chocolatey Software"
                                         Dock        = "Top"
                                         Font        = Get-Font "SearchHeader"
                                         ForeColor   = Get-Color "Accent"
-                                        Height      = 100
+                                        Height      = 120
                                     }
-                                    TabLabel = @{
+                                    InfoLabel = @{
                                         Control     = "Label"
-                                        Text        = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen. `n(mindestens 3 Zeichen eingeben)"
+                                        Text        = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen."
                                         Dock        = "Bottom"
                                         Font        = Get-Font "LabelItalic"
                                         TextAlign   = "MiddleCenter"
@@ -1062,38 +1169,41 @@ Lizenz: MIT
                 Dock        = "Right"
                 ForeColor   = Get-Color "Dark"
                 BackColor   = Get-Color "Accent"
+                Width       = 220
                 Padding     = [Padding]::new(10,5,0,0)
                 Controls    = [ordered]@{
 
                     SearchInfo = @{
-                        Control     = "FlowLayoutPanel"
-                        Dock        = "Fill"
-                        FlowDirection= "TopDown"
-                        WrapContents = $false
-                        ForeColor           = Get-Color "Dark"
-                        BackColor   = Get-Color "Accent"
-                        # Visible     = $false
-                        Controls    = [ordered]@{
-                            SearchHeader = @{
+                        Control         = "FlowLayoutPanel"
+                        Dock            = "Fill"
+                        FlowDirection   = "TopDown"
+                        WrapContents    = $false
+                        ForeColor       = Get-Color "Dark"
+                        BackColor       = Get-Color "Accent"
+                        Controls        = [ordered]@{
+                            SearchInfoTitle = @{
                                 Control     = "Label"
-                                Text        = "Wähle ein Paket aus, um Details anzuzeigen."
+                                Text        = "DisplayName."
                                 Dock        = "Top"
-                                Font        = Get-Font "Label" -Size 13 -Style "Bold"
-                                Height      = 60
+                                TextAlign   = "MiddleCenter"
+                                Font        = Get-Font "SearchInfoTitle"
+                                Height      = 30
                             }
                             ProcessLabel = @{
                                 Control             = "Label"
                                 Text                = "Starte..."
-                                Height              = 30
-                                Font                = Get-Font "LabelItalic"
+                                Height              = 50
+                                Font                = Get-Font "SearchInfoLabel" -Size 8 -Style "Bold"
                                 Dock                = "Top"
-                                Visible             = $false
+                                TextAlign           = "MiddleCenter"
+                                # Visible             = $false
                             }
                             SearchInfoLabel = @{
                                 Control     = "Label"
                                 Text        = ""
+                                TextAlign   = "MiddleLeft"
                                 Dock        = "Top"
-                                Font        = Get-Font "LabelItalic"
+                                Font        = Get-Font "SearchInfoText"
                                 AutoSize    = $true
                                 Cursor      = [Cursors]::Default
                                 ToolTip     = "Klicken, um lange Beschreibungen ein- oder auszuklappen."
@@ -1182,16 +1292,24 @@ Lizenz: MIT
                             $NewStatus       = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final }
                             $selectedTab     = (Get-Control $this "TabControl").SelectedTab
                             $tabList         = $selectedTab.Controls["TabList"]
-                            $checkedPackages = @($tabList.CheckedItems)
-
+                            $type = $tabList.GetType().Name
                             & $NewStatus "Installiere ausgewählte Chocolatey-Pakete..."
-                            $tabList.ClearSelected()
-                            foreach ($package in $checkedPackages) {
-
-                                & $NewStatus "Installiere $($package.Name)..."
-                                Install-Application -Name $package.Id -Manager "Chocolatey"
-                                $tabList.SetItemChecked($tabList.Items.IndexOf($package), $false)
+                            if ($type -eq "CheckedListBox") {
+                                $checkedPackages = @($tabList.CheckedItems)
+                                $tabList.ClearSelected()
+                                foreach ($package in $checkedPackages) { 
+                                    & $NewStatus "Installiere $($package.Name)..."
+                                    Install-Application -Name $package.Id -Manager "Chocolatey"
+                                    $tabList.SetItemChecked($tabList.Items.IndexOf($package), $false)
+                                }
+                            } else {
+                                $checkedPackages = @($tabList.SelectedItems)
+                                foreach ($package in $checkedPackages) { 
+                                    & $NewStatus "Installiere $($package.Name)..."
+                                    Install-Application -Name $package.Id -Manager "Chocolatey"
+                                }
                             }
+                            
                             & $NewStatus "Installation abgeschlossen." -Final
 
                         }
@@ -1605,8 +1723,8 @@ Lizenz: MIT
 
 
 
-Start-Form $FormConfig.Main
+# Start-Form $FormConfig.Main
 # Start-Form $FormConfig.About
-# Start-Form $FormConfig.Chocolatey
+Start-Form $FormConfig.Chocolatey
 # Start-Form $FormConfig.WinGet
 # Start-Form $FormConfig.DeviceName

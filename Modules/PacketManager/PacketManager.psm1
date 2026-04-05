@@ -1,9 +1,82 @@
-﻿<# APPLICATION #>
+﻿using namespace System.Windows.Forms
+Add-Type -AssemblyName System.Windows.Forms
+
+if (-not $script:ApplicationCache) { $script:ApplicationCache = @{} }
+if (-not $script:ApplicationDetailsCache) { $script:ApplicationDetailsCache = @{} }
+
+function Get-ApplicationDisplayName {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Package
+    )
+
+    if ($null -eq $Package) { return "" }
+
+    $versionText = if (Test-Empty $Package.Version) { "" } else { " v$($Package.Version)" }
+    $nameText = if (-not (Test-Empty $Package.Title)) { $Package.Title }
+    elseif (-not (Test-Empty $Package.Name)) { $Package.Name }
+    elseif (-not (Test-Empty $Package.Id)) { $Package.Id }
+    else { "" }
+
+    return "$nameText$versionText"
+}
+
+
+
+<# APPLICATION #>
+function Get-Application {
+    param( 
+        [string]$Name, 
+        [string]$Manager,
+
+        [switch]$Cache,
+        [switch]$DisplayName,
+        $Package,
+        [int]$Time = 8000 # Millisekunden, die maximal auf die Rückgabe von Anwendungsdetails gewartet wird
+    )
+
+
+    try {
+        $process = Start-ShellProcess (Get-ChocolateySource) "info `"$Name`""
+
+        $startedAt = [System.DateTime]::UtcNow
+        while (-not $process.HasExited) {
+            Start-Sleep -Milliseconds 60
+            if ("System.Windows.Forms.Application" -as [type]) { [Application]::DoEvents() }
+
+            $elapsedTime = [int]([System.DateTime]::UtcNow - $startedAt).TotalMilliseconds
+            if ($elapsedTime -ge $Time) {
+                Stop-ShellProcess -Process $process
+                return $null
+            }
+        }
+
+        $stdOut = $process.StandardOutput.ReadToEnd()
+        $stdErr = $process.StandardError.ReadToEnd()
+        if (-not (Test-Empty $stdErr)) { Write-Warning "Fehler beim Abrufen der Anwendungsdetails für '$Name': $stdErr" }
+
+        $details = ConvertFrom-ChocolateyInfoText -Text $stdOut -Name $Name
+        $script:ApplicationDetailsCache["$Manager::$Name"] = $details
+        return $details
+    } catch {
+        Write-Warning "Fehler beim Abrufen der Anwendungsdetails für '$Name': $_"
+        return $null
+    }
+}
+function Set-Application {
+    param( [string]$Name, [string]$Manager, $Details )
+
+    if ($null -eq $Details) { return }
+
+    $cacheKey = "$Manager::$Name"
+    $script:ApplicationCache[$cacheKey] = $Details
+    return $Details
+}
 function Install-Application {
     param( [string]$Name, [string]$Manager )
     
-    if ($Manager -eq "Choco") { $Manager = "Chocolatey" }
     switch ($Manager) {
+        "Choco"      { $Manager = "Chocolatey" }
         "Chocolatey" { 
             Write-Information "Installiere Chocolatey-Paket: $Name"
             try {
@@ -20,9 +93,9 @@ function Install-Application {
 }
 function Uninstall-Application {
     param( [string]$Name, [string]$Manager )
-    $Manager = if ($Manager -eq "Choco") { "Chocolatey" } else { $Manager }
     
     switch ($Manager) {
+        "Choco"       { $Manager = "Chocolatey" }
         "Chocolatey" { 
             Write-Information "Deinstalliere Chocolatey-Paket: $Name"
             try {
@@ -38,81 +111,71 @@ function Uninstall-Application {
     }
 }
 function Search-Application {
-    param(
-        [string]$Query,
-        [string]$Manager,
-        [string]$SearchToken,
-        [System.Windows.Forms.TextBox]$SearchBox,
-        [int]$SearchDurationMs = 12000
+    param( 
+        [string]$Query,         # Suchbegriff für die Paketsuche
+        [string]$Manager,       # Paketmanager, z.B. "Chocolatey"
+        [int]$Time = 12,        # Dauer der Suche in Sekunden
+        [string]$SearchToken,   # Token zur Identifikation der aktuellen Suche (z.B. für Abbruchbedingungen)
+
+        [System.Windows.Forms.TextBox]$SearchBox  # Optionales TextBox-Steuerelement für die Sucheingabe
     )
-    $Manager = if ($Manager -eq "Choco") { "Chocolatey" } else { $Manager }
+
+    # Zu Beginn die Dauer der Suche in Millisekunden umrechnen und den Startzeitpunkt erfassen
+    $SearchDuration = $Time * 1000
+    $startedAt      = [System.DateTime]::UtcNow
     
     switch ($Manager) {
-        "Chocolatey" { 
+        "Choco"         { $Manager = "Chocolatey" }
+        "Chocolatey"    {
             Write-Information "Suche nach Chocolatey-Paketen mit Query: $Query"
             try {
-                $startedAt = [System.DateTime]::UtcNow
-                $psi = [System.Diagnostics.ProcessStartInfo]::new()
-                $psi.FileName = (Get-Command choco -ErrorAction Stop).Source
-                $psi.Arguments = "search `"$Query`" --limit-output"
-                $psi.UseShellExecute = $false
-                $psi.CreateNoWindow = $true
-                $psi.RedirectStandardOutput = $true
-                $psi.RedirectStandardError = $true
 
-                $process = [System.Diagnostics.Process]::new()
-                $process.StartInfo = $psi
-                [void]$process.Start()
+                # Prozess für die Suche starten 
+                $process = Start-ShellProcess (Get-ChocolateySource) "search `"$Query`" --limit-output"
 
+                # Prozess überwachen und Ergebnisse sammeln, bis die Suche abgeschlossen ist oder die Zeit abgelaufen ist
                 while (-not $process.HasExited) {
-                    Start-Sleep -Milliseconds 60
-                    if ("System.Windows.Forms.Application" -as [type]) {
-                        [System.Windows.Forms.Application]::DoEvents()
-                    }
+                    Start-Sleep -Milliseconds 60  # Kurze Pause, um CPU-Last zu reduzieren
+                    if ("System.Windows.Forms.Application" -as [type]) { [Application]::DoEvents() } # UI-Thread responsive halten
 
-                    $elapsedMs = [int]([System.DateTime]::UtcNow - $startedAt).TotalMilliseconds
-                    if ($elapsedMs -ge $SearchDurationMs) {
-                        $process.Kill()
-                        [void]$process.WaitForExit(500)
-                        Write-Warning "Suche nach '$Query' wurde nach $SearchDurationMs ms beendet (Timeout)."
+                    # Überprüfe die Dauer der Suche
+                    $elapsedTime = [int]([System.DateTime]::UtcNow - $startedAt).TotalMilliseconds
+                    if ($elapsedTime -ge $SearchDuration) {
+                        Stop-ShellProcess -Process $process
+                        Write-Warning "Suche nach '$Query' wurde nach $Time Sekunden beendet (Timeout)."
                         return @()
                     }
 
+                    # Suche abbrechen, wenn die Suchanfrage im Suchfeld geändert wurde
                     if ($SearchBox -and -not $SearchBox.IsDisposed -and $SearchBox.Text.Trim() -ne $Query) {
-                        $process.Kill()
-                        [void]$process.WaitForExit(500)
-                        return @()
+                        Stop-ShellProcess -Process $process; return @()
                     }
+                    
                 }
-
-                $stdOut = $process.StandardOutput.ReadToEnd()
+                
+                # Fehlerausgabe protokollieren, falls vorhanden
                 $stdErr = $process.StandardError.ReadToEnd()
-                $lines = @($stdOut -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-                $results = foreach ($line in $lines) {
-                    if ($line -match '^([^|]+)\|(.+)$') {
-                        $id = $matches[1].Trim()
-                        $version = $matches[2].Trim()
-                        $cachedDetails = Get-ApplicationDetailsFromCache -Name $id -Manager $Manager
-                        if ($cachedDetails) {
-                            $cachedDetails.Version = if ([string]::IsNullOrWhiteSpace($cachedDetails.Version)) { $version } else { $cachedDetails.Version }
-                            $cachedDetails.DisplayName = Get-ApplicationDisplayName -Package $cachedDetails
-                            $cachedDetails
-                            continue
-                        }
+                if (-not (Test-Empty $stdErr)) { Write-Warning "Chocolatey-Suche meldet Fehler: $stdErr" }
 
+                # Standardausgabe und Fehlerausgabe des Prozesses lesen
+                $stdOut     = $process.StandardOutput.ReadToEnd()
+                $lines      = @($stdOut -split "`r?`n" | Where-Object { -not (Test-Empty $_) })
+                $results    = foreach ($line in $lines) {
+                    if ($line -match '^([^|]+)\|(.+)$') {
+                        $id      = $matches[1].Trim()
+                        $version = $matches[2].Trim()
+
+                        # Erst schnelle Basisergebnisse liefern; Detailanreicherung passiert asynchron in Start-Search.
                         [PSCustomObject]@{
                             Id          = $id
                             Name        = $id
                             Version     = $version
                             Title       = ""
-                            DisplayName = (Get-ApplicationDisplayName -Package ([PSCustomObject]@{ Id = $id; Name = $id; Version = $version; Title = "" }))
+                            DisplayName = if (Test-Empty $version) { $id } else { "$id v$version" }
                             Raw         = $line
                         }
                     }
                 }
-
-                if (-not [string]::IsNullOrWhiteSpace($stdErr)) { Write-Warning "Chocolatey-Suche meldet Fehler: $stdErr" }
-
                 if ($results) {
                     Write-Information "Gefundene Pakete:"
                     $results | ForEach-Object { Write-Information $_ }
@@ -123,23 +186,27 @@ function Search-Application {
                 }
             } catch {
                 Write-Warning "Fehler bei der Suche nach Paketen mit Query '$Query': $_"
+                return @()
             }
         }
-        default { 
-            Write-Warning "Unbekannter Paketmanager: $Manager. Bitte geben Sie einen gültigen Paketmanager an (z.B. 'Chocolatey')."
+        
+        default {
+            Write-Information "Suche nach Paketen mit Query: $Query"
         }
     }
 }
 function Test-Application {
     param( [string]$Name, [string]$Manager )
-    $Manager = if ($Manager -eq "Choco") { "Chocolatey" } else { $Manager }
     
     switch ($Manager) {
+        "Choco"      { $Manager = "Chocolatey" }
         "Chocolatey" { 
             Write-Information "Teste, ob Chocolatey-Paket installiert ist: $Name"
             try {
-                $result = choco list --local-only --exact $Name
-                return -not [string]::IsNullOrWhiteSpace($result) -and $result -match "^$Name\|"
+                $result     = choco list --id-only --exact $Name --limit-output
+                $notEmpty   = Test-Empty $result
+                $listMatch  = $result -match "^$Name\|"
+                return $notEmpty -and $listMatch
             } catch {
                 Write-Warning "Fehler beim Testen des Pakets '$Name': $_"
                 return $false
@@ -153,9 +220,9 @@ function Test-Application {
 }
 function Update-Application {
     param( [string]$Name, [string]$Manager )
-    $Manager = if ($Manager -eq "Choco") { "Chocolatey" } else { $Manager }
     
     switch ($Manager) {
+        "Choco"      { $Manager = "Chocolatey" }
         "Chocolatey" { 
             Write-Information "Aktualisiere Chocolatey-Paket: $Name"
             try {
@@ -171,221 +238,47 @@ function Update-Application {
     }
 }
 
-
-function Get-InstalledApplications {
-    param( [string]$Manager )
-
-    $Manager = if ($Manager -eq "Choco") { "Chocolatey" } else { $Manager }
-    switch ($Manager) {
-        "Chocolatey" { 
-            Write-Information "Hole Liste aller lokal installierten Chocolatey-Pakete..."
-            try {
-                $result = choco list --local-only --limit-output
-                $packages = @()
-                foreach ($line in ($result -split "`r?`n")) {
-                    if ($line -match '^([^|]+)\|(.+)$') {
-                        $id = $matches[1].Trim()
-                        $version = $matches[2].Trim()
-                        $packages += [PSCustomObject]@{
-                            Id      = $id
-                            Name    = $id
-                            Version = $version
-                        }
-                    }
-                }
-                Write-Information "Gefundene installierte Pakete: $($packages.Count)"
-                return $packages
-            } catch {
-                Write-Warning "Fehler beim Abrufen der installierten Pakete: $_"
-                return @()
-            }
-        }
-        "Winget" {
-            Write-Information "Hole Liste aller lokal installierten Winget-Pakete..."
-            try {
-                $result = winget list --source winget --accept-source-agreements --accept-package-agreements
-                $packages = @()
-                foreach ($line in ($result -split "`r?`n")) {
-                    if ($line -match '^([^|]+)\|([^|]+)\|(.+)$') {
-                        $id = $matches[1].Trim()
-                        $name = $matches[2].Trim()
-                        $version = $matches[3].Trim()
-                        $packages += [PSCustomObject]@{
-                            Id      = $id
-                            Name    = $name
-                            Version = $version
-                        }
-                    }
-                }
-                Write-Information "Gefundene installierte Pakete: $($packages.Count)"
-                return $packages
-            } catch {
-                Write-Warning "Fehler beim Abrufen der installierten Pakete: $_"
-                return @()
-            }
-        }
-        default { 
-            Write-Information "Hole Liste aller installierten Anwendungen"
-            $result = Get-WinGetPackage -Source "winget" -Verbose
-            if ($result) {
-                $packages = foreach ($pkg in $result) {
-                    [PSCustomObject]@{
-                        Id      = $pkg.Id
-                        Name    = $pkg.Name
-                        Version = if($pkg.Version) { $pkg.Version.ToString() } else { $pkg.InstalledVersion.ToString() }
-                    }
-                }
-                Write-Information "Gefundene installierte Pakete: $($packages.Count)"
-                return $packages
-            } else {
-                Write-Information "Keine installierten Pakete gefunden."
-                return @()
-            }
-        }
-    }
-}
-
-
-<## APPLICATION-DETAILS ##>
-if (-not $script:ApplicationDetailsCache) { $script:ApplicationDetailsCache = @{} }
-function Get-ApplicationDetails {
-    param(
-        [string]$Name,
-        [string]$Manager,
-        [int]$SearchDurationMs = 8000
+<# CACHE #>
+function Get-Cache {
+    param( 
+        [string]$Name, 
+        [ValidateSet("Chocolatey", "WinGet")][string]$Manager,
+        [switch]$ApplicationDetails
     )
-
-    $Manager = if ($Manager -eq "Choco") { "Chocolatey" } else { $Manager }
-
-    switch ($Manager) {
-        "Chocolatey" {
-            try {
-                $psi = [System.Diagnostics.ProcessStartInfo]::new()
-                $psi.FileName = (Get-Command choco -ErrorAction Stop).Source
-                $psi.Arguments = "info `"$Name`""
-                $psi.UseShellExecute = $false
-                $psi.CreateNoWindow = $true
-                $psi.RedirectStandardOutput = $true
-                $psi.RedirectStandardError = $true
-
-                $process = [System.Diagnostics.Process]::new()
-                $process.StartInfo = $psi
-                [void]$process.Start()
-
-                $startedAt = [System.DateTime]::UtcNow
-                while (-not $process.HasExited) {
-                    Start-Sleep -Milliseconds 60
-                    if ("System.Windows.Forms.Application" -as [type]) {
-                        [System.Windows.Forms.Application]::DoEvents()
-                    }
-
-                    $elapsedMs = [int]([System.DateTime]::UtcNow - $startedAt).TotalMilliseconds
-                    if ($elapsedMs -ge $SearchDurationMs) {
-                        $process.Kill()
-                        [void]$process.WaitForExit(500)
-                        return $null
-                    }
-                }
-
-                $stdOut = $process.StandardOutput.ReadToEnd()
-                $stdErr = $process.StandardError.ReadToEnd()
-                if (-not [string]::IsNullOrWhiteSpace($stdErr)) {
-                    Write-Warning "Fehler beim Laden von Paketdetails fuer '$Name': $stdErr"
-                }
-
-                $details = ConvertFrom-ChocolateyInfoText -Text $stdOut -Name $Name
-                $script:ApplicationDetailsCache["$Manager::$Name"] = $details
-                return $details
-            } catch {
-                Write-Warning "Fehler beim Abrufen der Paketdetails fuer '$Name': $_"
-                return $null
-            }
-        }
-        default {
-            Write-Warning "Unbekannter Paketmanager: $Manager. Bitte geben Sie einen gueltigen Paketmanager an (z.B. 'Chocolatey')."
-            return $null
-        }
-    }
-}
-function Get-ApplicationDisplayName {
-    param($Package)
-
-    if ($null -eq $Package) {
-        return ""
-    }
-
-    $versionText = if ([string]::IsNullOrWhiteSpace($Package.Version)) {
-        ""
-    } else {
-        " v$($Package.Version)"
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($Package.Title)) {
-        return "$($Package.Title)$versionText"
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($Package.Name)) {
-        return "$($Package.Name)$versionText"
-    }
-
-    return "$($Package.Id)$versionText"
-}
-function Get-ApplicationDetailsFromCache {
-    param(
-        [string]$Name,
-        [string]$Manager
-    )
-
+    # Cache-Schlüssel für die Anwendung generieren
     $cacheKey = "$Manager::$Name"
-    if ($script:ApplicationDetailsCache.ContainsKey($cacheKey)) {
-        return $script:ApplicationDetailsCache[$cacheKey]
-    }
 
-    return $null
-}
+    # Cache überprüfen und zurückgeben, falls vorhanden
+    if ($script:ApplicationDetailsCache.ContainsKey($cacheKey)) { return $script:ApplicationDetailsCache[$cacheKey] }
 
-function Get-CachedApplicationDetails {
-    param(
-        [string]$Name,
-        [string]$Manager,
-        [int]$SearchDurationMs = 8000,
-        [string]$FallbackVersion = "",
-        [switch]$Refresh
-    )
+    # Anwendungsdetails abrufen, wenn der entsprechende Switch gesetzt ist
+    $details = Get-Application -Name $Name -Manager $Manager 
 
-    $cacheKey = "$Manager::$Name"
-    if (-not $Refresh -and $script:ApplicationDetailsCache.ContainsKey($cacheKey)) {
-        return $script:ApplicationDetailsCache[$cacheKey]
-    }
-
-    $details = Get-ApplicationDetails -Name $Name -Manager $Manager -SearchDurationMs $SearchDurationMs
+    # Anwendungsdetails im Cache speichern, falls erfolgreich abgerufen
     if ($details) {
-        if ([string]::IsNullOrWhiteSpace($details.Version) -and -not [string]::IsNullOrWhiteSpace($FallbackVersion)) {
-            $details.Version = $FallbackVersion
-        }
         $details.DisplayName = Get-ApplicationDisplayName -Package $details
         $script:ApplicationDetailsCache[$cacheKey] = $details
     }
 
     return $details
 }
-function Set-CachedApplicationDetails {
-    param(
-        [string]$Name,
-        [string]$Manager,
-        $Details
-    )
 
-    if ($null -eq $Details) {
-        return $null
-    }
 
-    $cacheKey = "$Manager::$Name"
-    $script:ApplicationDetailsCache[$cacheKey] = $Details
-    return $Details
-}
 
 <# CHOCOLATEY #>
+function Test-Chocolatey {
+    Write-Information "Prüfe, ob Chocolatey installiert ist..."
+    try {
+        # Prüfen, ob der Befehl "choco" verfügbar ist, ohne eine Fehlermeldung auszugeben
+        $CommandSource      = (Get-Command choco -ErrorAction SilentlyContinue).Source
+        $NullOrWhitespace   = [string]::IsNullOrWhiteSpace($CommandSource)
+        return -not $NullOrWhitespace
+    } catch {
+        # Wenn ein Fehler auftritt (z.B. Befehl nicht gefunden), wird false zurückgegeben
+        Write-Warning "Fehler beim Testen von Chocolatey: $_"
+        return $false
+    }
+}
 function Install-Chocolatey {
     Write-Information "Starte Installation von Chocolatey..."
 
@@ -402,7 +295,7 @@ function Install-Chocolatey {
     Invoke-WebRequest -Uri 'https://community.chocolatey.org/install.ps1' -UseBasicParsing | Invoke-Expression
 
     # Überprüfen, ob die Installation erfolgreich war
-    if (Get-Chocolatey) {
+    if (Test-Chocolatey) {
         Write-Information "Chocolatey wurde erfolgreich installiert."
         Show-MessageBox "InstallChocolateySuccess"
     } else {
@@ -412,15 +305,14 @@ function Install-Chocolatey {
 }
 function Uninstall-Chocolatey {
     # Bestätigung der Deinstallation einholen
-    $confirm = [System.Windows.Forms.MessageBox]::Show(
-        "Möchten Sie Chocolatey wirklich deinstallieren? Alle über Chocolatey installierten Pakete müssen danach manuell entfernt werden.",
-        "Deinstallation von Chocolatey bestätigen",
-        [System.Windows.Forms.MessageBoxButtons]::YesNo,
-        [System.Windows.Forms.MessageBoxIcon]::Warning
-    )
-    if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) {
-        Write-Information "Deinstallation von Chocolatey abgebrochen."
-        return 
+    $confirm = Show-MessageBox "ConfirmUninstallChocolatey"
+    if (-not $confirm) { Write-Information "Deinstallation von Chocolatey abgebrochen."; return }
+
+    # Umgebungsvariable für Chocolatey-Installation überprüfen
+    Write-Information "Überprüfe Chocolatey-Installation und PATH-Variablen..."
+    if (-not $env:ChocolateyInstall) { 
+        Write-Information "Chocolatey ist nicht installiert oder die Umgebungsvariable fehlt."
+        return
     }
 
     # Umgebungsvariable für Chocolatey-Installation überprüfen
@@ -503,34 +395,227 @@ function Uninstall-Chocolatey {
     Write-Information "Schließe Registry-Schlüssel..."
     $machineKey.Close()
     $userKey.Close()
-    if ($env:ChocolateyToolsLocation -and (Test-Path $env:ChocolateyToolsLocation)) {
-        Remove-Item -Path $env:ChocolateyToolsLocation -Recurse -Force
-    }
+    if ($env:ChocolateyToolsLocation -and (Test-Path $env:ChocolateyToolsLocation)) { Remove-Item -Path $env:ChocolateyToolsLocation -Recurse -Force }
 
-    foreach ($scope in 'User', 'Machine') {
-        [Environment]::SetEnvironmentVariable('ChocolateyToolsLocation', [string]::Empty, $scope)
-    }
+    foreach ($scope in 'User', 'Machine') { [Environment]::SetEnvironmentVariable('ChocolateyToolsLocation', [string]::Empty, $scope) }
     Write-Information "Deinstallation von Chocolatey abgeschlossen."
 
     # Mitteilung an den Benutzer abschließen
-    [System.Windows.Forms.MessageBox]::Show(
-        "Chocolatey wurde erfolgreich deinstalliert. Alle über Chocolatey installierten Pakete müssen manuell entfernt werden. Es wird empfohlen, die gesicherten PATH-Variablen in 'C:\PATH_backups_ChocolateyUninstall.txt' zu überprüfen und ggf. wiederherzustellen.",
-        "Deinstallation von Chocolatey abgeschlossen",
-        [System.Windows.Forms.MessageBoxButtons]::OK,
-        [System.Windows.Forms.MessageBoxIcon]::Information
-    )
+    Show-MessageBox "UninstallChocolateySuccess"
 }
-function Test-Chocolatey {
-    Write-Information "Prüfe, ob Chocolatey installiert ist..."
+function Get-ChocolateySource {
+    $command = Get-Command choco -ErrorAction Stop
+    return $command.Source
+}
+
+
+
+
+
+
+
+<# SEARCH FUNCTIONS #>
+function Start-Search {
+    param(
+        [System.Windows.Forms.TextBox]$SearchBox,
+        [System.Windows.Forms.ListBox]$ListBox,
+
+        [object[]]$Results,
+        [string]$Token,
+        [int]$SearchDuration = 12000
+    )
+
+    # Sicherstellen, dass die Steuerelemente gültig sind
+    if ($null -eq $SearchBox -or $SearchBox.IsDisposed) { return }
+    if ($null -eq $ListBox -or $ListBox.IsDisposed) { return }
+
+    # Sicherstellen, dass das Suchfeld über die erwarteten Tag-Strukturen verfügt
+    if (-not ($SearchBox.Tag -is [hashtable])) { $SearchBox.Tag = @{} }
+
+    # Beenden laufender Suchvorgänge und Titelanreicherungen, um Konflikte zu vermeiden
+    Stop-Search -SearchBox $SearchBox
+
+    # Ergebnisse in die Warteschlange einfügen
+    $queue = [System.Collections.Queue]::new()
+    foreach ($result in $Results) { $queue.Enqueue($result) }
+
+    # Timer für die schrittweise Anzeige von Suchergebnissen einrichten
+    $timer = [Timer]::new()
+    $timer.Interval = 150
+    $timer.Tag = @{
+        ListBox         = $ListBox
+        SearchBox       = $SearchBox
+        Queue           = $queue
+        Token           = $Token
+        SearchDuration  = $SearchDuration
+    }
+    $timer.Add_Tick({
+        if ($null -eq $this.Tag) { $this.Stop(); $this.Dispose(); return }
+        $state      = $this.Tag
+        $searchBox  = $state.SearchBox
+        $listBox    = $state.ListBox
+        
+        # Sicherstellen, dass die Steuerelemente noch gültig sind
+        if ($searchBox.IsDisposed -or $listBox.IsDisposed) { $this.Stop(); $this.Dispose(); return }
+
+        # Suche abbrechen, wenn das Token nicht mehr übereinstimmt oder die Suchanfrage geändert wurde
+        if ($state.Token -ne $script:SearchToken -or (Test-Empty $searchBox.Text)) { Stop-Search -SearchBox $searchBox; return }
+
+        
+        $activeLookup = $searchBox.Tag.TitleLookup
+        if ($activeLookup) {
+            $elapsedMs = [int]([System.DateTime]::UtcNow - $activeLookup.StartedAt).TotalMilliseconds
+            if ($elapsedMs -ge $state.SearchDuration) {
+                try {
+                    if (-not $activeLookup.Process.HasExited) {
+                        $activeLookup.Process.Kill()
+                        [void]$activeLookup.Process.WaitForExit(500)
+                    }
+                } catch {  
+                } finally {
+                    $activeLookup.Process.Dispose()
+                    $searchBox.Tag.TitleLookup = $null
+                }
+                return
+            }
+
+            # Schutz gegen unbeabsichtigte Auslösung während der Aktualisierung der Liste
+            if ( -not $activeLookup.Process.HasExited ) { return }
+
+            try {
+                [void]$activeLookup.Process.WaitForExit()
+                $stdout = $activeLookup.StdOutTask.GetAwaiter().GetResult()
+                $details = ConvertFrom-ChocolateyInfoText -Text $stdout -Name $activeLookup.PackageId
+                if ($details) {
+                    [void](Set-Application -Name $details.Id -Manager "Chocolatey" -Details $details)
+                    Update-Search -ListBox $listBox -Package $details
+                } 
+            } catch {
+            } finally {
+                $activeLookup.Process.Dispose()
+                $searchBox.Tag.TitleLookup = $null
+            }
+            return
+        }
+
+        if ($state.Queue.Count -eq 0) {
+            $this.Stop()
+            $this.Dispose()
+            $searchBox.Tag.TitleEnrichmentTimer = $null
+            return
+        }
+
+        $package = $state.Queue.Dequeue()
+        $cachedDetails = Get-Cache -Name $package.Id -Manager "Chocolatey" -ApplicationDetails
+        if ($cachedDetails) {
+            Update-Search -ListBox $listBox -Package $cachedDetails
+            return
+        }
+
+        try {
+            $psi = [System.Diagnostics.ProcessStartInfo]::new()
+            $psi.FileName = (Get-Command choco -ErrorAction Stop).Source
+            $psi.Arguments = "info `"$package.Id`""
+            $psi.UseShellExecute = $false
+            $psi.CreateNoWindow = $true
+            $psi.RedirectStandardOutput = $true
+            $psi.RedirectStandardError = $true
+
+            $process = [System.Diagnostics.Process]::new()
+            $process.StartInfo = $psi
+            [void]$process.Start()
+
+            $searchBox.Tag.TitleLookup = @{
+                Process     = $process
+                StdOutTask  = $process.StandardOutput.ReadToEndAsync()
+                PackageId   = $package.Id
+                StartedAt   = [System.DateTime]::UtcNow
+            }
+        } catch {
+            $searchBox.Tag.TitleLookup = $null
+        }
+    })
+
+    $SearchBox.Tag.TitleEnrichmentTimer = $timer
+    $timer.Start()
+}
+function Stop-Search {
+    param( [System.Windows.Forms.TextBox]$SearchBox )
+
+    # Sicherstellen, dass das Suchfeld gültig ist und über die erwarteten Tag-Strukturen verfügt
+    if ($null -eq $SearchBox -or $SearchBox.IsDisposed) { return }
+    if (-not ($SearchBox.Tag -is [hashtable])) { return }
+
+    # Timer für die schrittweise Anzeige von Suchergebnissen stoppen und bereinigen
+    if ($SearchBox.Tag.ContainsKey("TitleEnrichmentTimer") -and $SearchBox.Tag.TitleEnrichmentTimer) {
+        $SearchBox.Tag.TitleEnrichmentTimer.Stop()
+        $SearchBox.Tag.TitleEnrichmentTimer.Dispose()
+        $SearchBox.Tag.TitleEnrichmentTimer = $null
+    }
+
+    # Laufenden Prozess für die Titelanreicherung beenden, falls vorhanden
+    if ($SearchBox.Tag.ContainsKey("TitleLookup") -and $SearchBox.Tag.TitleLookup) {
+        $lookup = $SearchBox.Tag.TitleLookup
+        if ($lookup.Process) {
+            try {
+                if (-not $lookup.Process.HasExited) {
+                    $lookup.Process.Kill()
+                    [void]$lookup.Process.WaitForExit(500)
+                }
+            } catch {
+            } finally {
+                $lookup.Process.Dispose()
+            }
+        }
+        $SearchBox.Tag.TitleLookup = $null
+    }
+}
+function Update-Search {
+    param ( [System.Windows.Forms.ListBox]$ListBox, $Package )
+    if ($null -eq $ListBox -or $ListBox.IsDisposed -or $null -eq $Package) { return }
+
+    $targetIndex = -1
+    for ($index = 0; $index -lt $ListBox.Items.Count; $index++) {
+        if ($ListBox.Items[$index].Id -eq $Package.Id) { $targetIndex = $index; break }
+    }
+
+    if ($targetIndex -lt 0) { return }
+    if (-not ($ListBox.Tag -is [hashtable])) { $ListBox.Tag = @{} }
+
+    $ListBox.Tag.SuppressSelectionChanged = $true
     try {
-        # Prüfen, ob der Befehl "choco" verfügbar ist, ohne eine Fehlermeldung auszugeben
-        $CommandSource = (Get-Command choco -ErrorAction SilentlyContinue).Source
-        $NullOrWhitespace = [string]::IsNullOrWhiteSpace($CommandSource)
-        return -not $NullOrWhitespace
-    } catch {
-        # Wenn ein Fehler auftritt (z.B. Befehl nicht gefunden), wird false zurückgegeben
-        Write-Warning "Fehler beim Testen von Chocolatey: $_"
-        return $false
+        $selectedIds = @($ListBox.SelectedItems | ForEach-Object { $_.Id })
+        $topIndex = if ($ListBox.Items.Count -gt 0) { $ListBox.TopIndex } else { 0 }
+
+        $updatedItem = [PSCustomObject]@{
+            Id          = $Package.Id
+            Name        = if (Test-Empty $Package.Name) { $Package.Id } else { $Package.Name }
+            Version     = $Package.Version
+            Title       = $Package.Title
+            Published    = $Package.Published
+            Authors      = $Package.Authors
+            Tags         = $Package.Tags
+            Summary      = $Package.Summary
+            Description  = $Package.Description
+            SoftwareSite = $Package.SoftwareSite
+            DisplayName = Get-ApplicationDisplayName -Package $Package
+            Raw         = $ListBox.Items[$targetIndex].Raw
+        }
+
+        $ListBox.Items.RemoveAt($targetIndex)
+        [void]$ListBox.Items.Insert($targetIndex, $updatedItem)
+        $ListBox.DisplayMember = "DisplayName"
+
+        if ($ListBox.Items.Count -gt 0) {
+            $ListBox.TopIndex = [Math]::Min($topIndex, $ListBox.Items.Count - 1)
+        }
+        for ($index = 0; $index -lt $ListBox.Items.Count; $index++) {
+            if ($selectedIds -contains $ListBox.Items[$index].Id -and -not $ListBox.GetSelected($index)) {
+                $ListBox.SetSelected($index, $true)
+            }
+        }
+    } finally {
+        if ($ListBox.Tag -is [hashtable]){ $ListBox.Tag.SuppressSelectionChanged = $false }
     }
 }
 function ConvertFrom-ChocolateyInfoText {
@@ -607,283 +692,3 @@ function ConvertFrom-ChocolateyInfoText {
     $details.DisplayName = Get-ApplicationDisplayName -Package ([PSCustomObject]$details)
     return [PSCustomObject]$details
 }
-function Stop-ChocolateySearchTitleEnrichment {
-    param([System.Windows.Forms.TextBox]$SearchBox)
-
-    if ($null -eq $SearchBox -or $SearchBox.IsDisposed) {
-        return
-    }
-
-    if (-not ($SearchBox.Tag -is [hashtable])) {
-        return
-    }
-
-    if ($SearchBox.Tag.ContainsKey("TitleEnrichmentTimer") -and $SearchBox.Tag.TitleEnrichmentTimer) {
-        $SearchBox.Tag.TitleEnrichmentTimer.Stop()
-        $SearchBox.Tag.TitleEnrichmentTimer.Dispose()
-        $SearchBox.Tag.TitleEnrichmentTimer = $null
-    }
-
-    if ($SearchBox.Tag.ContainsKey("TitleLookup") -and $SearchBox.Tag.TitleLookup) {
-        $lookup = $SearchBox.Tag.TitleLookup
-        if ($lookup.Process) {
-            try {
-                if (-not $lookup.Process.HasExited) {
-                    $lookup.Process.Kill()
-                    [void]$lookup.Process.WaitForExit(500)
-                }
-            } catch {
-            } finally {
-                $lookup.Process.Dispose()
-            }
-        }
-        $SearchBox.Tag.TitleLookup = $null
-    }
-}
-
-function Set-SearchInfoLabelText {
-    param(
-        [System.Windows.Forms.Label]$Label,
-        [string[]]$Lines = @(),
-        [string]$Description = "",
-        [int]$DescriptionMaxLength = 320
-    )
-
-    $baseText = ($Lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
-    $Label.Tag = $null
-    $Label.Cursor = [Cursors]::Default
-
-    if ([string]::IsNullOrWhiteSpace($Description)) {
-        $Label.Text = $baseText
-        return
-    }
-
-    $fullText = if ([string]::IsNullOrWhiteSpace($baseText)) {
-        "Beschreibung:`n$Description"
-    } else {
-        "$baseText`nBeschreibung:`n$Description"
-    }
-
-    if ($Description.Length -le $DescriptionMaxLength) {
-        $Label.Text = $fullText
-        return
-    }
-
-    $shortDescription = $Description.Substring(0, $DescriptionMaxLength)
-    $lastWordBoundary = $shortDescription.LastIndexOf(' ')
-    if ($lastWordBoundary -gt 0) {
-        $shortDescription = $shortDescription.Substring(0, $lastWordBoundary)
-    }
-
-    $collapsedText = if ([string]::IsNullOrWhiteSpace($baseText)) {
-        "Beschreibung:`n$shortDescription...`n`n[Klicken zum Ausklappen]"
-    } else {
-        "$baseText`nBeschreibung:`n$shortDescription...`n`n[Klicken zum Ausklappen]"
-    }
-    $expandedText = "$fullText`n`n[Klicken zum Einklappen]"
-
-    $Label.Tag = @{
-        ToggleEnabled = $true
-        Expanded = $false
-        CollapsedText = $collapsedText
-        ExpandedText = $expandedText
-    }
-    $Label.Cursor = [Cursors]::Hand
-    $Label.Text = $collapsedText
-}
-
-function Update-ChocolateySearchListItem {
-    param(
-        [System.Windows.Forms.ListBox]$ListBox,
-        $Package
-    )
-
-    if ($null -eq $ListBox -or $ListBox.IsDisposed -or $null -eq $Package) {
-        return
-    }
-
-    $targetIndex = -1
-    for ($index = 0; $index -lt $ListBox.Items.Count; $index++) {
-        if ($ListBox.Items[$index].Id -eq $Package.Id) {
-            $targetIndex = $index
-            break
-        }
-    }
-
-    if ($targetIndex -lt 0) {
-        return
-    }
-
-    if (-not ($ListBox.Tag -is [hashtable])) {
-        $ListBox.Tag = @{}
-    }
-
-    $ListBox.Tag.SuppressSelectionChanged = $true
-
-    try {
-        $selectedIds = @($ListBox.SelectedItems | ForEach-Object { $_.Id })
-        $topIndex = if ($ListBox.Items.Count -gt 0) { $ListBox.TopIndex } else { 0 }
-
-        $updatedItem = [PSCustomObject]@{
-            Id           = $Package.Id
-            Name         = if ([string]::IsNullOrWhiteSpace($Package.Name)) { $Package.Id } else { $Package.Name }
-            Version      = $Package.Version
-            Title        = $Package.Title
-            Published    = $Package.Published
-            Authors      = $Package.Authors
-            Tags         = $Package.Tags
-            Summary      = $Package.Summary
-            Description  = $Package.Description
-            SoftwareSite = $Package.SoftwareSite
-            DisplayName  = $Package.DisplayName
-            Raw          = $Package.Raw
-        }
-
-        $ListBox.Items.RemoveAt($targetIndex)
-        [void]$ListBox.Items.Insert($targetIndex, $updatedItem)
-        $ListBox.DisplayMember = "DisplayName"
-
-        if ($ListBox.Items.Count -gt 0) {
-            $ListBox.TopIndex = [Math]::Min($topIndex, $ListBox.Items.Count - 1)
-        }
-
-        for ($index = 0; $index -lt $ListBox.Items.Count; $index++) {
-            if ($selectedIds -contains $ListBox.Items[$index].Id -and -not $ListBox.GetSelected($index)) {
-                $ListBox.SetSelected($index, $true)
-            }
-        }
-    } finally {
-        if ($ListBox.Tag -is [hashtable]) {
-            $ListBox.Tag.SuppressSelectionChanged = $false
-        }
-    }
-}
-
-function Start-ChocolateySearchTitleEnrichment {
-    param(
-        [System.Windows.Forms.TextBox]$SearchBox,
-        [System.Windows.Forms.ListBox]$ListBox,
-        [object[]]$Results,
-        [string]$Token,
-        [int]$SearchDurationMs = 4000
-    )
-
-    if ($null -eq $SearchBox -or $SearchBox.IsDisposed -or $null -eq $ListBox -or $ListBox.IsDisposed) {
-        return
-    }
-
-    if (-not ($SearchBox.Tag -is [hashtable])) {
-        $SearchBox.Tag = @{}
-    }
-
-    Stop-ChocolateySearchTitleEnrichment -SearchBox $SearchBox
-
-    $queue = [System.Collections.Queue]::new()
-    foreach ($result in $Results) {
-        $queue.Enqueue($result)
-    }
-
-    $timer = [System.Windows.Forms.Timer]::new()
-    $timer.Interval = 150
-    $timer.Tag = @{
-        SearchBox = $SearchBox
-        ListBox = $ListBox
-        Queue = $queue
-        Token = $Token
-        SearchDurationMs = $SearchDurationMs
-    }
-
-    $timer.Add_Tick({
-        $state = $this.Tag
-        if ($null -eq $state -or $state.SearchBox.IsDisposed -or $state.ListBox.IsDisposed) {
-            $this.Stop()
-            $this.Dispose()
-            return
-        }
-
-        if ($state.Token -ne $script:ChocolateySearchToken -or [string]::IsNullOrWhiteSpace($state.SearchBox.Text)) {
-            Stop-ChocolateySearchTitleEnrichment -SearchBox $state.SearchBox
-            return
-        }
-
-        $activeLookup = $state.SearchBox.Tag.TitleLookup
-        if ($activeLookup) {
-            $elapsedMs = [int]([System.DateTime]::UtcNow - $activeLookup.StartedAt).TotalMilliseconds
-            if ($elapsedMs -ge $state.SearchDurationMs) {
-                try {
-                    if (-not $activeLookup.Process.HasExited) {
-                        $activeLookup.Process.Kill()
-                        [void]$activeLookup.Process.WaitForExit(500)
-                    }
-                } catch {
-                } finally {
-                    $activeLookup.Process.Dispose()
-                    $state.SearchBox.Tag.TitleLookup = $null
-                }
-                return
-            }
-
-            if (-not $activeLookup.Process.HasExited) {
-                return
-            }
-
-            try {
-                [void]$activeLookup.Process.WaitForExit()
-                $stdout = $activeLookup.StdOutTask.GetAwaiter().GetResult()
-                $details = ConvertFrom-ChocolateyInfoText -Text $stdout -Name $activeLookup.Package.Id -FallbackVersion $activeLookup.Package.Version
-                if ($details) {
-                    [void](Set-CachedApplicationDetails -Name $details.Id -Manager "Chocolatey" -Details $details)
-                    Update-ChocolateySearchListItem -ListBox $state.ListBox -Package $details
-                }
-            } catch {
-            } finally {
-                $activeLookup.Process.Dispose()
-                $state.SearchBox.Tag.TitleLookup = $null
-            }
-            return
-        }
-
-        if ($state.Queue.Count -eq 0) {
-            $this.Stop()
-            $this.Dispose()
-            $state.SearchBox.Tag.TitleEnrichmentTimer = $null
-            return
-        }
-
-        $package = $state.Queue.Dequeue()
-        $cachedDetails = Get-ApplicationDetailsFromCache -Name $package.Id -Manager "Chocolatey"
-        if ($cachedDetails) {
-            Update-ChocolateySearchListItem -ListBox $state.ListBox -Package $cachedDetails
-            return
-        }
-
-        try {
-            $psi = [System.Diagnostics.ProcessStartInfo]::new()
-            $psi.FileName = (Get-Command choco -ErrorAction Stop).Source
-            $psi.Arguments = "info `"$($package.Id)`""
-            $psi.UseShellExecute = $false
-            $psi.CreateNoWindow = $true
-            $psi.RedirectStandardOutput = $true
-            $psi.RedirectStandardError = $true
-
-            $process = [System.Diagnostics.Process]::new()
-            $process.StartInfo = $psi
-            [void]$process.Start()
-
-            $state.SearchBox.Tag.TitleLookup = @{
-                Package = $package
-                Process = $process
-                StdOutTask = $process.StandardOutput.ReadToEndAsync()
-                StartedAt = [System.DateTime]::UtcNow
-            }
-        } catch {
-            $state.SearchBox.Tag.TitleLookup = $null
-        }
-    })
-
-    $SearchBox.Tag.TitleEnrichmentTimer = $timer
-    $timer.Start()
-}
-
-
-

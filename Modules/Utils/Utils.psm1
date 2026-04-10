@@ -1,5 +1,10 @@
 ﻿using namespace System.Windows.Forms
 using namespace System.Drawing
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+Get-PSCallStack
+Write-Debug "[INIT] Importiere Utils-Modul: $($MyInvocation.MyCommand.Name) | Version: $($MyInvocation.MyCommand.Version) | Pfad: $($MyInvocation.MyCommand.Path)"
 
 <## PSConsole #########################################################################>
 if (-not ("ConsoleWindowNativeMethods" -as [type])) {
@@ -28,119 +33,6 @@ function Hide-PSConsole {
     if ($consoleWindow -eq [IntPtr]::Zero) { return }
     [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 0) # 0 = SW_HIDE
 }
-
-function Get-Administrator {
-    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-}
-
-function Set-DeviceName {
-    param ( [string]$NewName )
-    if ($NewName -eq $null -or $NewName.Trim() -eq "") {
-        Show-DialogBox -Message "Der Gerätename wurde nicht geändert!" -Title "Fehler" -Buttons "OK" -Icon "Error"
-    }
-    else {
-        Rename-Computer -NewName $NewName -Force
-        Show-DialogBox -Message "Der Gerätename wurde erfolgreich geändert! `nIhr neuer Gerätename: $NewName" -Title "Erfolg" -Buttons "OK" -Icon "Information"
-        Show-DialogBox -Message "Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!" -Title "Neustart erforderlich" -Buttons "OK" -Icon "Warning"
-    }
-}
-
-function Start-ShellProcess {
-    <# 
-    .SYNOPSIS
-        Erstellt ein Process-Objekt mit den angegebenen Parametern.
-    .PARAMETER FileName
-        Der Name oder Pfad der ausführbaren Datei oder des Skripts, das gestartet werden soll.
-    .PARAMETER Arguments
-        Zusätzliche Argumente oder Parameter, die an die ausführbare Datei oder das Skript übergeben werden sollen.
-    .EXAMPLE
-        $process = Start-ShellProcess -FileName "notepad.exe" -Arguments "C:\example.txt"
-    #>
-    param( [string]$FileName, [string]$Arguments = "" )
-    
-    # Erstelle ein neues ProcessStartInfo-Objekt mit den angegebenen Parametern und konfiguriere es für die Ausführung eines Shell-Befehls.
-    $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $processStartInfo.FileName                  = $FileName  # Der Name oder Pfad der ausführbaren Datei oder des Skripts, das gestartet werden soll.
-    $processStartInfo.Arguments                 = $Arguments # Zusätzliche Argumente oder Parameter, die an die ausführbare Datei oder das Skript übergeben werden sollen.
-    $processStartInfo.UseShellExecute           = $false     # Shell-Execute deaktivieren, um die Standardausgabe umzuleiten
-    $processStartInfo.CreateNoWindow            = $true      # Kein neues Fenster erstellen
-    $processStartInfo.RedirectStandardOutput    = $true      # Standardausgabe umleiten
-    $processStartInfo.RedirectStandardError     = $true      # Fehlerausgabe umleiten
-
-    # Starte den Prozess mit den konfigurierten Einstellungen
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo = $processStartInfo
-    $process.Start() | Out-Null 
-
-    # Gebe das Process-Objekt zurück
-    return $process
-}
-function Stop-ShellProcess {
-    param ( [System.Diagnostics.Process]$Process )
-    if ($Process -and -not $Process.HasExited) {
-        $Process.Kill()
-        $Process.WaitForExit(500) | Out-Null  # Warte bis zu 500ms, um sicherzustellen, dass der Prozess vollständig beendet ist
-    }
-}
-
-function Test-Empty {
-    param ( $Value )
-    
-    if ($Value -is [string]) { return [string]::IsNullOrWhiteSpace($Value) }
-    else { return $false }
-}
-
-##############################################################################################################
-
-function Show-DialogBox {
-    <#
-    .SYNOPSIS
-        Zeigt ein Dialogfeld mit einer Nachricht, einem Titel, Schaltflächen und einem Symbol an.
-    .PARAMETER Message
-        Die anzuzeigende Nachricht.
-    .PARAMETER Title
-        Der Titel des Dialogfelds.
-    .PARAMETER Buttons
-        Die anzuzeigenden Schaltflächen (z. B. "OK", "YesNo").
-    .PARAMETER Icon
-        Das anzuzeigende Symbol (z. B. "None", "Information", "Warning", "Error").
-    .EXAMPLE
-        Show-DialogBox -Message "Dies ist eine Nachricht" -Title "Titel" -Buttons "OK" -Icon "Information"
-    #>
-    param (
-        [string]$Message,
-        [string]$Title,
-        [string]$Buttons,
-        [string]$Icon
-    )
-    if (-not $Message)  { throw "Der Parameter 'Message' ist erforderlich." }
-    if (-not $Title)    { throw "Der Parameter 'Title' ist erforderlich." }
-    # Konvertiere die Button-Parameter in die entsprechenden Enums
-    switch ($Buttons) {
-        "OK"    { $Buttons = [System.Windows.Forms.MessageBoxButtons]::OK }
-        "YesNo" { $Buttons = [System.Windows.Forms.MessageBoxButtons]::YesNo }
-        default { $Buttons = [System.Windows.Forms.MessageBoxButtons]::OK }
-    }
-    # Konvertiere die Icon-Parameter in die entsprechenden Enums
-    switch ($Icon) {
-        "None"          { $Icon = [System.Windows.Forms.MessageBoxIcon]::None }
-        "Information"   { $Icon = [System.Windows.Forms.MessageBoxIcon]::Information }
-        "Warning"       { $Icon = [System.Windows.Forms.MessageBoxIcon]::Warning }
-        "Error"         { $Icon = [System.Windows.Forms.MessageBoxIcon]::Error }
-        default         { $Icon = [System.Windows.Forms.MessageBoxIcon]::None }
-    }
-
-    $result = [System.Windows.Forms.MessageBox]::Show($Message, $Title, $Buttons, $Icon)
-
-    if ($Buttons -eq [System.Windows.Forms.MessageBoxButtons]::YesNo) {
-        return $result -eq [System.Windows.Forms.DialogResult]::Yes
-    }
-
-    return $result -eq [System.Windows.Forms.DialogResult]::OK
-}
-
 function Show-MessageBox {
     param (
         [string]$Config,
@@ -217,40 +109,46 @@ function Show-MessageBox {
         }
 
         # Packages
-        "ConfirmUninstallPackages" {
+        "UninstallPackagesConfirm" {
             $Text = "Möchten Sie die ausgewählten Pakete wirklich deinstallieren?"
             $Caption = "Paketdeinstallation bestätigen"
             $Icon = "Warning"
             $Buttons = "YesNo"
         }
-        "UninstallPackagesSuccess" {
-            $Text = "Die ausgewählten Pakete wurden erfolgreich deinstalliert."
-            $Caption = "Deinstallation erfolgreich"
+        "UninstallPackagesFinished" {
+            $Text = "Die Deinstallation der ausgewählten Pakete ist abgeschlossen."
+            $Caption = "Deinstallation abgeschlossen"
             $Icon = "Info"
             $Buttons = "OK"
         }
-        "UninstallPackagesFailed" {
-            $Text = "Die Deinstallation der ausgewählten Pakete ist fehlgeschlagen."
+        "UninstallPackageFailed" {
+            $Text = "Die Deinstallation des ausgewählten Pakets ist fehlgeschlagen."
             $Caption = "Deinstallation fehlgeschlagen"
             $Icon = "Error"
             $Buttons = "OK"
         }
-        "PackagesUpdateSuccess" {
+        "UpdatePackagesSuccess" {
             $Text = "Die ausgewählten Pakete wurden erfolgreich aktualisiert."
             $Caption = "Aktualisierung erfolgreich"
             $Icon = "Info"
             $Buttons = "OK"
         }
-        "PackagesInstallSuccess" {
+        "UpdatePackagesFailed" {
+            $Text = "Die Aktualisierung der ausgewählten Pakete ist fehlgeschlagen."
+            $Caption = "Aktualisierung fehlgeschlagen"
+            $Icon = "Error"
+            $Buttons = "OK"
+        }
+        "InstallPackagesSuccess" {
             $Text = "Die ausgewählten Pakete wurden erfolgreich installiert."
             $Caption = "Installation erfolgreich"
             $Icon = "Info"
             $Buttons = "OK"
         }
-        "PackagesUninstallSuccess" {
-            $Text = "Die ausgewählten Pakete wurden erfolgreich deinstalliert."
-            $Caption = "Deinstallation erfolgreich"
-            $Icon = "Info"
+        "InstallPackagesFailed" {
+            $Text = "Die Installation der ausgewählten Pakete ist fehlgeschlagen."
+            $Caption = "Installation fehlgeschlagen"
+            $Icon = "Error"
             $Buttons = "OK"
         }
 
@@ -301,46 +199,165 @@ function Show-MessageBox {
         default { return $result }
     }
 }
-function Update-Status {
-    param( 
-        $Label, 
-        [string]$Message, [int]$Delay = 0, [switch]$Final
-    )
 
-    
-    # Überprüfen, ob das übergebene Objekt ein Label ist, und das zugehörige Formular abrufen
-    if ($Label -isnot [System.Windows.Forms.Label]) { 
-        Write-Error "Ungültiges Label-Objekt übergeben: $Label"
-        return 
+function Get-Administrator {
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Set-DeviceName {
+    param ( [string]$NewName )
+    if ($NewName -eq $null -or $NewName.Trim() -eq "") {
+        Show-DialogBox -Message "Der Gerätename wurde nicht geändert!" -Title "Fehler" -Buttons "OK" -Icon "Error"
     }
+    else {
+        Rename-Computer -NewName $NewName -Force
+        Show-DialogBox -Message "Der Gerätename wurde erfolgreich geändert! `nIhr neuer Gerätename: $NewName" -Title "Erfolg" -Buttons "OK" -Icon "Information"
+        Show-DialogBox -Message "Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!" -Title "Neustart erforderlich" -Buttons "OK" -Icon "Warning"
+    }
+}
 
+function Watch-Empty {
+    param ( $Value )
+    
+    if ($Value -is [string]) { return [string]::IsNullOrWhiteSpace($Value) }
+    else { return $false }
+}
+function Test-Empty {
+    param ( $Value )
+    
+    if ($null -eq $Value) { return $true }
+    if ($Value -is [string]) { return [string]::IsNullOrWhiteSpace($Value) }
+    else { return $false }
+}
+function Test-Fill {
+    param ( $Value )
+
+    if ($null -eq $Value) { return $false }
+    
+    if ($Value -is [string]) { return -not [string]::IsNullOrWhiteSpace($Value) }
+    if ($Value -is [System.Collections.IEnumerable]) { return $Value.Count -gt 0 }
+    
+    return $true
+}
+
+function Update-ProcessLabel {
+    param( 
+        $Control,           # $this-Objekt, um auf die Steuerelemente zuzugreifen
+        [string]$Message,   # Die Nachricht, die im Label angezeigt werden soll
+        [int]$Delay = 0,    # Optionale Verzögerung in Sekunden, bevor die Nachricht aktualisiert wird
+        [switch]$Final      # Optionaler Schalter, der angibt, ob dies die letzte Aktualisierung ist (z. B. nach Abschluss eines Prozesses)
+    )
+    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
+
+    if (-not $Control) { throw "Der Parameter 'Control' ist erforderlich, um auf die Steuerelemente zuzugreifen." }
+    $label = (Get-Control $Control "ProcessLabel")
 
     # Überprüfen, ob der Aufruf von einem anderen Thread stammt, und gegebenenfalls den Aufruf auf den UI-Thread verschieben.
-    if ($Label.InvokeRequired) {
-        $Label.Invoke({ param($l, $m, $d, $f) Update-Status -Label $l -Message $m -Delay $d -Final:$f }, $Label, $Message, $Delay, $Final)
+    Write-Debug "Prüfe, ob der Aufruf von einem anderen Thread stammt: InvokeRequired = $($label.InvokeRequired)"
+    if ($label.InvokeRequired) {
+        $label.Invoke({ 
+            param($l, $m, $d, $f) 
+            Update-ProcessLabel -Control $l -Message $m -Delay $d -Final:$f 
+        }, $Control, $Message, $Delay, $Final)
         return
     }
     
     # Aktualisiert den Text des Labels mit der übergebenen Nachricht und erzwingt die Aktualisierung der Benutzeroberfläche.
-    $Label.Text = $Message
-    Write-Information "Status aktualisiert: $Message"
+    $label.Text = $Message
+    Write-Debug "Aktualisiere Label-Text: $Message"
     [Application]::DoEvents()
     
     # Stellt sicher, dass das Label sichtbar wird, wenn der Status aktualisiert wird.
-    if ($Label.Visible -eq $false) { 
-        $Label.Visible = $true 
+    if ($label.Visible -eq $false) {
+        Write-Debug "Ändere Sichtbarkeit des Labels auf sichtbar, da es derzeit ausgeblendet ist."
+        $label.Visible = $true 
         Set-Cursor "Wait"
     }
+
+    # Delay falls angegeben
     Start-Sleep -Seconds $Delay
 
     # Wenn der Final-Parameter gesetzt ist, wird das Label nach einer kurzen Verzögerung ausgeblendet.
     if ($Final) {
-        Set-Cursor "Default"
-        Start-Sleep -Seconds 2
-        $Label.Visible = $false
+        Write-Debug "Final-Parameter ist gesetzt. Blende Label nach $Delay Sekunden aus."
+        $FinalAction = {
+            $this.Stop()
+            $this.Dispose()
+            Set-Cursor "Default"
+            $this.Tag.Label.Visible = $false
+        }
+        Start-Timer -Interval ($Delay * 1000) -Action $FinalAction -State @{ Label = $label }
     }
     return
 }
+
+function Start-Timer {
+    param ( [int]$Interval, [scriptblock]$Action, [hashtable]$State = $null )
+    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
+
+    if (-not $Action) { throw "Der Parameter 'Action' ist erforderlich, um die Aktion zu definieren, die beim Tick des Timers ausgeführt werden soll." }
+
+    # Erstelle einen Timer mit dem angegebenen Intervall
+    $timer = [Timer]::new()
+    $timer.Interval = $Interval
+
+    # Wenn ein Status übergeben wurde, speichere ihn im Tag des Timers, damit er im Action-Skript verfügbar ist
+    if ($State) { $timer.Tag = $State }
+
+    $timer.Add_Tick($Action)
+    $timer.Start()
+}
+##############################################################################################################
+
+function Show-DialogBox {
+    <#
+    .SYNOPSIS
+        Zeigt ein Dialogfeld mit einer Nachricht, einem Titel, Schaltflächen und einem Symbol an.
+    .PARAMETER Message
+        Die anzuzeigende Nachricht.
+    .PARAMETER Title
+        Der Titel des Dialogfelds.
+    .PARAMETER Buttons
+        Die anzuzeigenden Schaltflächen (z. B. "OK", "YesNo").
+    .PARAMETER Icon
+        Das anzuzeigende Symbol (z. B. "None", "Information", "Warning", "Error").
+    .EXAMPLE
+        Show-DialogBox -Message "Dies ist eine Nachricht" -Title "Titel" -Buttons "OK" -Icon "Information"
+    #>
+    param (
+        [string]$Message,
+        [string]$Title,
+        [string]$Buttons,
+        [string]$Icon
+    )
+    if (-not $Message)  { throw "Der Parameter 'Message' ist erforderlich." }
+    if (-not $Title)    { throw "Der Parameter 'Title' ist erforderlich." }
+    # Konvertiere die Button-Parameter in die entsprechenden Enums
+    switch ($Buttons) {
+        "OK"    { $Buttons = [System.Windows.Forms.MessageBoxButtons]::OK }
+        "YesNo" { $Buttons = [System.Windows.Forms.MessageBoxButtons]::YesNo }
+        default { $Buttons = [System.Windows.Forms.MessageBoxButtons]::OK }
+    }
+    # Konvertiere die Icon-Parameter in die entsprechenden Enums
+    switch ($Icon) {
+        "None"          { $Icon = [System.Windows.Forms.MessageBoxIcon]::None }
+        "Information"   { $Icon = [System.Windows.Forms.MessageBoxIcon]::Information }
+        "Warning"       { $Icon = [System.Windows.Forms.MessageBoxIcon]::Warning }
+        "Error"         { $Icon = [System.Windows.Forms.MessageBoxIcon]::Error }
+        default         { $Icon = [System.Windows.Forms.MessageBoxIcon]::None }
+    }
+
+    $result = [System.Windows.Forms.MessageBox]::Show($Message, $Title, $Buttons, $Icon)
+
+    if ($Buttons -eq [System.Windows.Forms.MessageBoxButtons]::YesNo) {
+        return $result -eq [System.Windows.Forms.DialogResult]::Yes
+    }
+
+    return $result -eq [System.Windows.Forms.DialogResult]::OK
+}
+
 
 function Uninstall-App {
     param ( $take, [string]$AppName )

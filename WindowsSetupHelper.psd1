@@ -1,6 +1,6 @@
 @{
     RootModule        = 'WindowsSetupHelper.psm1'
-    ModuleVersion     = '0.7.3'
+    ModuleVersion     = '0.9.10'
     Author            = 'jonnilius'
     CompanyName       = 'BORINAS'
     Copyright         = '(c) 2026 jonnilius'

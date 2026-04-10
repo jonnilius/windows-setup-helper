@@ -1,7 +1,5 @@
 ﻿using namespace System.Windows.Forms
 using namespace System.Drawing
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
 <### Georgia11 ##########################################################################
 *                                                                                       *
 *                 `7MM"""YMM                                                            *
@@ -13,6 +11,10 @@ Add-Type -AssemblyName System.Drawing
 *                 .JMML.    `Ybmd9'.JMML.   .JMML  JMML  JMML.M9mmmP'                   *
 *                                                                                       *
 ########################################################################################>
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+Write-Debug "[INIT] Importiere FormBuilder-Modul: $($MyInvocation.MyCommand.Name) | Version: $($MyInvocation.MyCommand.Version) | Pfad: $($MyInvocation.MyCommand.Path)"
+
 function Get-Color {
     param( [string]$ColorName, 
     [switch]$Hex,
@@ -25,7 +27,7 @@ function Get-Color {
         "White"  { "#EEEEEE" }
         "Debug1" { "#27AE60" }
         "Debug2" { "#2980B9" }
-        "TestBG" { "#8E44AD" }
+        "Debug3" { "#8E44AD" }
         "TestFG" { "#F39C12" }
         "Transparent" { "#00000000" }
         default  { "#000" }
@@ -56,6 +58,9 @@ function Get-Font {
         # Hybrid Controls
         LabelButton     = @{ Size = 8;  Name = "Consolas";      Style = "Regular" }
         LabelItalic     = @{ Size = 10; Name = "Tahoma";        Style = "Italic" }
+        
+        # TabControl Presets
+        TabLabel        = @{ Size = 10; Name = "Consolas";  Style = "Italic" }
 
         # Table Presets
         TableTitle      = @{ Size = 15; Name = "Cascadia Code"; Style = @("Bold", "Underline") }
@@ -65,16 +70,16 @@ function Get-Font {
         TableButton     = @{ Size = 8;  Name = "Cascadia Code"; Style = "Bold" }
 
         # Sidebar Presets
-        SearchInfoTitle   = @{ Size = 10; Name = "Tahoma";      Style = "Bold" }
-        SearchInfoLabel   = @{ Size = 9;  Name = "Segoe UI";      Style = "Bold" }
-        SearchInfoText    = @{ Size = 9;  Name = "Segoe UI";      Style = "Regular" }
+        SidebarTitle            = @{ Size = 22; Name = "Cascadia Code"; Style = "Bold" }
+        SidebarVersion          = @{ Size = 10; Name = "Consolas";      Style = "Regular" }
+        SidebarButton           = @{ Size = 8;  Name = "Segoe UI";      Style = "Bold" }
+        PackageInfoTitle        = @{ Size = 10; Name = "Tahoma";        Style = "Bold" }
+        PackageInfoLabel        = @{ Size = 9;  Name = "Segoe UI";      Style = "Bold" }
+        PackageInfoDescription  = @{ Size = 9;  Name = "Segoe UI";      Style = "Regular" }
         
         # Other Presets
         SearchHeader    = @{ Size = 20; Name = "Cascadia Code"; Style = "Bold" }
-        HeaderLow       = @{ Size = 20; Name = "Cascadia Code"; Style = "Bold" }
         Title           = @{ Size = 18; Name = "Segoe UI";      Style = "Bold" }
-        SidebarButton   = @{ Size = 8;  Name = "Tahoma";        Style = "Bold" }
-        SidebarLabel    = @{ Size = 10; Name = "Tahoma";        Style = "Regular" }
         Subtitle        = @{ Size = 13; Name = "Segoe UI";      Style = @("Bold", "Underline") }
     }[$Control]
     if (-not $fontPreset) { $fontPreset = @{ Size = 10; Name = "Consolas"; Style = "Regular" } }
@@ -125,14 +130,14 @@ function Get-Icon {
     # Versuche, das angegebene Icon zu laden
     $iconPath = Join-Path $AppConfig.IconPath "$Name.ico"
     if (-not (Test-Path $iconPath)) { 
-        Write-Warning "Icon '$Name' nicht gefunden unter: $iconPath"
+        Write-Warning "[WARN] Icon '$Name' nicht gefunden unter: $iconPath"
         $Name = "Default"
     }
 
     # Wenn das Standard-Icon nicht gefunden wird, gebe ein leeres Icon zurück
     $iconPath = Join-Path $AppConfig.IconPath "$Name.ico"
     if (-not (Test-Path $iconPath)) {
-        Write-Error "Standard-Icon 'Default' nicht gefunden unter: $iconPath. Es wird kein Icon gesetzt."
+        Write-Error "[ERROR] Standard-Icon 'Default' nicht gefunden unter: $iconPath. Es wird kein Icon gesetzt."
         return [Icon]::Application
     }
 
@@ -208,23 +213,23 @@ $global:ToolTip = & {
 function New-Panel {
     param( [hashtable]$Config = @{} )
     $panel   = [Panel]::new()
-    $default = @{
+    
+    # Config mit Standardwerten mergen
+    $Default = @{
         Dock = "Fill"
         ForeColor = Get-Color "Accent"
         BackColor = Get-Color "Dark"
     }
-
-    # Config mit Standardwerten mergen
-    $defaultConfig = Merge-Config $default, $Config
+    $DefaultConfig = Merge-Config $Default, $Config
 
     # Properties und Events dynamisch setzen
     $type   = $panel.GetType()
     $events = $type.GetEvents().Name
     $prop   = $type.GetProperties().Name
 
-    foreach ($key in $defaultConfig.Keys) {
+    foreach ($key in $DefaultConfig.Keys) {
         if ($key -eq "Controls") { 
-            $ControlConfig = $defaultConfig[$key]
+            $ControlConfig = $DefaultConfig[$key]
             foreach ($cfg in $ControlConfig.GetEnumerator()) {
                 $control        = New-Control $cfg.Value
                 $control.Name   = $cfg.Key
@@ -232,15 +237,15 @@ function New-Panel {
             }
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $panel.$key($defaultConfig[$key]) }
+            if ($events -contains $name) { $panel.$key($DefaultConfig[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $panel.$key($defaultConfig[$key]) }
+            if ($events -contains $name) { $panel.$key($DefaultConfig[$key]) }
         } elseif ($prop -contains $key) { 
-            $panel.$key = $defaultConfig[$key] 
+            $panel.$key = $DefaultConfig[$key] 
         } else {
             if ($panel.PSObject.Properties[$key]) {
-                $panel.$key = $defaultConfig[$key]
+                $panel.$key = $DefaultConfig[$key]
             }
         }
     }
@@ -669,16 +674,18 @@ function New-CheckBox {
 }
 function New-CheckedListBox {
     param ( [hashtable]$Config = @{} )
-    $prep = Merge-Config @{
+    $Default = @{
         Font            = Get-Font -Control "CheckedListBox"
         BorderStyle     = "None"
         ForeColor       = Get-Color "White"
         BackColor       = Get-Color "Dark"
         DisplayMember   = "Name"
         CheckOnClick    = $true
-    }, $Config
-
+    }
+    
+    # CheckedListBox erstellen und Standardwerte mergen
     $checkedListBox = [CheckedListBox]::new()
+    $DefaultConfig  = Merge-Config $Default, $Config
 
 
     # Dynamisch Properties und Events setzen
@@ -686,35 +693,39 @@ function New-CheckedListBox {
     $events = $type.GetEvents().Name
     $prop   = $type.GetProperties().Name
 
-    foreach ($key in $prep.Keys) {
+    foreach ($key in $DefaultConfig.Keys) {
         if ($key -like "Add_*") { 
-            $name = $key.Substring(4) 
-            if ($events -contains $name) { $checkedListBox.$key($prep[$key]) }
+            $name = $key.Substring(4) # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Add_SelectedIndexChanged"
+            if ($events -contains $name) { $checkedListBox.$key($DefaultConfig[$key]) }
+            continue
         } elseif ($key -like "Remove_*") { 
-            $name = $key.Substring(7) 
-            if ($events -contains $name) { $checkedListBox.$key($prep[$key]) }
+            $name = $key.Substring(7) # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Remove_SelectedIndexChanged"
+            if ($events -contains $name) { $checkedListBox.$key($DefaultConfig[$key]) }
+            continue
         } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($checkedListBox, $prep[$key])
+            $ToolTip.SetToolTip($checkedListBox, $DefaultConfig[$key])
+            continue
         } elseif ($key -eq "Items") {
-            foreach ($program in $prep[$key]) {
-                $id = if ($program.PSObject.Properties["Id"]) { $program.Id } elseif ($program.PSObject.Properties["Key"]) { $program.Key } else { $null }
-                $name = if ($program.PSObject.Properties["Name"]) { $program.Name } elseif ($program.PSObject.Properties["Value"]) { $program.Value } else { $id }
-                $item = [PSCustomObject]@{
+            foreach ($program in $DefaultConfig[$key]) {
+                $id     = if ($program.PSObject.Properties["Id"]) { $program.Id } elseif ($program.PSObject.Properties["Key"]) { $program.Key } else { $null }
+                $name   = if ($program.PSObject.Properties["Name"]) { $program.Name } elseif ($program.PSObject.Properties["Value"]) { $program.Value } else { $id }
+                $item   = [PSCustomObject]@{
                     Id      = $id
                     Name    = $name
                 }
-                $checkedListBox.Items.Add($item, $false) | Out-Null
+                [void]$checkedListBox.Items.Add($item, $false)
             }
+            continue
         } elseif ($prop -contains $key) { 
-            $checkedListBox.$key = $prep[$key]
+            $checkedListBox.$key = $DefaultConfig[$key]
+            continue
         } else {
-            if ($checkedListBox.PSObject.Properties[$key]) {
-                $checkedListBox.$key = $prep[$key]
-            }
+            if ($checkedListBox.PSObject.Properties[$key]) { $checkedListBox.$key = $DefaultConfig[$key] }
         }
     }
 
-    $checkedListBox
+    # Return
+    return $checkedListBox
 }
 function New-ComboBox {
     param ( [hashtable]$Config = @{} )
@@ -803,14 +814,16 @@ function New-Label {
 }
 function New-ListBox {
     param ( [hashtable]$Config = @{} )
-    $prep = Merge-Config @{
+    $Default = @{
+        DisplayMember = "Name"
+        SelectionMode = "MultiSimple"
         Font          = Get-Font -Control "ListBox"
         ForeColor     = Get-Color "White"
         BackColor     = Get-Color "Dark"
         BorderStyle   = "None"
-        SelectionMode = "MultiSimple"
-        DisplayMember = "Name"
-    }, $Config
+        Dock          = "Fill"
+    }
+    $prep = Merge-Config $Default, $Config
 
     $listBox = [ListBox]::new()
 
@@ -990,9 +1003,8 @@ function New-TextBox {
 
 <# FORM #>
 function New-Form {
-    [CmdletBinding()]
-    param( [hashtable]$FormConfig = @{} )
-    Write-Debug "Branch: New-Form $($FormConfig.Properties.Text)"
+    param( [hashtable]$Config = @{} )
+    # Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
 
     # Form erstellen
     $form = [Form]::new()
@@ -1007,26 +1019,20 @@ function New-Form {
     $form.Icon          = Get-Icon "Default"
 
     # Properties dynamisch setzen
-    if ($FormConfig.ContainsKey("Properties")) {
+    if ($Config.ContainsKey("Properties")) {
         $props = $form.GetType().GetProperties().Name
-        foreach ($key in $FormConfig.Properties.Keys) {
+        foreach ($key in $Config.Properties.Keys) {
             switch ($key) {
-                # Spezialbehandlung für ToolTip, da es kein direktes Property des Forms ist, sondern über die SetToolTip-Methode gesetzt wird
-                "ToolTip" { 
-                    # Setze das ToolTip über die Get-ToolTip Funktion
-                    $ToolTip.SetToolTip( $form, $FormConfig.Properties[$key] )
-                    break
-                }
                 # Spezialbehandlung für Text, um den Form-Namen voranzustellen (z.B. "Einstellungen – MeinApp")
                 "Text" {
-                    $formName = ($FormConfig.Properties[$key])
+                    $formName = ($Config.Properties[$key])
                     $form.Text = "$formName – " + $form.Text
                     break
                 }
                 default {
                     # Versuche zuerst, die Property direkt zu setzen, wenn sie existiert
-                    if ( $props -contains $key) { $form.$key = $FormConfig.Properties[$key] } 
-                    elseif ($form.PSObject.Properties.Match($key)) { $form.$key = $FormConfig.Properties[$key] } 
+                    if ( $props -contains $key) { $form.$key = $Config.Properties[$key] } 
+                    elseif ($form.PSObject.Properties.Match($key)) { $form.$key = $Config.Properties[$key] } 
                     else { Write-Warning "Unbekannte Form-Property: $key" }
                 }
             }
@@ -1034,47 +1040,48 @@ function New-Form {
     }
 
     # Controls hinzufügen
-    if ($FormConfig.ContainsKey("Controls")) {
-        foreach ($controlName in $FormConfig.Controls.Keys) {
+    if ($Config.ContainsKey("Controls")) {
+        foreach ($controlName in $Config.Controls.Keys) {
             
             # Konfiguration des Controls abrufen
-            $controlConfig = $FormConfig.Controls[$controlName]
+            $ControlConfig = $Config.Controls[$controlName]
 
             # Kontrolle, ob der Control-Typ angegeben ist
-            if (-not $controlConfig.ContainsKey("Control")) { Write-Warning "Control '$controlName' fehlt die Angabe des Control-Typs. Control wird übersprungen."; continue } 
+            if (-not $ControlConfig.ContainsKey("Control")) { Write-Warning "Control '$controlName' fehlt die Angabe des Control-Typs. Control wird übersprungen."; continue } 
 
             # Control erstellen und hinzufügen
-            $control        = New-Control $controlConfig
-            $control.Name   = $controlName
-            $form.Controls.Add($control)
+            $Control        = New-Control $ControlConfig
+            $Control.Name   = $controlName
+            $form.Controls.Add($Control)
         }
     }
 
     # Events hinzufügen
-    if ($FormConfig.ContainsKey("Events")) {
+    if ($Config.ContainsKey("Events")) {
         $events = $form.GetType().GetEvents().Name
-        foreach ($key in $FormConfig.Events.Keys) {
+        foreach ($key in $Config.Events.Keys) {
 
             # Präfix "Add_" erkennen, um Event-Handler hinzuzufügen (z.B. "Add_Click" für das Click-Event)
             if ($key -like "Add_*") { 
                 $name = $key.Substring(4)
-                if ($events -contains $name) { $form.$key($FormConfig.Events[$key]) }
+                if ($events -contains $name) { $form.$key($Config.Events[$key]) }
                 Write-Warning "Präfix 'Add_' erkannt. Stelle sicher, dass die Event-Handler korrekt benannt sind: $name"
 
             # Präfix "Remove_" erkennen, um Event-Handler zu entfernen (z.B. "Remove_Click" für das Click-Event)
             } elseif ($key -like "Remove_*") {
                 $name = $key.Substring(7)
-                if ($events -contains $name) { $form.$key($FormConfig.Events[$key]) }
+                if ($events -contains $name) { $form.$key($Config.Events[$key]) }
                 Write-Warning "Präfix 'Remove_' erkannt. Stelle sicher, dass die Event-Handler korrekt benannt sind: $name"
 
             # Direkter Event-Name ohne Präfix (z.B. "Click") - in diesem Fall wird angenommen, dass es sich um einen Hinzufügen-Handler handelt
             } elseif ($events -contains $key) {
                 $name = "Add_$key"
-                $form.$name($FormConfig.Events[$key])
+                $form.$name($Config.Events[$key])
             }
         }
     }
 
+    # Alle Controls im Formular registrieren, damit sie über Get-Control mit ihrem Namen gefunden werden können
     $FormRefs = @{}
     Register-Control -control $form -refs $FormRefs
     $form.Tag = @{ Refs = $FormRefs }
@@ -1082,6 +1089,7 @@ function New-Form {
     # Form zurückgeben
     return $form
 }
+
 function Resize-Form {
     param ( $Form, [int]$fontSize = 10 )
 
@@ -1094,7 +1102,6 @@ function Resize-Form {
 }
 function Start-Form {
     param ( $Config = @{}, $ShowDialog = $true )
-    Write-Debug "Branch: Start-Form"
     
     Set-Cursor "AppStarting"
     $form = New-Form $Config
@@ -1112,6 +1119,8 @@ function Start-Form {
 <# CONTROL #>
 function New-Control {
     param( [hashtable]$Config )
+    # Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
+
     if (-not $Config.Control) { throw "Config fehlt das Feld 'Control'" }
 
     # Control-Typ ermitteln und Control erstellen
@@ -1145,31 +1154,30 @@ function New-Control {
         "RichTextBox" {    return New-RichTextBox $copy }
         "TextBox" {        return New-TextBox $copy }
         
-        # Tab Controls
-        
         default { throw "Unbekannter Control-Typ: $type" }
-
     }
 }
 function Register-Control {
     param( $control, [hashtable]$refs )
+    # Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
 
     # Wenn der Control einen Namen hat, füge ihn zu den Referenzen hinzu
     if ($control.Name) { $Refs[$control.Name] = $control }
 
     # Rekursiv alle untergeordneten Controls registrieren
-    foreach ($child in $control.Controls) { 
-        Register-Control -control $child -refs $Refs
-    }
+    foreach ($child in $control.Controls) { Register-Control -control $child -refs $Refs }
 }
 function Get-Control {
     param( $control, $name )
+    # Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
 
+    # Formular des Controls finden, da die Referenzen auf Formularebene gespeichert werden
     $form = $control.FindForm()
-    if (-not $form -or -not $form.Tag -or -not $form.Tag.Refs) {
-        return $null
-    }
 
+    # Überprüfen, ob das Formular und die Referenzen vorhanden sind, bevor versucht wird, auf die Referenzen zuzugreifen
+    if (-not $form -or -not $form.Tag -or -not $form.Tag.Refs) { return $null }
+
+    # Control-Referenz anhand des Namens zurückgeben, oder $null, wenn der Name nicht gefunden wird
     return $form.Tag.Refs[$name]
 }
 
@@ -1198,16 +1206,6 @@ function Set-Cursor {
 
 
 <##############################################################################################>
-function Get-Ref {
-    param($control, $name)
-
-    $form = $control.FindForm()
-    if (-not $form -or -not $form.Tag -or -not $form.Tag.Refs) {
-        return $null
-    }
-
-    return $form.Tag.Refs[$name]
-}
 function Get-ProcessLabel {
     param ( $control, [string]$category = "Default" )
     $form = $control.FindForm()

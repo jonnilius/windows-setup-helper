@@ -1,4 +1,4 @@
-param (){
+﻿param (){
     $confirm = [System.Windows.Forms.MessageBox]::Show(
                 "Möchten Sie WinGet wirklich entfernen?", 
                 "Bestätigung", 

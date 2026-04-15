@@ -13,153 +13,242 @@ using namespace System.Drawing
 ########################################################################################>
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-Write-Debug "[INIT] Importiere FormBuilder-Modul: $($MyInvocation.MyCommand.Name) | Version: $($MyInvocation.MyCommand.Version) | Pfad: $($MyInvocation.MyCommand.Path)"
+Add-Type -TypeDefinition @"
+using System;
+using System.Drawing;
+using System.Windows.Forms;
 
-function Get-Color {
-    param( [string]$ColorName, 
-    [switch]$Hex,
-    [switch]$ColorObject
-    )
+public class MyRenderer : ToolStripProfessionalRenderer
+{
+    public MyRenderer() : base(new ProfessionalColorTable()) {}
 
-    $color = switch ($ColorName) {
-        "Accent" { "#C0393B" }
-        "Dark"   { "#2D3436" }
-        "White"  { "#EEEEEE" }
-        "Debug1" { "#27AE60" }
-        "Debug2" { "#2980B9" }
-        "Debug3" { "#8E44AD" }
-        "TestFG" { "#F39C12" }
-        "Transparent" { "#00000000" }
-        default  { "#000" }
-    }
-
-    if ($Hex) { return $color } 
-    elseif ($ColorObject) { return [ColorTranslator]::FromHtml($color) } 
-    else { return [ColorTranslator]::FromHtml($color) }
-}
-function Get-Font {
-    param(
-        [string]$Control,
-        [int]$Size, 
-        [string]$Name,
-        [string[]]$Style
-    )
-
-    # Vordefinierte Schriftart-Einstellungen für verschiedene Steuerelemente
-    $fontPreset = @{
-        # Controls
-        Button          = @{ Size = 10; Name = "Consolas";      Style = "Regular" }
-        CheckedListBox  = @{ Size = 9;  Name = "Consolas";      Style = "Regular" }
-        Label           = @{ Size = 10; Name = "Tahoma";        Style = "Regular" }
-        ListBox         = @{ Size = 10; Name = "Consolas";      Style = "Regular" }
-        TabControl      = @{ Size = 10; Name = "Consolas";      Style = "Regular" }
-        TextBox         = @{ Size = 11; Name = "Segoe UI";      Style = "Bold" }
-
-        # Hybrid Controls
-        LabelButton     = @{ Size = 8;  Name = "Consolas";      Style = "Regular" }
-        LabelItalic     = @{ Size = 10; Name = "Tahoma";        Style = "Italic" }
-        
-        # TabControl Presets
-        TabLabel        = @{ Size = 10; Name = "Consolas";  Style = "Italic" }
-
-        # Table Presets
-        TableTitle      = @{ Size = 15; Name = "Cascadia Code"; Style = @("Bold", "Underline") }
-        TableLabel      = @{ Size = 10; Name = "Cascadia Code"; Style = "Bold" }
-        TableText       = @{ Size = 10; Name = "Cascadia Code"; Style = "Regular" }
-        TableLink       = @{ Size = 9;  Name = "Cascadia Code"; Style = "Italic" }
-        TableButton     = @{ Size = 8;  Name = "Cascadia Code"; Style = "Bold" }
-
-        # Sidebar Presets
-        SidebarTitle            = @{ Size = 22; Name = "Cascadia Code"; Style = "Bold" }
-        SidebarVersion          = @{ Size = 10; Name = "Consolas";      Style = "Regular" }
-        SidebarButton           = @{ Size = 8;  Name = "Segoe UI";      Style = "Bold" }
-        PackageInfoTitle        = @{ Size = 10; Name = "Tahoma";        Style = "Bold" }
-        PackageInfoLabel        = @{ Size = 9;  Name = "Segoe UI";      Style = "Bold" }
-        PackageInfoDescription  = @{ Size = 9;  Name = "Segoe UI";      Style = "Regular" }
-        
-        # Other Presets
-        SearchHeader    = @{ Size = 20; Name = "Cascadia Code"; Style = "Bold" }
-        Title           = @{ Size = 18; Name = "Segoe UI";      Style = "Bold" }
-        Subtitle        = @{ Size = 13; Name = "Segoe UI";      Style = @("Bold", "Underline") }
-    }[$Control]
-    if (-not $fontPreset) { $fontPreset = @{ Size = 10; Name = "Consolas"; Style = "Regular" } }
-
-    # Bevorzugte Schriftarten definieren und die erste verfügbare auswählen
-    $Size  = If ($Size) { $Size } else { $fontPreset.Size }
-    $Name  = If ($Name) { $Name } else { $fontPreset.Name }
-    $Style = If ($Style) { $Style } else { $fontPreset.Style }
-
-
-    # FontStyle-Enum aus einem oder mehreren übergebenen Styles aufbauen
-    $fontEnum = [FontStyle]::Regular
-    foreach ($singleStyle in @($Style | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
-        switch ($singleStyle) {
-            "Bold"      { $fontEnum = $fontEnum -bor [FontStyle]::Bold }
-            "Italic"    { $fontEnum = $fontEnum -bor [FontStyle]::Italic }
-            "Regular"   { }
-            "Strikeout" { $fontEnum = $fontEnum -bor [FontStyle]::Strikeout }
-            "Underline" { $fontEnum = $fontEnum -bor [FontStyle]::Underline }
-            default       { }
+    protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
+    {
+        using (SolidBrush brush = new SolidBrush(Color.FromArgb(30, 30, 30)))
+        {
+            e.Graphics.FillRectangle(brush, e.AffectedBounds);
         }
     }
+}
+"@
 
-    # Alle installierten Schriftarten abrufen
-    $installedFonts = [System.Drawing.Text.InstalledFontCollection]::new().Families.Name
-
-    # Bevorzugte Schriftarten in der gewünschten Reihenfolge definieren
-    $preferredFonts = @($Name, "Segoe UI", "Tahoma", "Arial", "Microsoft Sans Serif")
-
-    # Die erste verfügbare Schriftart aus der Liste der bevorzugten Schriftarten auswählen
-    $resolvedFontName = $preferredFonts | Where-Object { $_ -and ($installedFonts -contains $_) } | Select-Object -First 1
-
-    # Wenn keine der bevorzugten Schriftarten gefunden wird, auf eine Standardschriftart zurückgreifen
-    if (-not $resolvedFontName) {
-        $resolvedFontName = "Microsoft Sans Serif"
+$script:Defaults = @{
+    Button = @{
+        Height      = 30
+        FlatStyle   = "Flat"
+        Font        = Get-Font -Control "Button"
+        ForeColor   = Get-Color "Accent"
+        BackColor   = Get-Color "Dark"
+        Cursor      = Get-Cursor "Hand"
     }
-    
-    try {
-        return New-Object System.Drawing.Font($resolvedFontName, $Size, $fontEnum)
+    CheckBox = @{
+        AutoSize    = $false
+        Font        = Get-Font -Control "CheckedListBox"
+        ForeColor   = Get-Color "White"
+        BackColor   = Get-Color "Dark"
     }
-    catch {
-        return New-Object System.Drawing.Font("Microsoft Sans Serif", 10, [FontStyle]::Regular)
+    CheckedListBox = @{
+        BorderStyle     = "None"
+        DisplayMember   = "Name"
+        CheckOnClick    = $true
+        Font            = Get-Font -Control "CheckedListBox"
+        ForeColor       = Get-Color "White"
+        BackColor       = Get-Color "Dark"
+    }
+    ComboBox = @{
+        DropDownStyle   = "DropDownList"
+        Font            = Get-Font -Control "ComboBox"
+        ForeColor       = Get-Color "White"
+        BackColor       = Get-Color "Dark"
+    }
+    ContextMenu = @{
+        ForeColor       = Get-Color "Accent"
+        BackColor       = Get-Color "Dark"
+        ShowImageMargin = $true
+        Add_Opening = {
+            param($src, $e)
+            $sourceControl = $src.SourceControl
+            $e.Cancel = -not $sourceControl -or $sourceControl.SelectedItems.Count -eq 0
+        }
+    }
+    FlowLayoutPanel = @{
+        Dock            = "Fill"
+        AutoScroll      = $false
+        WrapContents    = $false
+        FlowDirection   = "TopDown"
+        ForeColor       = Get-Color "Accent"
+        BackColor       = Get-Color "Dark"
+    }
+    Form = @{
+        StartPosition   = "CenterScreen"
+        BackColor       = Get-Color "Accent"
+        ForeColor       = Get-Color "Dark"
+        Padding         = [Padding]::new(10)
+        MaximizeBox     = $false
+        Text            = $AppInfo.Name
+        Icon            = Get-Icon "Default" $PSScriptRoot
+
+        # FormBorderStyle = "FixedSingle"
+        # MinimizeBox     = $false
+        # ShowIcon        = $true
+        # ShowInTaskbar   = $true
+    }
+    GroupBox = @{
+        ForeColor   = Get-Color "Accent"
+        BackColor   = Get-Color "Dark"
+        Font        = Get-Font -Control "GroupBox"
+    }
+    Label = @{
+        Text        = "New-Label Text"
+        Font        = Get-Font -Control "Label"
+        TextAlign   = "MiddleCenter"
+    }
+    ListBox = @{
+        BorderStyle     = "None"
+        DisplayMember   = "Name"
+        Font            = Get-Font -Control "ListBox"
+        ForeColor       = Get-Color "White"
+        BackColor       = Get-Color "Dark"
+        Dock            = "Fill"
+        SelectionMode   = "MultiExtended"
+    }
+    ListView = @{
+        BorderStyle     = "None"
+        View            = [System.Windows.Forms.View]::Details
+        FullRowSelect   = $true
+        GridLines       = $false
+        Font            = Get-Font -Control "ListView"
+        ForeColor       = Get-Color "White"
+        BackColor       = Get-Color "Dark"
+        ColumnsHeader   = @{
+            BackColor   = Get-Color "Accent"
+            ForeColor   = Get-Color "Dark"
+            Font        = Get-Font -Control "ListView"
+        }
+    }
+    NumericUpDown = @{
+        BackColor   = Get-Color "Dark"
+        ForeColor   = Get-Color "Accent"
+
+    }
+    Panel = @{
+        Dock        = "Fill"
+        ForeColor   = Get-Color "Accent"
+        BackColor   = Get-Color "Dark"
+    }
+    ProgressBar = @{
+        Style       = "Continuous"
+        ForeColor   = Get-Color "Accent"
+        BackColor   = Get-Color "Dark"
+        Value       = 0
+        Minimum     = 0
+        Maximum     = 100
+    }
+    RichTextBox = @{
+        Text        = "RichTextBox ohne Text"
+        BorderStyle = "None"
+        Font        = Get-Font -Control "RichTextBox"
+        ForeColor   = Get-Color "White"
+        BackColor   = Get-Color "Dark"
+        ReadOnly    = $true
+    }
+    TabControl = @{
+        Dock        = "Fill"
+        ForeColor   = Get-Color "Accent"
+        BackColor   = Get-Color "Dark"
+        Font        = Get-Font -Control "TabControl"
+    }
+    TableLayoutPanel = @{
+        Dock        = "Fill"
+        ForeColor   = Get-Color "Accent"
+        BackColor   = Get-Color "Dark"
+    }
+    TabPage = @{
+        BorderStyle   = "None"
+        ForeColor   = Get-Color "Accent"
+        BackColor   = Get-Color "Dark"
+        Font        = Get-Font -Control "TabPage"
+    }
+    TextBox = @{
+        BorderStyle = "None"
+        Font        = Get-Font -Control "TextBox"
+        Dock        = "Fill"
     }
 }
-function Get-Icon {
-    param ( [string]$Name = "Default" )
 
-    # Versuche, das angegebene Icon zu laden
-    $iconPath = Join-Path $AppConfig.IconPath "$Name.ico"
-    if (-not (Test-Path $iconPath)) { 
-        Write-Warning "[WARN] Icon '$Name' nicht gefunden unter: $iconPath"
-        $Name = "Default"
-    }
 
-    # Wenn das Standard-Icon nicht gefunden wird, gebe ein leeres Icon zurück
-    $iconPath = Join-Path $AppConfig.IconPath "$Name.ico"
-    if (-not (Test-Path $iconPath)) {
-        Write-Error "[ERROR] Standard-Icon 'Default' nicht gefunden unter: $iconPath. Es wird kein Icon gesetzt."
-        return [Icon]::Application
-    }
 
-    # Icon laden und zurückgeben
-    return [Icon]::new($iconPath)
-}
+
 function Merge-Config {
-    param( [hashtable[]]$Configs )
-    # param( [hashtable]$DefaultConfig, [hashtable]$CustomConfig )
+    param( [hashtable]$DefaultConfig, [hashtable]$CustomConfig )
 
     $merged = @{}
 
-    foreach ($hash in $Configs) {
-    # foreach ($hash in @($DefaultConfig, $CustomConfig)) {
-        if (-not $hash) { continue }
+    # foreach ($hash in $Configs) {
+    foreach ($config in @($DefaultConfig, $CustomConfig)) {
+        if (-not $config) { continue }
 
-        foreach ($key in $hash.Keys) {
-            $merged[$key] = $hash[$key]
-        }
+        foreach ($key in $config.Keys) { $merged[$key] = $config[$key] }
     }
 
     return $merged
+}
+function New-ContextMenu {
+    param( [hashtable]$Config = @{} )
+    $contextMenu = [ContextMenuStrip]::new()
+    $contextMenu.Renderer = [MyRenderer]::new()
+    $Config = Merge-Config -DefaultConfig $script:Defaults.ContextMenu -CustomConfig $Config
+
+    $type   = $contextMenu.GetType()
+    $props  = $type.GetProperties().Name
+    $events = $type.GetEvents().Name
+
+    foreach ($key in $Config.Keys) {
+        if ($key -eq "Items") { 
+            $itemConfig = $Config[$key]
+            foreach ($cfg in $itemConfig.GetEnumerator()) {
+                $menuItem        = New-MenuItem $cfg.Value
+                $menuItem.Name   = $cfg.Key
+                [void]$contextMenu.Items.Add($menuItem)
+            }
+        } elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $contextMenu.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $contextMenu.$key($Config[$key]) }
+        } elseif ($props -contains $key) { 
+            $contextMenu.$key = $Config[$key] 
+        } elseif ($contextMenu.PSObject.Properties[$key]) {
+            $contextMenu.$key = $Config[$key]
+        }
+    }
+
+    return $contextMenu
+}
+function New-MenuItem {
+    param( [hashtable]$Config = @{} )
+    $menuItem = [ToolStripMenuItem]::new()
+
+    $type   = $menuItem.GetType()
+    $props  = $type.GetProperties().Name
+    $events = $type.GetEvents().Name
+
+    foreach ($key in $Config.Keys) {
+        if ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $menuItem.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $menuItem.$key($Config[$key]) }
+        } elseif ($props -contains $key) { 
+            $menuItem.$key = $Config[$key] 
+        } elseif ($menuItem.PSObject.Properties[$key]) {
+            $menuItem.$key = $Config[$key]
+        }
+
+    }
+    return $menuItem
 }
 
 <##############################################################################################>
@@ -200,7 +289,7 @@ $global:ToolTip = & {
     Gibt die Zeit in Millisekunden an, die gewartet wird, bevor ein ToolTip erneut angezeigt wird, 
     nachdem es ausgeblendet wurde.
     #>
-    $toolTip = New-Object System.Windows.Forms.ToolTip
+    $toolTip = [ToolTip]::new()
     $toolTip.BackColor = Get-Color "Dark"
     $toolTip.ForeColor = Get-Color "White"
     $toolTip.AutoPopDelay = 5000
@@ -213,23 +302,15 @@ $global:ToolTip = & {
 function New-Panel {
     param( [hashtable]$Config = @{} )
     $panel   = [Panel]::new()
-    
-    # Config mit Standardwerten mergen
-    $Default = @{
-        Dock = "Fill"
-        ForeColor = Get-Color "Accent"
-        BackColor = Get-Color "Dark"
-    }
-    $DefaultConfig = Merge-Config $Default, $Config
 
     # Properties und Events dynamisch setzen
     $type   = $panel.GetType()
     $events = $type.GetEvents().Name
     $prop   = $type.GetProperties().Name
 
-    foreach ($key in $DefaultConfig.Keys) {
+    foreach ($key in $Config.Keys) {
         if ($key -eq "Controls") { 
-            $ControlConfig = $DefaultConfig[$key]
+            $ControlConfig = $Config[$key]
             foreach ($cfg in $ControlConfig.GetEnumerator()) {
                 $control        = New-Control $cfg.Value
                 $control.Name   = $cfg.Key
@@ -237,15 +318,15 @@ function New-Panel {
             }
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $panel.$key($DefaultConfig[$key]) }
+            if ($events -contains $name) { $panel.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $panel.$key($DefaultConfig[$key]) }
+            if ($events -contains $name) { $panel.$key($Config[$key]) }
         } elseif ($prop -contains $key) { 
-            $panel.$key = $DefaultConfig[$key] 
+            $panel.$key = $Config[$key] 
         } else {
             if ($panel.PSObject.Properties[$key]) {
-                $panel.$key = $DefaultConfig[$key]
+                $panel.$key = $Config[$key]
             }
         }
     }
@@ -255,26 +336,16 @@ function New-Panel {
 }
 function New-FlowLayoutPanel {
     param( [hashtable]$Config = @{} )
-    $flowPanel = [FlowLayoutPanel]::new()
-
-    # Config mit Standardwerten mergen
-    $prep = Merge-Config @{
-        Dock             = "Fill"
-        AutoScroll       = $false
-        WrapContents     = $false
-        FlowDirection    = "TopDown"
-        ForeColor        = Get-Color "Accent"
-        BackColor        = Get-Color "Dark"
-    }, $Config
+    $flowPanel  = [FlowLayoutPanel]::new()
 
     # Properties und Events dynamisch setzen
     $type   = $flowPanel.GetType()
     $props  = $type.GetProperties().Name
     $events = $type.GetEvents().Name
 
-    foreach ($key in $prep.Keys) {
+    foreach ($key in $Config.Keys) {
         if ($key -eq "Controls") { 
-            $ControlConfig = $prep[$key]
+            $ControlConfig = $Config[$key]
             foreach ($cfg in $ControlConfig.GetEnumerator()) {
                 $control        = New-Control $cfg.Value
                 $control.Name   = $cfg.Key
@@ -282,16 +353,14 @@ function New-FlowLayoutPanel {
             }
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $flowPanel.$key($prep[$key]) }
+            if ($events -contains $name) { $flowPanel.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $flowPanel.$key($prep[$key]) }
+            if ($events -contains $name) { $flowPanel.$key($Config[$key]) }
         } elseif ($props -contains $key) { 
-            $flowPanel.$key = $prep[$key] 
-        } else {
-            if ($flowPanel.PSObject.Properties[$key]) {
-                $flowPanel.$key = $prep[$key]
-            }
+            $flowPanel.$key = $Config[$key] 
+        } elseif ($flowPanel.PSObject.Properties[$key]) {
+            $flowPanel.$key = $Config[$key]
         }
     }
 
@@ -300,24 +369,16 @@ function New-FlowLayoutPanel {
 }
 function New-TableLayoutPanel {
     param ( $Config = @{} )
-    $table = [TableLayoutPanel]::new()
-    $default = @{
-        Dock = "Fill"
-        ForeColor = Get-Color "Accent"
-        BackColor = Get-Color "Dark"
-    }
-    
-    # Config mit Standardwerten mergen
-    $defaultConfig = Merge-Config $default, $Config
+    $table  = [TableLayoutPanel]::new()
 
     # Properties und Events dynamisch setzen
     $type   = $table.GetType()
     $events = $type.GetEvents().Name
     $props  = $type.GetProperties().Name
 
-    foreach ($key in $defaultConfig.Keys) {
+    foreach ($key in $Config.Keys) {
         if ($key -eq "Controls") { 
-            foreach ($cfg in $defaultConfig[$key].GetEnumerator()) {
+            foreach ($cfg in $Config[$key].GetEnumerator()) {
                 $controlConfig  = $cfg.Value
                 $control        = New-Control $controlConfig
                 $control.Name   = $cfg.Key
@@ -357,15 +418,15 @@ function New-TableLayoutPanel {
             continue
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $table.$key($defaultConfig[$key]) }
+            if ($events -contains $name) { $table.$key($Config[$key]) }
             continue
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $table.$key($defaultConfig[$key]) }
+            if ($events -contains $name) { $table.$key($Config[$key]) }
             continue
         } elseif ($key -in @("Column", "Row")) {
             # Spezialbehandlung für RowStyles und ColumnStyles, da diese komplexe Objekte sind und nicht direkt über die Property gesetzt werden können
-            $keyConfig  = $defaultConfig[$key]
+            $keyConfig  = $Config[$key]
             $isColumn   = $key -eq "Column"
             $sizeTypes  = "Percent", "AutoSize", "Absolute"
 
@@ -428,14 +489,12 @@ function New-TableLayoutPanel {
         } elseif ($key -eq "Position") {
             continue # Position wird speziell bei Controls innerhalb eines TableLayoutPanels behandelt, daher hier übersprungen
         } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($table, $defaultConfig[$key])
+            $ToolTip.SetToolTip($table, $Config[$key])
             continue
         } elseif ($props -contains $key) { 
-            $table.$key = $defaultConfig[$key] 
-        } else {
-            if ($table.PSObject.Properties[$key]) {
-                $table.$key = $defaultConfig[$key]
-            }
+            $table.$key = $Config[$key] 
+        } elseif ($table.PSObject.Properties[$key]) {
+            $table.$key = $Config[$key]
         }
     }    
 
@@ -447,11 +506,8 @@ function New-TableLayoutPanel {
 <### STRUKTUR-CONTAINER ###>
 function New-GroupBox {
     param ( [hashtable]$Config = @{} )
+    $groupBox   = [GroupBox]::new()
 
-    $groupBox = [GroupBox]::new()
-    $groupBox.ForeColor = Get-Color "Accent"
-    $groupBox.BackColor = Get-Color "Dark"
-    $groupBox.Font = [Font]::new("Consolas", 10)
 
     # Properties und Events dynamisch setzen
     $events = $groupBox.GetType().GetEvents().Name
@@ -472,24 +528,17 @@ function New-GroupBox {
             if ($events -contains $name) { $groupBox.$key($Config[$key]) }
         } elseif ($prop -contains $key) { 
             $groupBox.$key = $Config[$key] 
-        } else {
-            if ($groupBox.PSObject.Properties[$key]) {
-                $groupBox.$key = $Config[$key]
-            }
+        } elseif ($groupBox.PSObject.Properties[$key]) {
+            $groupBox.$key = $Config[$key]
         }
     }
 
+    # Return
     return $groupBox
 }
 function New-TabControl {
     param ( $Config = @{} )
-    
     $tabControl     = [TabControl]::new()
-    $defaultConfig  = @{
-        Dock = "Fill"
-        Font = Get-Font -Control "TabControl"
-    }
-    foreach ($key in $defaultConfig.Keys) { $tabControl.$key = $defaultConfig[$key] }
 
     # Properties und Events dynamisch setzen
     $type   = $tabControl.GetType()
@@ -525,12 +574,8 @@ function New-TabControl {
 }
 function New-TabPage {
     param ( $Config = @{} )
-    
     $tabPage = [TabPage]::new()
-    $tabPage.BorderStyle    = "None"
-    $tabPage.BackColor      = Get-Color "Dark"
-    $tabPage.ForeColor      = Get-Color "Accent"
-    $tabPage.Font           = Get-Font -Name "Tahoma" -Size 10
+    
 
     # Properties und Events dynamisch setzen
     $prop   = $tabPage.GetType().GetProperties().Name
@@ -561,57 +606,12 @@ function New-TabPage {
     $tabPage
 }
 
-<### HYBRID-CONTAINER ###>
-function New-PanelTabControl {
-    param ( $Config = @{} )
-    $panel = [Panel]::new()
-
-    # Config mit Standardwerten mergen
-    $copy = Merge-Config @{
-        Dock = "Fill"
-    }, $Config
-
-    <#
-    Eigenschaften für Panel extrahieren:
-    - Dock = TabControl füllt den gesamten Platz des Panels aus. Dock wird nur auf das Panel angewendet.
-    - Margin = funktioniert weder bei TabControl noch bei Panel, daher wird das Margin auf das Panel angewendet.
-    - Padding = funktioniert beim Panel, aber nicht beim TabControl, daher wird das Padding auf das Panel angewendet.
-    #>
-    $panelProps = @("Margin", "Padding", "Dock", "BackColor", "ForeColor")
-    foreach ($prop in $panelProps) {
-        if ($copy.ContainsKey($prop)) {
-            $panel.$prop = $copy[$prop]
-            [void]$copy.Remove($prop) # Entferne die Panel-spezifischen Properties aus der Config, damit sie nicht fälschlicherweise auf das TabControl angewendet werden
-        }
-    }
-
-    # TabControl erstellen
-    $tabControl = New-TabControl $copy
-    $tabControl.Dock = "Fill" 
-
-    $panel.Controls.Add($tabControl)
-
-    return $panel
-}
-
-
-
 
 <### LEAF CONTROLS ###>
 function New-Button {
     param( [hashtable]$Config = @{} )
     $button = [Button]::new()
-    
-    # Standardwerte für Buttons definieren, die bei Bedarf überschrieben werden können
-    $default = @{
-        Height = 30
-        FlatStyle = "Flat"
-        Cursor = Get-Cursor "Hand"
-        Font = Get-Font -Control "Button"
-        ForeColor = Get-Color "Accent"
-        BackColor = Get-Color "Dark"
-    }
-    $Config = Merge-Config $default, $Config
+
 
     # Properties und Events dynamisch setzen
     $type   = $button.GetType()
@@ -641,13 +641,7 @@ function New-Button {
 }
 function New-CheckBox {
     param ( [hashtable]$Config = @{} )
-
     $checkBox = [CheckBox]::new()
-
-    $checkBox.AutoSize  = $false
-    $checkBox.ForeColor = Get-Color "White"
-    $checkBox.BackColor = Get-Color "Dark"
-    $checkBox.Font      = [Font]::new("Consolas", 10)
 
     # Properties und Events dynamisch setzen
     $events = $checkBox.GetType().GetEvents().Name
@@ -674,39 +668,29 @@ function New-CheckBox {
 }
 function New-CheckedListBox {
     param ( [hashtable]$Config = @{} )
-    $Default = @{
-        Font            = Get-Font -Control "CheckedListBox"
-        BorderStyle     = "None"
-        ForeColor       = Get-Color "White"
-        BackColor       = Get-Color "Dark"
-        DisplayMember   = "Name"
-        CheckOnClick    = $true
-    }
-    
-    # CheckedListBox erstellen und Standardwerte mergen
     $checkedListBox = [CheckedListBox]::new()
-    $DefaultConfig  = Merge-Config $Default, $Config
-
+    $Config         = Merge-Config $Defaults.CheckedListBox $Config
+    
 
     # Dynamisch Properties und Events setzen
     $type   = $checkedListBox.GetType()
     $events = $type.GetEvents().Name
     $prop   = $type.GetProperties().Name
 
-    foreach ($key in $DefaultConfig.Keys) {
+    foreach ($key in $Config.Keys) {
         if ($key -like "Add_*") { 
             $name = $key.Substring(4) # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Add_SelectedIndexChanged"
-            if ($events -contains $name) { $checkedListBox.$key($DefaultConfig[$key]) }
+            if ($events -contains $name) { $checkedListBox.$key($Config[$key]) }
             continue
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Remove_SelectedIndexChanged"
-            if ($events -contains $name) { $checkedListBox.$key($DefaultConfig[$key]) }
+            if ($events -contains $name) { $checkedListBox.$key($Config[$key]) }
             continue
         } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($checkedListBox, $DefaultConfig[$key])
+            $ToolTip.SetToolTip($checkedListBox, $Config[$key])
             continue
         } elseif ($key -eq "Items") {
-            foreach ($program in $DefaultConfig[$key]) {
+            foreach ($program in $Config[$key]) {
                 $id     = if ($program.PSObject.Properties["Id"]) { $program.Id } elseif ($program.PSObject.Properties["Key"]) { $program.Key } else { $null }
                 $name   = if ($program.PSObject.Properties["Name"]) { $program.Name } elseif ($program.PSObject.Properties["Value"]) { $program.Value } else { $id }
                 $item   = [PSCustomObject]@{
@@ -717,10 +701,10 @@ function New-CheckedListBox {
             }
             continue
         } elseif ($prop -contains $key) { 
-            $checkedListBox.$key = $DefaultConfig[$key]
+            $checkedListBox.$key = $Config[$key]
             continue
-        } else {
-            if ($checkedListBox.PSObject.Properties[$key]) { $checkedListBox.$key = $DefaultConfig[$key] }
+        } elseif ($checkedListBox.PSObject.Properties[$key]) { 
+            $checkedListBox.$key = $Config[$key] 
         }
     }
 
@@ -728,63 +712,51 @@ function New-CheckedListBox {
     return $checkedListBox
 }
 function New-ComboBox {
-    param ( [hashtable]$Config = @{} )
-
-    $comboBox = [ComboBox]::new()
-
-    $comboBox.DropDownStyle = "DropDownList"
-    $comboBox.Font          = [Font]::new("Consolas", 10)
-    $comboBox.ForeColor     = Get-Color "White"
-    $comboBox.BackColor     = Get-Color "Dark"
+    param ( [hashtable]$Config )
+    $comboBox   = [ComboBox]::new()
+    $Config     = Merge-Config $Defaults.ComboBox $Config
+    $deferredSelectedIndex = $null
 
     # Properties und Events dynamisch setzen
-    $events = $comboBox.GetType().GetEvents().Name
-    $prop   = $comboBox.GetType().GetProperties().Name
-    $deferredSelectedIndex = $null
+    $type   = $comboBox.GetType()
+    $events = $type.GetEvents().Name
+    $prop   = $type.GetProperties().Name
+
     foreach ($key in $Config.Keys) {
-        if ($key -like "Add_*") {
+        if ($key -eq "ToolTip") {
+            $ToolTip.SetToolTip($comboBox, $Config[$key])
+        } elseif ($key -like "Add_*") {
             $name = $key.Substring(4)
             if ($events -contains $name) { $comboBox.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") {
             $name = $key.Substring(7)
             if ($events -contains $name) { $comboBox.$key($Config[$key]) }
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($comboBox, $Config[$key])
         } elseif ($key -eq "Items") {
-            foreach ($item in $Config[$key]) {
-                $comboBox.Items.Add($item) | Out-Null
-            }
+            foreach ($item in $Config[$key]) { [void]$comboBox.Items.Add($item) }
         } elseif ($key -eq "SelectedIndex") {
             # Erst nach Items setzen, sonst ist 0 ungueltig, wenn Items noch leer sind.
             $deferredSelectedIndex = [int]$Config[$key]
         } elseif ($prop -contains $key) {
             $comboBox.$key = $Config[$key]
-        } else {
-            if ($comboBox.PSObject.Properties[$key]) {
-                $comboBox.$key = $Config[$key]
-            }
+        } elseif ($comboBox.PSObject.Properties[$key]) {
+            $comboBox.$key = $Config[$key]
         }
     }
 
-    if ($null -ne $deferredSelectedIndex -and $comboBox.Items.Count -gt 0) {
+    if (($deferredSelectedIndex) -and ($comboBox.Items.Count -gt 0)) {
         if ($deferredSelectedIndex -ge 0 -and $deferredSelectedIndex -lt $comboBox.Items.Count) {
             $comboBox.SelectedIndex = $deferredSelectedIndex
         }
+    } else {
+        $comboBox.Items.Add("Keine Einträge") | Out-Null
+        $comboBox.SelectedIndex = 0
     }
 
     $comboBox
 }
 function New-Label {
     param( [hashtable]$Config = @{}  )
-    $default = @{
-        Font        = Get-Font -Control "Label"
-        Text        = "New-Label Text"
-        TextAlign   = "MiddleCenter"
-    }
-    
-    # Label erstellen und Standardwerte mergen
     $label  = [Label]::new()
-    $Config = Merge-Config $default, $Config
     
     # Properties und Events dynamisch setzen
     $type   = $label.GetType()
@@ -814,164 +786,199 @@ function New-Label {
 }
 function New-ListBox {
     param ( [hashtable]$Config = @{} )
-    $Default = @{
-        DisplayMember = "Name"
-        SelectionMode = "MultiSimple"
-        Font          = Get-Font -Control "ListBox"
-        ForeColor     = Get-Color "White"
-        BackColor     = Get-Color "Dark"
-        BorderStyle   = "None"
-        Dock          = "Fill"
-    }
-    $prep = Merge-Config $Default, $Config
-
     $listBox = [ListBox]::new()
-
 
     # Dynamisch Properties und Events setzen
     $type   = $listBox.GetType()
     $events = $type.GetEvents().Name
     $props  = $type.GetProperties().Name
 
-    foreach ($key in $prep.Keys) {
+    foreach ($key in $Config.Keys) {
         if ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($listBox, $prep[$key])
+            $ToolTip.SetToolTip($listBox, $Config[$key])
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
-            if ($events -contains $name) { $listBox.$key($prep[$key]) }
+            if ($events -contains $name) { $listBox.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
-            if ($events -contains $name) { $listBox.$key($prep[$key]) }
+            if ($events -contains $name) { $listBox.$key($Config[$key]) }
         } elseif ($key -eq "Items") {
-            Write-Host "Erstelle eine ListBox"
-            Write-Host $prep[$key].GetType().FullName
-            foreach ($program in $prep[$key]) {
+            foreach ($program in $Config[$key]) {
                 $item = [PSCustomObject]@{
                     Id      = $program.Key
                     Name    = $program.Value
                 }
-                $listBox.Items.Add($item) | Out-Null
+                [void]$listBox.Items.Add($item)
             }
         } elseif ($props -contains $key) {
-            $listBox.$key = $prep[$key]
-        } else {
-            if ($listBox.PSObject.Properties[$key]) {
-                $listBox.$key = $prep[$key]
+            $listBox.$key = $Config[$key]
+        } elseif ($listBox.PSObject.Properties[$key]) {
+            $listBox.$key = $Config[$key]
+        }
+    }
+
+    # Return
+    return $listBox
+}
+function New-ListView {
+    param ( [hashtable]$Config = @{} )
+    $listView = [ListView]::new()
+
+    # Dynamisch Properties und Events setzen
+    $type   = $listView.GetType()
+    $events = $type.GetEvents().Name
+    $props  = $type.GetProperties().Name
+
+
+
+    foreach ($key in $Config.Keys) {
+        switch -Wildcard ($key) {
+            "ToolTip" {
+                $ToolTip.SetToolTip($listView, $Config[$key])
+                break
+            }
+            "Add_*" {
+                $name = $key.Substring(4)
+                if ($events -contains $name) { $listView.$key($Config[$key]) }
+                break
+            }
+            "Remove_*" {
+                $name = $key.Substring(7)
+                if ($events -contains $name) { $listView.$key($Config[$key]) }
+                break
+            }
+            "Items" {
+                foreach ($program in $Config[$key]) {
+                    $id   = if ($program.PSObject.Properties["Id"]) { $program.Id } elseif ($program.PSObject.Properties["Key"]) { $program.Key } else { $null }
+                    $name = if ($program.PSObject.Properties["Name"]) { $program.Name } elseif ($program.PSObject.Properties["Value"]) { $program.Value } else { [string]$id }
+                    $lvItem = [System.Windows.Forms.ListViewItem]::new([string]$name)
+                    $lvItem.Tag = $id
+                    [void]$listView.Items.Add($lvItem)
+                }
+                break
+            }
+            "Columns" {
+                foreach ($col in $Config[$key]) {
+                    $header = if ($col -is [string]) { $col } elseif ($col.Text) { $col.Text } elseif ($col[0]) { $col[0] } else { [string]$col }
+                    $width  = if ($col.Width) { $col.Width } elseif ($col[1]) { $col[1] } else { -2 }
+                    [void]$listView.Columns.Add($header, $width)
+                }
+                break
+            }
+            "ColumnsHeader" {
+                $listView.Tag = $Config[$key]
+                $listView.OwnerDraw = $true
+                $listView.Add_DrawColumnHeader({ param($listView, $e) Get-DrawColumnHeader -ListView $listView -e $e -Config $listView.Tag })
+                $listView.add_DrawItem({ param($listView, $e) Get-DrawItem -ListView $listView -e $e })
+                $listView.add_DrawSubItem({ param($listView, $e) Get-DrawSubItem -ListView $listView -e $e })
+            }
+            default {
+                if ($props -contains $key) {
+                    $listView.$key = $Config[$key]
+                } elseif ($listView.PSObject.Properties[$key]) {
+                    $listView.$key = $Config[$key]
+                }
             }
         }
     }
 
-    $listBox
+    # Return
+    return $listView
+}
+function New-ListViewItem {
+    param ( [string]$Text, [array]$SubItems = @() )
+    $item = [System.Windows.Forms.ListViewItem]::new($Text)
+    foreach ($subItem in $SubItems) { [void]$item.SubItems.Add([string]$subItem) }
+    return $item
 }
 function New-NumericUpDown {
     param ( [hashtable]$Config = @{} )
-
     $numericUpDown = [NumericUpDown]::new()
     # $numericUpDown.Controls[0].Visible = $false # Pfeile ausblenden
 
     # Properties und Events dynamisch setzen
-    $events = $numericUpDown.GetType().GetEvents().Name
-    $prop   = $numericUpDown.GetType().GetProperties().Name
+    $type   = $numericUpDown.GetType()
+    $events = $type.GetEvents().Name
+    $prop   = $type.GetProperties().Name
+
     foreach ($key in $Config.Keys) {
-        if ($prop -contains $key) { 
-            $numericUpDown.$key = $Config[$key] 
+        if ($key -eq "ToolTip") {
+            $ToolTip.SetToolTip($numericUpDown, $Config[$key])
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
             if ($events -contains $name) { $numericUpDown.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
             if ($events -contains $name) { $numericUpDown.$key($Config[$key]) }
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($numericUpDown, $Config[$key])
-        } else {
-            if ($numericUpDown.PSObject.Properties[$key]) {
-                $numericUpDown.$key = $Config[$key]
-            }
+        } elseif ($prop -contains $key) { 
+            $numericUpDown.$key = $Config[$key] 
+        } elseif ($numericUpDown.PSObject.Properties[$key]) {
+            $numericUpDown.$key = $Config[$key]
         }
     }
 
-    $numericUpDown
+    # Return
+    return $numericUpDown
 }
 function New-ProgressBar {
-param ( [hashtable]$Config = @{} )
-
+    param ( [hashtable]$Config = @{} )
     $progressBar = [ProgressBar]::new()
 
-    $progressBar.Style     = "Continuous"
-    $progressBar.Minimum   = 0
-    $progressBar.Maximum   = 100
-    $progressBar.Value     = 0
-    $progressBar.ForeColor = Get-Color "Accent"
-    $progressBar.BackColor = Get-Color "Dark"
-
     # Properties und Events dynamisch setzen
-    $events = $progressBar.GetType().GetEvents().Name
-    $prop   = $progressBar.GetType().GetProperties().Name
+    $type   = $progressBar.GetType()
+    $events = $type.GetEvents().Name
+    $prop   = $type.GetProperties().Name
+
     foreach ($key in $Config.Keys) {
-        if ($key -like "Add_*") {
+        if ($key -eq "ToolTip") {
+            $ToolTip.SetToolTip($progressBar, $Config[$key])
+        } elseif ($key -like "Add_*") {
             $name = $key.Substring(4)
             if ($events -contains $name) { $progressBar.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") {
             $name = $key.Substring(7)
             if ($events -contains $name) { $progressBar.$key($Config[$key]) }
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($progressBar, $Config[$key])
         } elseif ($prop -contains $key) {
             $progressBar.$key = $Config[$key]
-        } else {
-            if ($progressBar.PSObject.Properties[$key]) {
-                $progressBar.$key = $Config[$key]
-            }
+        } elseif ($progressBar.PSObject.Properties[$key]) {
+            $progressBar.$key = $Config[$key]
         }
     }
 
-    $progressBar
+    # Return
+    return $progressBar
 }
 function New-RichTextBox {
     param ( [hashtable]$Config = @{} )
-
     $richTextBox = [RichTextBox]::new()
-    
-    $richTextBox.Font        = [Font]::new("Consolas", 10)
-    $richTextBox.Text        = "kein Text angegeben"
-    $richTextBox.ReadOnly    = $true
-    $richTextBox.ForeColor   = Get-Color "White"
-    $richTextBox.BackColor   = Get-Color "Dark"
-    $richTextBox.BorderStyle = "None"
 
     # Properties und Events dynamisch setzen
-    $prop    = $richTextBox.GetType().GetProperties().Name
-    $events  = $richTextBox.GetType().GetEvents().Name
+    $type   = $richTextBox.GetType()
+    $prop   = $type.GetProperties().Name
+    $events = $type.GetEvents().Name
+
     foreach ($key in $Config.Keys) {
-        if ($prop -contains $key) { 
-            $richTextBox.$key = $Config[$key] 
+        if ($key -eq "ToolTip") {
+            $ToolTip.SetToolTip($richTextBox, $Config[$key])
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
             if ($events -contains $name) { $richTextBox.$key($Config[$key]) }
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
             if ($events -contains $name) { $richTextBox.$key($Config[$key]) }
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($richTextBox, $Config[$key])
-        } else {
-            if ($richTextBox.PSObject.Properties[$key]) {
-                $richTextBox.$key = $Config[$key]
-            }
+        } elseif ($prop -contains $key) { 
+            $richTextBox.$key = $Config[$key] 
+        } elseif ($richTextBox.PSObject.Properties[$key]) {
+            $richTextBox.$key = $Config[$key]
         }
     }
     
-    $richTextBox
+    # Return
+    return $richTextBox
 }
 function New-TextBox {
     param ( [hashtable]$Config = @{} )
-    $default = @{
-        Font        = Get-Font -Control "TextBox"
-        BorderStyle = "None"
-    }
-    
-    # TextBox erstellen und Standardwerte mergen
     $textbox = [TextBox]::new()
-    $Config = Merge-Config $default, $Config
 
     # Properties und Events dynamisch setzen
     $type   = $textbox.GetType()
@@ -989,10 +996,8 @@ function New-TextBox {
             if ($events -contains $name) { $textbox.$key($Config[$key]) }
         } elseif ($prop -contains $key) { 
             $textbox.$key = $Config[$key] 
-        } else {
-            if ($textbox.PSObject.Properties[$key]) { 
-                $textbox.$key = $Config[$key] 
-            }
+        } elseif ($textbox.PSObject.Properties[$key]) { 
+            $textbox.$key = $Config[$key] 
         }
     }
 
@@ -1004,19 +1009,8 @@ function New-TextBox {
 <# FORM #>
 function New-Form {
     param( [hashtable]$Config = @{} )
-    # Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
-
-    # Form erstellen
     $form = [Form]::new()
-
-    # Standard-Stil anwenden
-    $form.StartPosition = "CenterScreen"
-    $form.BackColor     = [ColorTranslator]::FromHtml("#C0393B")
-    $form.ForeColor     = [ColorTranslator]::FromHtml("#2D3436") 
-    $form.Padding       = [Padding]::new(10)
-    $form.MaximizeBox   = $false
-    $form.Text          = $AppInfo.Name
-    $form.Icon          = Get-Icon "Default"
+    $Config.Properties = Merge-Config $Defaults.Form $Config.Properties
 
     # Properties dynamisch setzen
     if ($Config.ContainsKey("Properties")) {
@@ -1026,7 +1020,11 @@ function New-Form {
                 # Spezialbehandlung für Text, um den Form-Namen voranzustellen (z.B. "Einstellungen – MeinApp")
                 "Text" {
                     $formName = ($Config.Properties[$key])
-                    $form.Text = "$formName – " + $form.Text
+                    $form.Text = $formName
+                    if ($formName -ne $Defaults.Form.Text) { $form.Text = "$formName - $($Defaults.Form.Text)" }
+
+                    $form.Icon = if ($formName -like "*Office*") { Get-icon -Name "Office" -ScriptRoot $PSScriptRoot }
+                    else { Get-icon -Name $formName -ScriptRoot $PSScriptRoot }
                     break
                 }
                 default {
@@ -1089,7 +1087,6 @@ function New-Form {
     # Form zurückgeben
     return $form
 }
-
 function Resize-Form {
     param ( $Form, [int]$fontSize = 10 )
 
@@ -1101,31 +1098,25 @@ function Resize-Form {
     return $scale * $fontSize
 }
 function Start-Form {
-    param ( $Config = @{}, $ShowDialog = $true )
+    param ( $Config = @{} )
     
     Set-Cursor "AppStarting"
     $form = New-Form $Config
     
-    if ($ShowDialog) { 
-        $form.ShowDialog() 
-        $form.Dispose()
-    } else { 
-        $form.Show() 
-    }
-
-     # Warte, bis das Formular geschlossen wird, bevor die Funktion zurückkehrt
+    $form.ShowDialog() 
+    $form.Dispose()
 }
 
 <# CONTROL #>
 function New-Control {
     param( [hashtable]$Config )
-    # Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
-
     if (-not $Config.Control) { throw "Config fehlt das Feld 'Control'" }
+
 
     # Control-Typ ermitteln und Control erstellen
     $type = $Config.Control
     $copy = $Config.Clone()
+    $copy = Merge-Config $Defaults.$type $copy
     $copy.Remove("Control")
     
     switch ($type) {
@@ -1138,21 +1129,24 @@ function New-Control {
         "GroupBox" {   return New-GroupBox $copy }
         "TabControl" { return New-TabControl $copy }
         "TabPage" {    return New-TabPage $copy }
-
-        # Hybrid-Container
-        "PanelTabControl" { return New-PanelTabControl $copy }
         
         # Leaf Controls
         "Button" {         return New-Button $copy }
         "CheckBox" {       return New-CheckBox $copy }
-        "CheckedListBox" { return New-CheckedListBox $copy }
-        "ComboBox" {       return New-ComboBox $copy }
         "Label"  {         return New-Label $copy }
-        "ListBox" {        return New-ListBox $copy }
         "NumericUpDown" {  return New-NumericUpDown $copy }
         "ProgressBar" {    return New-ProgressBar $copy }
         "RichTextBox" {    return New-RichTextBox $copy }
         "TextBox" {        return New-TextBox $copy }
+        
+        # List Controls
+        "CheckedListBox" { return New-CheckedListBox $copy }
+        "ComboBox" {       return New-ComboBox $copy }
+        "ListBox" {        return New-ListBox $copy }
+        "ListView" {       return New-ListView $copy }
+
+        # ContextMenu
+        "ContextMenu" { return New-ContextMenu $copy }
         
         default { throw "Unbekannter Control-Typ: $type" }
     }
@@ -1182,41 +1176,87 @@ function Get-Control {
 }
 
 
-<# CURSOR #>
-function Get-Cursor {
-    param( [string]$CursorType = "Default" )
 
-    $cursorEnum = switch ($CursorType) {
-        "AppStarting" { [Cursors]::AppStarting }
-        "Default" {     [Cursors]::Default }
-        "Hand" {        [Cursors]::Hand }
-        "Wait" {        [Cursors]::WaitCursor }
-        default {       [Cursors]::Default }
+<# PowerStatusForm #>
+function Show-PowerStatusForm {
+    param( [string]$GroupBoxText, [int]$CurrentMinutes, $PowerScheme, $StatusType )
+
+    $FormConfig = @{
+        Properties = @{
+            Text        = "Energieoptionen Ändern"
+            ClientSize  = [Size]::new(280,60)
+            MinimizeBox = $false
+            MaximizeBox = $false
+            KeyPreview  = $true
+            FormBorderStyle = "FixedDialog"
+            Padding     = [Padding]::new(5)
+            BackColor   = Get-Color "Dark"
+            Icon       = Get-Icon -Name "PowerStatus" -ScriptRoot $PSScriptRoot
+        }
+        Controls = [ordered]@{
+            GroupBox = @{
+                Control     = "GroupBox"
+                Text        = $GroupBoxText
+                Dock        = "Fill"
+                Controls    = [ordered]@{
+                    TestTable = @{
+                        Control     = "TableLayoutPanel"
+                        Dock        = "Fill"
+                        Column      = @(50, "AutoSize", "40")
+                        Row         = @(30)
+                        Controls    = [ordered]@{
+                            Minutes = @{
+                                Control     = "NumericUpDown"
+                                Value       = $CurrentMinutes
+                                Dock        = "Fill"
+                                Minimum     = 0
+                                Increment   = 5
+                                Maximum     = 999
+                                Add_KeyPress = { 
+                                    # Akzeptiere nur Ziffern
+                                    if (-not [char]::IsDigit($_.KeyChar) -and $_.KeyChar -ne [char]8) { $_.Handled = $true } 
+                                    # Begrenze die Eingabe auf maximal 3 Zeichen
+                                    elseif ($this.Text.Length -ge 3 -and $_.KeyChar -ne [char]8) { $_.Handled = $true }
+                                }
+                            }
+                            MinutesLabel = @{
+                                Control     = "Label"
+                                Text        = "Minuten"
+                                Dock        = "Fill"
+                                TextAlign   = "MiddleLeft"
+                            }
+                            ChangeButton = @{
+                                Control     = "Button"
+                                Name        = "ChangeButton"
+                                Text        = "Ändern"
+                                Dock        = "Fill"
+                                Add_Click    = {
+                                    $form = $this.FindForm()
+                                    [int]$minutes = $this.Parent.Controls["Minutes"].Text
+                                    Set-PowerStatus -PowerScheme $PowerScheme -StatusType $StatusType -Minutes $minutes
+                                    $form.Close()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Events = @{
+            KeyDown = {
+                # Bestätigt die Eingabe, wenn die Enter-Taste gedrückt wird, aber nur wenn der Fokus auf dem Minuten-Textfeld liegt
+                if ($this.ActiveControl.Name -eq "Minutes") {
+                    if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
+                        $this.Controls["GroupBox"].Controls["TestTable"].Controls["ChangeButton"].PerformClick()
+                    }
+                }
+            }
+        }
     }
 
-    return $cursorEnum
-}
-function Set-Cursor {
-    param( [string]$CursorType = "Default" )
-
-    $cursor = Get-Cursor -CursorType $CursorType
-
-    [Cursor]::Current = $cursor
+    Start-Form $FormConfig
 }
 
-
-<##############################################################################################>
-function Get-ProcessLabel {
-    param ( $control, [string]$category = "Default" )
-    $form = $control.FindForm()
-
-    switch ($category) {
-        "Main" { $processLabel = $form.Controls["TabPanel"].Controls["ProcessLabel"]; break }
-        "WinGet" { $processLabel = $form.Controls["PackagePanel"].Controls["ProcessLabel"]; break }
-        "Chocolatey" { $processLabel = $form.Controls["PackagePanel"].Controls["ProcessLabel"]; break }
-         default { $processLabel = $form.Controls.Find("ProcessLabel", $true)[0]; break }
-    }
-
-    if (-not $processLabel) { $processLabel = $form.Controls.Find("ProcessLabel", $true)[0] }
-    return $processLabel
-}
+<# Forms dot-source #>
+$FormsPath = Join-Path $PSScriptRoot "Forms"
+Get-ChildItem -Path $FormsPath -Filter "*.psm1" | ForEach-Object { Import-Module $_.FullName }

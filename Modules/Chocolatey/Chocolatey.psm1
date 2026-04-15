@@ -20,7 +20,7 @@ $FormConfig  = @{
     Properties  = @{
         Text        = "Chocolatey"
         ClientSize  = [Size]::new(650,440)
-        Icon        = Get-Icon "Chocolatey"
+        Icon        = Get-Icon "Chocolatey" $PSScriptRoot
     }
     Controls    = @{
         PackagePanel = @{
@@ -65,7 +65,7 @@ $FormConfig  = @{
                                 TabLabel = @{
                                     Control = "Label"
                                     Text = "Suchergebnisse"
-                                    Font = Get-Font "TabLabel"
+                                    Font = Get-Font -Preset "TabLabel"
                                     Dock = "Top"
                                     ForeColor = Get-Color "Accent"
                                     Height = 20
@@ -74,7 +74,6 @@ $FormConfig  = @{
                                 SearchBox = @{
                                     Control         = "TextBox"
                                     Dock            = "Top"
-                                    Font            = Get-Font "TextBox"
                                     BackColor       = Get-Color "Accent"
                                     ForeColor       = Get-Color "Dark"
                                     Add_TextChanged = {
@@ -117,7 +116,7 @@ $FormConfig  = @{
                                         }
 
                                         # Suchanfrage validieren und entsprechenden Status anzeigen
-                                        if (Test-Empty $query){     Receive-Search -empty; return } # Suchanfrage leer
+                                        if (Watch-Empty $query){     Receive-Search -empty; return } # Suchanfrage leer
                                         if ($query.Length -lt 3) {  Receive-Search -short; return } # Suchanfrage zu kurz
                                         Receive-Search -new -query $query
                                         $token = $script:SearchToken
@@ -176,7 +175,7 @@ $FormConfig  = @{
                                     Control     = "Label"
                                     Text        = "Chocolatey Software"
                                     Dock        = "Top"
-                                    Font        = Get-Font "SearchHeader"
+                                    Font        = Get-Font -Preset "SearchHeader"
                                     ForeColor   = Get-Color "Accent"
                                     Height      = 120
                                 }
@@ -184,7 +183,7 @@ $FormConfig  = @{
                                     Control     = "Label"
                                     Text        = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen."
                                     Dock        = "Bottom"
-                                    Font        = Get-Font "LabelItalic"
+                                    Font        = Get-Font -Preset "LabelItalic"
                                     TextAlign   = "MiddleCenter"
                                     Height      = 50
                                 }
@@ -198,7 +197,7 @@ $FormConfig  = @{
                                     Control = "Label"
                                     Text    = "Keine Vorschläge verfügbar"
                                     Dock    = "Fill"
-                                    Font    = Get-Font "TabLabel"
+                                    Font    = Get-Font -Preset "TabLabel"
                                 }
                                 TabList = @{
                                     Control = "CheckedListBox"
@@ -224,7 +223,7 @@ $FormConfig  = @{
                                     Visible = $true
                                     Text    = "Keine Pakete installiert"
                                     Dock    = "Fill"
-                                    Font    = Get-Font "TabLabel"
+                                    Font    = Get-Font -Preset "TabLabel"
                                 }
                                 TabList = @{
                                     Control     = "ListBox"
@@ -312,7 +311,7 @@ $FormConfig  = @{
                     Control     = "Label"
                     Text        = "Alle auswählen"
                     Height      = 30
-                    Font        = Get-Font "LabelButton"
+                    Font        = Get-Font -Preset "LabelButton"
                     Dock        = "Bottom"
                     Cursor      = Get-Cursor "Hand"
                     Visible     = $false
@@ -344,7 +343,7 @@ $FormConfig  = @{
                     Control             = "Label"
                     Text                = "Starte..."
                     Height              = 30
-                    Font                = Get-Font "LabelItalic"
+                    Font                = Get-Font -Preset "LabelItalic"
                     Dock                = "Bottom"
                     Visible             = $false
                     Add_VisibleChanged  = {
@@ -373,8 +372,8 @@ $FormConfig  = @{
                             Control         = "RichTextBox"
                             Text            = "Beschreibung."
                             Dock            = "Fill"
-                            Font            = Get-Font "PackageInfoDescription"
-                            # BackColor       = Get-Color "Debug3"
+                            Font            = Get-Font -Preset "PackageInfoDescription"
+                            BackColor       = Get-Color "Accent"
                             ForeColor       = Get-Color "Dark"
                             ReadOnly        = $true
                             Multiline       = $true
@@ -390,10 +389,9 @@ $FormConfig  = @{
                             Control             = "Label"
                             Text                = "Starte..."
                             Height              = 60
-                            Font                = Get-Font "PackageInfoLabel" -Size 8 -Style "Bold"
+                            Font                = Get-Font -Preset "PackageInfoLabel" -Size 8 -Style "Bold"
                             Dock                = "Top"
                             TextAlign           = "TopCenter"
-                            # BackColor           = Get-Color "Debug2"
                             Visible             = $false
                         }
                         PackageInfoTitle = @{
@@ -401,22 +399,21 @@ $FormConfig  = @{
                             Text        = "DisplayName."
                             Dock        = "Top"
                             TextAlign   = "MiddleCenter"
-                            Font        = Get-Font "PackageInfoTitle"
+                            Font        = Get-Font -Preset "PackageInfoTitle"
                             Height      = 30
-                            # BackColor   = Get-Color "Debug1"
                             Visible     = $false
 
                             Add_TextChanged = {
                                 # Dynamische Anpassung der Schriftgröße basierend auf der Länge des Titels, damit lange Namen besser lesbar sind, ohne die Übersicht zu verlieren
                                 if ($this.Text.Length -le 15) {
                                     $this.Height = 30
-                                    $this.Font = Get-Font "PackageInfoTitle" -Size 12
+                                    $this.Font = Get-Font -Preset "PackageInfoTitle" -Size 12
                                 } elseif ($this.Text.Length -le 30) {
                                     $this.Height = 40
-                                    $this.Font = Get-Font "PackageInfoTitle" -Size 11
+                                    $this.Font = Get-Font -Preset "PackageInfoTitle" -Size 11
                                 } else {
                                     $this.Height = 50
-                                    $this.Font = Get-Font "PackageInfoTitle" -Size 10
+                                    $this.Font = Get-Font -Preset "PackageInfoTitle" -Size 10
                                 }
                             }
                         }
@@ -426,7 +423,7 @@ $FormConfig  = @{
                 UninstallChocoButton = @{
                     Control     = "Button"
                     Text        = "Chocolatey entfernen"
-                    Font        = Get-Font "SidebarButton"
+                    Font        = Get-Font -Preset "SidebarButton"
                     Dock        = "Top"
                     Visible     = $false
                     Add_Click   = { 
@@ -437,7 +434,7 @@ $FormConfig  = @{
                 InstallChocoButton = @{
                     Control     = "Button"
                     Text        = "Chocolatey hinzufügen"
-                    Font        = Get-Font "SidebarButton"
+                    Font        = Get-Font -Preset "SidebarButton"
                     Dock        = "Top"
                     Visible     = $false
                     Add_Click   = { 
@@ -448,7 +445,7 @@ $FormConfig  = @{
                 VersionLabel = @{
                     Control     = "Label"
                     Text        = "Version: "
-                    Font        = Get-Font "SidebarVersion"
+                    Font        = Get-Font -Preset "SidebarVersion"
                     Dock        = "Top"
                     Height      = 30
                     TextAlign   = "TopCenter"
@@ -457,7 +454,7 @@ $FormConfig  = @{
                 NameLabel = @{
                     Control     = "Label"
                     Text        = "Chocolatey"
-                    Font        = Get-Font "SidebarTitle"
+                    Font        = Get-Font -Preset "SidebarTitle"
                     Dock        = "Top"
                     Height      = 30
                 }
@@ -466,7 +463,7 @@ $FormConfig  = @{
                 UpdateButton = @{
                     Control     = "Button"
                     Text        = "Aktualisieren"
-                    Font        = Get-Font "SidebarButton"
+                    Font        = Get-Font -Preset "SidebarButton"
                     Dock        = "Bottom"
                     Visible     = $false
                     Add_Click   = { 
@@ -489,7 +486,7 @@ $FormConfig  = @{
                 InstallButton = @{
                     Control     = "Button"
                     Text        = "Installieren"
-                    Font        = Get-Font "SidebarButton"
+                    Font        = Get-Font -Preset "SidebarButton"
                     Dock        = "Bottom"
                     Visible     = $false
                     Add_Click   = { 
@@ -970,7 +967,7 @@ function Stop-Search {
 function Update-ListBox {
     param ( [System.Windows.Forms.ListBox]$ListBox, $Package )
 
-    if ((Test-Empty $ListBox) -or $ListBox.IsDisposed -or (Test-Empty $Package)) { return }
+    if ((Watch-Empty $ListBox) -or $ListBox.IsDisposed -or (Watch-Empty $Package)) { return }
 
     # Zielindex ermitteln, um das entsprechende Listenelement zu aktualisieren
     foreach ($item in $ListBox.Items) {
@@ -997,7 +994,7 @@ function Update-ListBox {
 
         $updatedPackage = [PSCustomObject]@{
             Id           = $Package.Id
-            Name         = if (Test-Empty $Package.Name) { $Package.Id } else { $Package.Name }
+            Name         = if (Watch-Empty $Package.Name) { $Package.Id } else { $Package.Name }
             Version      = $resolvedVersion
             Title        = $Package.Title
             Published    = $Package.Published
@@ -1083,7 +1080,7 @@ function Set-Timer {
         
         # Sicherstellen, dass die Steuerelemente noch gültig sind
         if ($searchBox.IsDisposed -or $listBox.IsDisposed) { $this.Stop(); $this.Dispose(); return }
-        if ($token -ne $SearchToken -or (Test-Empty $searchBox.Text)) { Stop-Search -SearchBox $searchBox; return }
+        if ($token -ne $SearchToken -or (Watch-Empty $searchBox.Text)) { Stop-Search -SearchBox $searchBox; return }
 
         # Überprüfen, ob bereits ein laufender Prozess für die Titelanreicherung existiert, um Konflikte zu vermeiden
         $activeLookup = $searchBox.Tag.TitleLookup
@@ -1388,8 +1385,8 @@ function Update-Application {
 function Sync-PackageInfo {
     param( $Control, $List )
 
-    if (Test-Empty $Control) { Write-Warning "Kein gültiges Steuerelement übergeben. Synchronisierung der Paketinformationen wird abgebrochen."; return }
-    if (Test-Empty $List) { Write-Warning "Kein gültiges Listensteuerelement übergeben. Synchronisierung der Paketinformationen wird abgebrochen."; return }
+    if (Watch-Empty $Control) { Write-Warning "Kein gültiges Steuerelement übergeben. Synchronisierung der Paketinformationen wird abgebrochen."; return }
+    if (Watch-Empty $List) { Write-Warning "Kein gültiges Listensteuerelement übergeben. Synchronisierung der Paketinformationen wird abgebrochen."; return }
 
     $listType = $List.GetType().Name
     $selectedItemsCount = if ($listType -eq "CheckedListBox") { $List.CheckedItems.Count } elseif ($listType -eq "ListBox") { $List.SelectedItems.Count } else { 0 }
@@ -1503,7 +1500,7 @@ function ConvertFrom-ChocolateyInfoText {
         }
 
         # Leere Zeilen überspringen; befüllte Zeilen enthalten die eigentlichen Metadaten.
-        if (Test-Empty $trimmed) { continue }
+        if (Watch-Empty $trimmed) { continue }
 
         if ($trimmed -match '^([^\s]+)\s+([^\s]+)\s+\[.*\]$' -and (Watch-Empty $details.Version)) {
             $details.Id = $matches[1].Trim()
@@ -1546,12 +1543,8 @@ function ConvertFrom-ChocolateyInfoText {
 
 <### EXPORT ######################################>
 function Start-ChocolateyUI {
-    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name)"
-
     Set-Cursor "AppStarting"
     $form = New-Form $FormConfig 
     $form.ShowDialog()
     $form.Dispose()
-
-    Write-Debug "[EXIT] $($MyInvocation.MyCommand.Name)"
 }

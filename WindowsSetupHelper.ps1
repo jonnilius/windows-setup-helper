@@ -15,6 +15,7 @@ if ( -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdent
     [System.Environment]::Exit(0)
 }
 
+$global:ErrorActionPreference = "SilentlyContinue"
 $global:SystemInfo = @{
     ProductName     = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName
     DisplayVersion  = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
@@ -32,12 +33,12 @@ $global:SystemInfo = @{
 
     Architecture = if ([System.Environment]::Is64BitOperatingSystem) { "64-bit" } else { "32-bit" }
 }
-
+$Manifest = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot "WindowsSetupHelper.psd1")
 $global:AppInfo = @{
     Name        = "Windows Setup Helper"
-    Version     = "0.9.10"
-    Author      = "jonnilius"
-    Company     = "BORINAS"
+    Version     = $Manifest.ModuleVersion
+    Author      = $Manifest.Author
+    Company     = $Manifest.CompanyName
     License     = "MIT License"
 }
 $global:AppConfig = @{
@@ -48,22 +49,19 @@ $global:AppConfig = @{
 Write-Information "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
 Write-Information "Lade Module..."
 $env:PSModulePath += ";$PSScriptRoot\Modules"
-# Import-Module Utils
-# Import-Module FormBuilder
-Import-Module Chocolatey
+
+# Import-Module OfficeR
+# Import-Module PowerStatus
 
 
-$script:ChocolateySearchToken = ""
-
-$script:SearchToken = ""
 $script:ApplicationCache = @{}
 if ($AppConfig.HideShell) { Hide-PSConsole }
 <# FORM-DATA ############################################################################>
 $FormConfig = @{
     Main        = @{
         Properties  = @{
-            Icon        = Get-Icon "WindowsSetupHelper"
-            ClientSize  = [Size]::new(420,370) # Breite, Höhe
+            ClientSize  = [Size]::new(450,450) # Breite, Höhe
+            MinimumSize = [Size]::new(450,450)
             Padding     = [Padding]::new(10,0,10,0)
         }
         Controls    = [ordered]@{
@@ -72,26 +70,6 @@ $FormConfig = @{
                 Dock      = "Fill"
                 Padding   = [Padding]::new(0)
                 Controls  = @{
-                    # ProcessLabel = @{
-                    #     Name        = "ProcessLabel"
-                    #     Control     = "Label"
-                    #     Height      = 50
-                    #     ForeColor   = Get-Color "Dark"
-                    #     BackColor   = Get-Color "Accent"
-                    #     Font        = Get-Font "Label" -Style "Italic"
-                    #     Dock        = "Bottom"
-                    #     TextAlign   = "MiddleCenter"
-                    #     Text        = "Status: Bereit"
-                    #     Visible     = $false
-
-                    #     Add_VisibleChanged = {
-                    #         $delta = if ($this.Visible) { 50 } else { -50 }
-                    #         $form = $this.FindForm()
-                            
-                    #         Start-Sleep -Milliseconds 200
-                    #         $form.ClientSize = [Size]::new($form.ClientSize.Width, $form.ClientSize.Height + $delta)
-                    #     }
-                    # }
                     TabControl = @{
                         Control     = "TabControl"
                         MultiLine   = $true
@@ -112,20 +90,20 @@ $FormConfig = @{
                                                 ColumnSpan  = 2
                                                 Control     = "Label"
                                                 Text        = "Systeminformationen"
-                                                Font        = Get-Font "TableTitle"
+                                                Font        = Get-Font -Preset "TableTitle"
                                                 TextAlign   = "MiddleCenter"
                                             }
                                             # Row 2 – Windows-Version
                                             WindowsVersionLabel = @{
                                                 Control     = "Label"
                                                 Text        = "Windows-Version:"
-                                                Font        = Get-Font "TableLabel" 
+                                                Font        = Get-Font -Preset "TableLabel" 
                                                 TextAlign   = "MiddleLeft"
                                             }
                                             WindowsVersionValue = @{
                                                 Control     = "Label"
                                                 Text        = $SystemInfo.ProductName
-                                                Font        = Get-Font "TableText"
+                                                Font        = Get-Font -Preset "TableText"
                                                 TextAlign   = "MiddleLeft"
 
                                                 ToolTip     = "Version ändern"
@@ -135,13 +113,13 @@ $FormConfig = @{
                                             DeviceNameLabel = @{
                                                 Control     = "Label"
                                                 Text        = "Gerätename:"
-                                                Font        = Get-Font "TableLabel"
+                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleLeft"
                                             }
                                             DeviceNameValue = @{
                                                 Control     = "Label"
                                                 Text        = $($env:COMPUTERNAME)
-                                                Font        = Get-Font "TableText"
+                                                Font        = Get-Font -Preset "TableText"
                                                 TextAlign   = "MiddleLeft"
 
                                                 Cursor      = Get-Cursor "Hand"
@@ -167,60 +145,47 @@ $FormConfig = @{
                                             ProgramLabel = @{
                                                 Control     = "Label"
                                                 Text        = "Programme"
-                                                Font        = Get-Font "TableTitle"
-                                                TextAlign   = "MiddleCenter"
+                                                Font        = Get-Font -Preset "TableTitle"
                                                 Position    = 0,0
                                             }
                                             UninstallOneDrive = @{
                                                 Control     = "Label"
                                                 Text        = "OneDrive entfernen"
-                                                Font        = Get-Font "TableLink"
+                                                Font        = Get-Font -Preset "TableLink"
                                                 Position    = 0,1
                                                 Hover       = "Underline"
                                                 Cursor      = Get-Cursor "Hand"
                                                 
-                                                Add_MouseEnter  = { $this.Font = Get-Font "TableLink" -Style @("Italic","Underline") }
-                                                Add_MouseLeave  = { $this.Font = Get-Font "TableLink" -Style "Italic" }
-                                                Add_Click       = { 
-                                                    $processLabel = $this.FindForm().Controls.Find("ProcessLabel", $true)[0]
-                                                    Remove-Item "OneDrive" { 
-                                                        param([string]$msg, [switch]$final) 
-                                                        Update-Status -Label $processLabel -Message $msg -Delay 1 -Final:$final 
-                                                    } 
-                                                }
+                                                Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
+                                                Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
+                                                Add_Click       = { & (Join-Path $PSScriptRoot "Debloat/Uninstall-OneDrive.ps1") }
                                             }
                                             UninstallEdge = @{
                                                 Control     = "Label"
                                                 Text        = "Microsoft Edge entfernen"
-                                                Font        = Get-Font "TableLink"
+                                                Font        = Get-Font -Preset "TableLink"
                                                 Position    = 0,2
                                                 Cursor      = Get-Cursor "Hand"
 
-                                                Add_MouseEnter  = { $this.Font = Get-Font "TableLink" -Style @("Italic","Underline") }
-                                                Add_MouseLeave  = { $this.Font = Get-Font "TableLink" -Style "Italic" }
-                                                Add_Click       = { 
-                                                    $processLabel = $this.FindForm().Controls.Find("ProcessLabel", $true)[0]
-                                                    Remove-Item "Edge" { 
-                                                        param([string]$msg, [switch]$final) 
-                                                        Update-Status -Label $processLabel -Message $msg -Delay 1 -Final:$final 
-                                                    } 
-                                                }
+                                                Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
+                                                Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
+                                                Add_Click       = { & (Join-Path $PSScriptRoot "Debloat/Uninstall-MicrosoftEdge.ps1") }
                                             }   
                                             # Column 2 – System aufräumen
                                             CleanerLabel = @{
                                                 Control     = "Label"
-                                                Text        = "System aufräumen"
-                                                Font        = Get-Font "TableTitle"
+                                                Text        = "System"
+                                                Font        = Get-Font -Preset "TableTitle"
                                                 TextAlign   = "MiddleCenter"
                                                 Position    = 1,0
                                             }
                                             HideStartMenuIcons = @{
                                                 Control     = "Button"
                                                 Text        = "Startmenü aufräumen"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
                                                 Position    = 1,1
                                                 Margin      = [Padding]::new(20,0,20,0)
-                                                Add_Click   = { Remove-StartMenuIcons $this }
+                                                Add_Click   = { & (Join-Path $PSScriptRoot "Debloat/Remove-StartMenuIcons.ps1") }
                                             }
 
                                         }
@@ -230,61 +195,82 @@ $FormConfig = @{
                             PackageTab  = @{
                                 Control     = "TabPage"
                                 Text        = "Programme"
-                                Padding    = [Padding]::new(10,5,10,0)
+                                Padding    = [Padding]::new(10,10,10,0)
                                 Controls    = @{
+                                    InstalledPackagesListBox = @{
+                                        Control     = "ListView"
+                                        Dock        = "Fill"
+                                        Margin      = [Padding]::new(10)
+                                        HideSelection = $false
+                                        MultiSelect = $true
+                                        Columns     = @( "Name", "Version", "Quelle", "ID" )
+                                        Add_MouseDown = {
+                                            param($listView, $e)
+                                            if ($e.Button -ne [MouseButtons]::Right) { return }
+
+                                            $item = $listView.GetItemAt($e.X, $e.Y)
+                                            if (-not $item) { return }
+
+                                            if (-not $item.Selected) {
+                                                $listView.SelectedItems.Clear()
+                                                $item.Selected = $true
+                                            }
+                                        }
+                                    }
                                     PaketManagerTable = @{
                                         Control    = "TableLayoutPanel"
-                                        Column      = @( "50", "50" )
-                                        Row         = @( 30, 30 )
-
+                                        Column      = @( "40", "30", "30" )
                                         Dock       = "Bottom"
-                                        Height     = 75
-                                        Controls    = @{
+                                        Height     = 40
+                                        Controls    = [ordered]@{
                                             PaketManagerLabel = @{
-                                                ColumnSpan  = 2
-                                                Position    = 0,0
                                                 Control     = "Label"
                                                 Text        = "Paket-Manager"
-                                                Font        = Get-Font "TableTitle"
-                                                ForeColor   = Get-Color "Accent"
-                                                Dock        = "Fill"
-                                                TextAlign   = "BottomCenter"
+                                                Font        = Get-Font -Preset "TableLabel"
                                             }
                                             ChocolateyButton = @{
-                                                Position    = 0,1
+                                                # Position    = 1,0
                                                 Control     = "Button"
                                                 Text        = "Chocolatey"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
                                                 Width       = 100
                                                 Anchor      = "Right"
-                                                Add_Click   = { Start-ChocolateyUI }
+                                                Add_Click   = { 
+                                                    Import-Module Chocolatey
+                                                    Start-ChocolateyUI $this
+                                                }
                                             }
                                             WingetButton = @{
-                                                Position    = 1,1
                                                 Control     = "Button"
                                                 Text        = "WinGet"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
                                                 Width       = 100
                                                 Anchor      = "Left"
                                                 Add_Click   = { Start-Form $FormConfig.Winget }
                                             }
                                         }
                                     }
-                                    InstalledPackagesListBox = @{
-                                        Control     = "ListBox"
-                                        Dock        = "Fill"
-                                        Margin      = [Padding]::new(10)
-                                        Font        = Get-Font "ListBox"
-                                        # ForeColor   = Get-Color "Dark"
-                                        # BackColor   = Get-Color "Light"
+                                }
+                                Add_Enter = {
+                                    $listView = Get-Control $this "InstalledPackagesListBox"
+                                    if (-not $listView) { return }
+                                    if (-not $listView.ContextMenuStrip) { 
+                                        $listView.ContextMenuStrip = New-ContextMenu @{
+                                            Items = @{
+                                                Uninstall = @{
+                                                    Text = "Deinstallieren"
+                                                    Add_Click = {
+                                                        $listView = $this.Owner.SourceControl
+                                                        if (-not $listView) { return }
 
-                                        ToolTip     = "Doppelklicken für Details"
-                                        Add_DoubleClick = { 
-                                            if ($this.SelectedItem) {
-                                                $packageName = $this.SelectedItem.ToString()
-                                                Start-Form -Config $FormConfig.PackageDetails -Data @{ Name = $packageName }
+                                                        $programs = @($listView.SelectedItems | ForEach-Object { $_.Tag })
+                                                        Invoke-InstalledProgramUninstall -Programs $programs
+                                                        Update-InstalledProgramsList -ListView $listView
+                                                    }
+                                                }
                                             }
                                         }
+                                    
                                     }
                                 }
                             }
@@ -295,8 +281,8 @@ $FormConfig = @{
                                     PowerTable = @{
                                         Control     = "TableLayoutPanel"
                                         Padding     = [Padding]::new(10)
-                                        Column      = @( "70", 80, "AutoSize" )
-                                        Row         = @( 35, 30, 30, 30, 35, 30, 30, 30, 30 )
+                                        Column      = @( "55", "25", "20" )
+                                        Row         = @( 30, 30, 30, 30, 30, 30, 30, 30, 40, "AutoSize" )
                                         Controls    = [ordered]@{
 
                                             # Row 1 – Im Netzbetrieb
@@ -305,8 +291,9 @@ $FormConfig = @{
                                                 ColumnSpan  = 3
                                                 Control     = "Label"
                                                 Text        = "Im Netzbetrieb"
-                                                Font        = Get-Font "TableTitle"
-                                                TextAlign   = "TopCenter"
+                                                Font        = Get-Font -Preset "TableTitle"
+                                                TextAlign   = "MiddleCenter"
+                                                Padding     = [Padding]::new(0,10,0,0)
                                             }
 
                                             # Row 2 – Im Netzbetrieb (Energiesparmodus)
@@ -315,20 +302,19 @@ $FormConfig = @{
                                                 Control     = "Label"
                                                 Text        = "Energiesparmodus:"
                                                 TextAlign   = "MiddleRight"
-                                                Font        = Get-Font "TableLabel"
+                                                Font        = Get-Font -Preset "TableLabel"
                                             }
                                             StandbyValueAC = @{
                                                 # Position    = 1,1
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Standby" -TextOutput
-                                                Font        = Get-Font "TableText"
+                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             StandbyButtonAC = @{
                                                 # Position    = 2,1
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Anchor      = "Left"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
 
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Standby"
@@ -341,20 +327,20 @@ $FormConfig = @{
                                                 # Position    = 0,2
                                                 Control     = "Label"
                                                 Text        = "Ruhezustand:"
-                                                Font        = Get-Font "TableLabel"
+                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             HibernateValueAC = @{
                                                 # Position    = 1,2
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Hibernate" -TextOutput
-                                                Font        = Get-Font "TableText"
+                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             HibernateButtonAC = @{
                                                 # Position    = 2,2
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Hibernate"
                                                     $this.FindForm().Controls.Find("HibernateValueAC", $true)[0].Text = Get-PowerStatus "AC" "Hibernate" -TextOutput
@@ -366,20 +352,20 @@ $FormConfig = @{
                                                 # Position    = 0,3
                                                 Control     = "Label"
                                                 Text        = "Monitor ausschalten:"
-                                                Font        = Get-Font "TableLabel"
+                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             MonitorValueAC = @{
                                                 # Position    = 1,3
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "AC" "Monitor" -TextOutput
-                                                Font        = Get-Font "TableText"
+                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             MonitorButtonAC = @{
                                                 # Position    = 2,3
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Monitor"
                                                     $this.FindForm().Controls.Find("MonitorValueAC", $true)[0].Text = Get-PowerStatus "AC" "Monitor" -TextOutput
@@ -392,8 +378,9 @@ $FormConfig = @{
                                                 ColumnSpan  = 3
                                                 Control     = "Label"
                                                 Text        = "Im Akkubetrieb"
-                                                Font        =  Get-Font "TableTitle"
+                                                Font        =  Get-Font -Preset "TableTitle"
                                                 TextAlign   = "TopCenter"
+                                                Padding     = [Padding]::new(0,10,0,0)
                                             }
 
                                             # Row 6 – Im Akkubetrieb (Energiesparmodus)
@@ -401,20 +388,20 @@ $FormConfig = @{
                                                 # Position    = 0,5
                                                 Control     = "Label"
                                                 Text        = "Energiesparmodus:"
-                                                Font        = Get-Font "TableLabel"
+                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             StandbyValueDC = @{
                                                 # Position    = 1,5
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Standby" -TextOutput
-                                                Font        = Get-Font "TableText"
+                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             StandbyButtonDC = @{
                                                 # Position    = 2,5
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Standby"
                                                     $this.FindForm().Controls.Find("StandbyValueDC", $true)[0].Text = Get-PowerStatus "DC" "Standby" -TextOutput
@@ -426,20 +413,20 @@ $FormConfig = @{
                                                 # Position    = 0,6
                                                 Control     = "Label"
                                                 Text        = "Ruhezustand:"
-                                                Font        = Get-Font "TableLabel"
+                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             HibernateValueDC = @{
                                                 # Position    = 1,6
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Hibernate" -TextOutput
-                                                Font        = Get-Font "TableText"
+                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             HibernateButtonDC = @{
                                                 # Position    = 2,6
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Hibernate"
                                                     $this.FindForm().Controls.Find("HibernateValueDC", $true)[0].Text = Get-PowerStatus "DC" "Hibernate" -TextOutput
@@ -451,20 +438,20 @@ $FormConfig = @{
                                                 # Position    = 0,7
                                                 Control     = "Label"
                                                 Text        = "Monitor ausschalten:"
-                                                Font        = Get-Font "TableLabel"
+                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             MonitorValueDC = @{
                                                 # Position    = 1,7
                                                 Control     = "Label"
                                                 Text        = Get-PowerStatus "DC" "Monitor" -TextOutput
-                                                Font        = Get-Font "TableText"
+                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             MonitorButtonDC = @{
                                                 # Position    = 2,7
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Monitor"
                                                     $this.FindForm().Controls.Find("MonitorValueDC", $true)[0].Text = Get-PowerStatus "DC" "Monitor" -TextOutput
@@ -478,7 +465,7 @@ $FormConfig = @{
                                                 ColumnSpan  = 3
                                                 Control     = "Button"
                                                 Text        = "Energiesparmodus deaktivieren"
-                                                Font        = Get-Font "TableButton"
+                                                Font        = Get-Font -Preset "TableButton"
 
                                                 Add_Click = { 
                                                     Set-PowerStatus -PowerScheme "AC" -StatusType "Standby" -Minutes 0
@@ -502,7 +489,7 @@ $FormConfig = @{
                                                     $this.Visible = $false
                                                 }
                                                 Add_VisibleChanged = {
-                                                    if ($this.Visible) { $this.FindForm().MinimumSize = [Size]::new(350,450) } else { $this.FindForm().MinimumSize = [Size]::new(350,420) }
+                                                    if ($this.Visible) { $this.FindForm().MinimumSize = [Size]::new(410,450) } else { $this.FindForm().MinimumSize = [Size]::new(410,420) }
                                                 }
                                             }
                                         }
@@ -533,20 +520,175 @@ $FormConfig = @{
                                     }
                                 }
                             }
-                        }
-                        Add_SelectedIndexChanged = {
-                            # Beim Wechseln der Registerkarte den Titel anpassen, um den aktuellen Bereich anzuzeigen
-                            switch ($this.SelectedTab.Name) {
-                                "MainTab"       { (Get-Control $this "Header").Text = $AppInfo.Name.ToUpper() }
-                                "DebloatTab"    { (Get-Control $this "Header").Text = "WINDOWS DEBLOATER" }
-                                "PackageTab"    { (Get-Control $this "Header").Text = "PROGRAMMVERWALTUNG" }
-                                "PowerTab"      { (Get-Control $this "Header").Text = "ENERGIEOPTIONEN" 
-                                
-                                    $this.FindForm().MinimumSize = [Size]::new(350,420)
-                                }
+                            OfficeTab = @{
+                                Control     = "TabPage"
+                                Text        = "Office"
+                                Controls    = @{
+                                    OfficeTable  = @{
+                                        Control  = "TableLayoutPanel"
+                                        Row      = @( "15", "12", "15", "15", "15" ,"15", "15" )
+                                        Padding  = [Padding]::new(10,5,10,10)
+                                        Controls = [ordered]@{
+                                            InstallOfficeLabel    = @{
+                                                Control     = "Label"
+                                                Text        = "Office Installieren"
+                                                Font        = Get-Font -Preset "TableTitle"
+                                                Padding     = [Padding]::new(0,10,0,0)
+                                            }
+                                            InstallOfficeDropdown = @{
+                                                Control     = "TableLayoutPanel"
+                                                Column      = @( "20", "30", "50" )
+                                                Controls    = [ordered]@{
+                                                    LicenseList = @{
+                                                        Control     = "ComboBox"
+                                                        Add_SelectedIndexChanged = { Update-InstallDropdown $this }
+                                                    }
+                                                    VersionList = @{
+                                                        Control     = "ComboBox"
+                                                        Add_SelectedIndexChanged = { Update-InstallDropdown $this }
+                                                    }
+                                                    EditionList = @{
+                                                        Control     = "ComboBox"
+                                                    }
+                                                }
+                                            }
+                                            InstallOfficeButtons  = @{
+                                                Control     = "TableLayoutPanel"
+                                                Column      = @( "35", "35", "30" )
+                                                Controls    = [ordered]@{
+                                                    OnlineInstaller32 = @{
+                                                        Control     = "Button"
+                                                        Text        = "Online (32-bit)"
+                                                        Font        = Get-Font -Preset "TableButton"
+                                                        Add_Click   = { 
+                                                            Install-Office $this "Online" "x86"
+                                                            Update-OfficeDropdown $this 
+                                                        }
+                                                    }
+                                                    OnlineInstaller64 = @{
+                                                        Control     = "Button"
+                                                        Text        = "Online (64-bit)"
+                                                        Font        = Get-Font -Preset "TableButton"
+                                                        Add_Click   = { 
+                                                            Install-Office $this "Online" "x64"
+                                                            Update-OfficeDropdown $this 
+                                                        }
+                                                    }
+                                                    OfflineInstaller  = @{
+                                                        Control     = "Button"
+                                                        Text        = "Offline"
+                                                        Font        = Get-Font -Preset "TableButton"
+                                                        Add_Click   = { 
+                                                            Install-Office $this "Offline"
+                                                            Update-OfficeDropdown $this 
+                                                        }
+                                                    }
+                                                }
+                                            }
 
+                                            UninstallOfficeLabel  = @{
+                                                Control     = "Label"
+                                                Text        = "Office Deinstallieren"
+                                                Font        = Get-Font -Preset "TableTitle"
+                                                Padding     = [Padding]::new(0,10,0,0)
+                                            }
+                                            UninstallOfficePanel  = @{
+                                                Control     = "TableLayoutPanel"
+                                                Column      = @( "60", "40" )
+                                                Controls    = [ordered]@{
+                                                    InstalledOfficeList     = @{
+                                                        Control     = "ComboBox"
+                                                        Anchor      = "Left, Right"
+                                                    }
+                                                    UninstallOfficeButton   = @{
+                                                        Control     = "Button"
+                                                        Text        = "Deinstallieren"
+                                                        Font        = Get-Font -Preset "TableButton"
+                                                        Add_Click   = { 
+                                                            $installedOfficeList = Get-Control $this "InstalledOfficeList"
+                                                            if ($installedOfficeList.SelectedItem) {
+                                                                Uninstall-Office $this.FindForm() $installedOfficeList.SelectedItem
+                                                                Update-OfficeDropdown $this
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            ActivateOfficeLabel   = @{
+                                                Control     = "Label"
+                                                Text        = "Office Aktivieren"
+                                                Font        = Get-Font -Preset "TableTitle"
+                                                Padding     = [Padding]::new(0,10,0,0)
+                                            }
+                                            ActivateOfficePanel   = @{
+                                                Control     = "TableLayoutPanel"
+                                                Column      = @( "60", "40" )
+                                                Controls    = [ordered]@{
+                                                    ActivateOfficeList   = @{
+                                                        Control     = "ComboBox"
+                                                        Anchor      = "Left, Right"
+                                                    }
+                                                    ActivateOfficeButton = @{
+                                                        Control     = "Button"
+                                                        Text        = "Aktivieren"
+                                                        Font        = Get-Font -Preset "TableButton"
+                                                        Add_Click   = { 
+                                                            $productID = $this.Parent.Controls["ActivateOfficeList"].SelectedItem
+                                                            if ($productID) {
+                                                                Activate-Office $this
+                                                                # Nach der Aktivierung die Dropdown-Liste aktualisieren
+                                                                Update-OfficeDropdown $this
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
+                        Add_SelectedIndexChanged = {
+                            param ($tabControl, $e)
+                            $tabName = $tabControl.SelectedTab.Name
+                            $header = Get-Control $this "Header"
+
+                            $header.Text = switch ($tabName) {
+                                "MainTab"       { $AppInfo.Name.ToUpper() }
+                                "DebloatTab"    { "WINDOWS DEBLOATER" }
+                                "PackageTab"    { "PROGRAMMVERWALTUNG" }
+                                "PowerTab"      { "ENERGIEOPTIONEN" }
+                                "OfficeTab"     { "OfficeR" }
+                            }
+                            # if ($tabName -eq "PackageTab") {
+                            #     $listView = Get-Control $this "InstalledPackagesListBox"
+                            #     if ($listView) { Update-InstalledProgramsList -ListView $listView }
+                            # }                                    
+                        }
+                        Add_Selecting = {
+                            param ($tabControl, $e)
+                            switch ($e.TabPage.Name) {
+                                "PackageTab" { Import-Module PackageManager }
+                                "PowerTab"   { Import-Module PowerStatus }
+                                "OfficeTab"  { Import-Module OfficeR }
+                            }
+                        }
+                        Add_Selected = {
+                            param ($tabControl, $e)
+                            switch ($e.TabPage.Name) {
+                                "PackageTab" { Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox") }
+                                "PowerTab" { 
+                                    # Triggern des Enter-Events, um die Werte zu aktualisieren
+                                    $powerTab = Get-Control $this "PowerTab"
+                                    if ($powerTab) { $powerTab.OnEnter([EventArgs]::Empty) }
+                                }
+                                "OfficeTab" { 
+                                    Set-InstallDropdown $this
+                                    Set-OfficeDropdown  $this
+                                 }
+                            }
+                         }
                     }
                 }
             }
@@ -558,96 +700,74 @@ $FormConfig = @{
                 Font        = Get-Font -Name "Consolas" -Size 22 -Style "Bold"
                 Dock        = "Top"
                 Height      = 50
-                # TextAlign   = "MiddleCenter"
 
                 Add_DoubleClick = {
                     $this.FindForm().Dispose()
                     Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-                    
+
                 }
 
             }
             Footer = @{
-                Control = "TableLayoutPanel"
-
+                Control     = "TableLayoutPanel"
                 Height      = 30
-                Column      = @(150, "100", 150)
+                Column      = @("50", "AutoSize", "50")
                 Dock        = "Bottom"
                 ForeColor   = Get-Color "Dark"
                 BackColor   = Get-Color "Accent"
-
                 Controls = [ordered]@{
                     About = @{
-                        Control = "Label"
-                        Cursor  = Get-Cursor "Hand"
-                        ToolTip = "Informationen über das Skript"
-
+                        Control     = "Label"
                         Text        = "ABOUT"
-                        Font        = Get-Font -Name "Consolas" -Size 8 -Style "Underline"
+                        Font        = Get-Font -Preset "FooterLink"
                         Anchor      = "Left"
-                        TextAlign   = "MiddleLeft"
-
+                        AutoSize =    $true
+                        
+                        ToolTip     = "Informationen über das Skript"
+                        Cursor      = Get-Cursor "Hand"
                         Add_Click = { Start-Form $FormConfig.About }
+                        Add_MouseEnter = { $this.Font = Get-Font -Preset "FooterLinkHover" }
+                        Add_MouseLeave = { $this.Font = Get-Font -Preset "FooterLink" }
                     }
                     Version = @{
-                        Control = "Label"
-
-                        Text        = "Version $($AppInfo.Version)"
-                        Font        = Get-Font -Name "Consolas" -Size 8 -Style "Italic"
+                        Control     = "Label"
+                        Text        = "Version $($Manifest.ModuleVersion)"
+                        Font        = Get-Font -Preset "FooterText"
+                        AutoSize    = $true
                         Anchor      = "None"
-                        TextAlign   = "MiddleCenter"
                     }
                     PSConsole = @{
-                        Control = "Label"
-                        Cursor  = Get-Cursor "Hand"
-                        ToolTip = "PowerShell-Konsole anzeigen oder verstecken"
-                        
-                        Text        = if ($AppConfig.HideShell) { "KONSOLE ANZEIGEN" } else { "KONSOLE VERSTECKEN" }
-                        Font        = Get-Font -Name "Consolas" -Size 8 -Style "Underline"
+                        Control     = "Label"
+                        Text        = "CONSOLE"
+                        Font        = Get-Font -Preset "FooterLink"
                         Anchor      = "Right"
-                        TextAlign   = "MiddleRight"
-
-                        Add_Click = {
-                            $this.Text = if ($this.Text -eq "KONSOLE ANZEIGEN") { 
-                                Show-PSConsole
-                                "KONSOLE VERSTECKEN" 
-                            } else { 
-                                Hide-PSConsole
-                                "KONSOLE ANZEIGEN" 
-                            }
-                        }
+                        AutoSize    = $true
+                        
+                        ToolTip     = "PowerShell-Konsole anzeigen oder verstecken"
+                        Cursor      = Get-Cursor "Hand"
+                        Add_Click       = { if (Get-PSConsole) { Hide-PSConsole } else { Show-PSConsole } }
+                        Add_MouseEnter  = { $this.Font = Get-Font -Preset "FooterLinkHover" }
+                        Add_MouseLeave  = { $this.Font = Get-Font -Preset "FooterLink" }
                     }
                 }
             }
         }
         Events      = @{
-            FormClosed  = { 
-                # Beim Schließen vom Form die Konsole ebenfalls schließen, um sicherzustellen, dass keine Prozesse offen bleiben
-                [System.Environment]::Exit(0) 
-            }
-            Load        = { 
-                # Beim Laden des Forms den Titel anpassen, um anzuzeigen, ob das Skript mit Administratorrechten läuft
-                $this.Text += if (Get-Administrator) { " – Administrator".ToUpper() }
+            FormClosed  = { [System.Environment]::Exit(0) }
+            Load        = { $this.Text += if (Get-Administrator) { " – ADMINISTRATOR" } }
 
-                # Beim Laden des Forms den Text der PSConsole-Schaltfläche basierend auf der aktuellen Einstellung anpassen
-                (Get-Control $this "PSConsole").Text = if ($AppConfig.HideShell) { "KONSOLE ANZEIGEN" } else { "KONSOLE VERSTECKEN" }
-            }
-            Resize      = { 
-                # Beim Ändern der Fenstergröße die Schriftgröße der Überschrift dynamisch anpassen, damit sie immer gut lesbar ist
-                (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-            }
+            Resize      = { (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold) }
+
             Shown       = { 
-                # Beim ersten Anzeigen des Forms die Überschrift anpassen und die erste Registerkarte auswählen
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-
-                (Get-Control $this "TabControl").SelectedIndex = 3
+                # (Get-Control $this "TabControl").SelectedIndex = 2
             }
         }
     }
     About       = @{
         Properties  = @{
             Text            = "About"
-            Icon            = Get-Icon "About"
+            Icon            = "About"
             ClientSize      = [Size]::new(350,400)
             FormBorderStyle = "FixedDialog"
             KeyPreview      = $true
@@ -696,7 +816,7 @@ Lizenz: MIT
     WinGet      = @{
         Properties  = @{
             Text        = "WinGet"
-            Icon        = Get-Icon "WinGet"
+            Icon        = "WinGet"
             ClientSize  = [Size]::new(600,300)
         }
         Controls    = @{
@@ -707,10 +827,8 @@ Lizenz: MIT
                 Controls    = [ordered]@{
                     TabControl = @{
                         Control     = "TabControl"
-                        # Dock        = "Fill"
                         BackColor   = Get-Color "Dark"
                         ForeColor   = Get-Color "Accent"
-                        # Font        = Get-Font -Name "Consolas" -Size 10
                         Controls    = [ordered]@{
                             ManageTab = @{
                                 Control     = "TabPage"
@@ -803,7 +921,7 @@ Lizenz: MIT
                         ForeColor   = Get-Color "Accent"
                         TextAlign   = "MiddleCenter"
                         Height      = 30
-                        Font        = Get-Font "LabelButton"
+                        Font        = Get-Font -Preset "LabelButton"
                         Dock        = "Bottom"
                         Cursor      = [Cursors]::Hand
                         Add_Click = {
@@ -858,9 +976,8 @@ Lizenz: MIT
                         Text        = "WinGet entfernen"
                         Dock        = "Top"
                         Enabled     = $false
-                        Font        = Get-Font "Button"
                         Add_Click = {                          
-                            Get-WinGet -ShowText { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final } -Uninstall
+                            Get-WinGet -ShowText { param($msg, [switch]$Final) Update-Status -Label (Get-Control $this "ProcessLabel") -Message $msg -Delay 2 -Final:$Final } -Uninstall
                         }
                     }
                     InstallWinGetButton     = @{
@@ -868,7 +985,6 @@ Lizenz: MIT
                         Text        = "WinGet hinzufügen"
                         Dock        = "Top"
                         Enabled     = $false
-                        Font        = Get-Font "Button"
                         Add_Click = { 
                             $processLabel = $this.FindForm().Controls["PackagePanel"].Controls["ProcessLabel"]
                             Get-WinGet -ShowText { param($msg, [switch]$Final) Update-Status -Label $processLabel -Message $msg -Delay 2 -Final:$Final } -Install
@@ -895,9 +1011,8 @@ Lizenz: MIT
                         Text        = "Aktualisieren"
                         Visible     = $false
                         Dock        = "Bottom"
-                        Font        = Get-Font "Button"
                         Add_Click   = { 
-                            $ShowText = { param($msg, [switch]$Final) Update-Status -Label (Get-ProcessLabel $this) -Message $msg -Delay 2 -Final:$Final }
+                            $ShowText = { param($msg, [switch]$Final) Update-Status -Label (Get-Control $this "ProcessLabel") -Message $msg -Delay 2 -Final:$Final }
 
                             & $ShowText "Updates werden installiert..."
                             $installedList = $this.FindForm().Controls["PackagePanel"].Controls["TabControl"].Controls["ManageTab"].Controls["InstalledList"]
@@ -921,7 +1036,6 @@ Lizenz: MIT
                         Visible = $false
                         Text    = "Installieren"
                         Dock    = "Bottom"
-                        Font    = Get-Font "Button"
                         
                         Add_Click = { 
                             $processLabel = $this.FindForm().Controls["PackagePanel"].Controls["ProcessLabel"]
@@ -1024,7 +1138,7 @@ Lizenz: MIT
                         Anchor = "Left"
                         AutoSize = $true
                         MinimumSize = [Size]::new(80,28)
-                        Margin = [Padding]::new(0,4,0,4)
+                        Margin = [Padding]::new(0,4,4,4)
                         Text = "Ändern"
                         FlatStyle = "Flat"
                         TextAlign = "MiddleCenter"
@@ -1043,13 +1157,9 @@ Lizenz: MIT
     }
 }
 
-
-
-
 Start-Form $FormConfig.Main
 # Start-Form $FormConfig.About
-# Start-Form $FormConfig.Chocolatey
+# Start-ChocolateyUI
 # Start-Form $FormConfig.WinGet
 # Start-Form $FormConfig.DeviceName
 
-# Start-ChocolateyUI

@@ -20,6 +20,10 @@ public static class ConsoleWindowNativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
 }
 "@
 }
@@ -33,11 +37,123 @@ function Hide-PSConsole {
     if ($consoleWindow -eq [IntPtr]::Zero) { return }
     [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 0) # 0 = SW_HIDE
 }
+function Get-PSConsole {
+    $consoleWindow = [ConsoleWindowNativeMethods]::GetConsoleWindow()
+    if ($consoleWindow -eq [IntPtr]::Zero) { return $false }
+    return [ConsoleWindowNativeMethods]::IsWindowVisible($consoleWindow)
+}
+
+<# WINDOW #########################################################################>
+function Show-Window {
+    param ( [System.Windows.Forms.Form]$Form )
+    if ($Form -and -not $Form.Visible) { $Form.Visible = $true }
+}
+function Hide-Window {
+    param ( [System.Windows.Forms.Form]$Form )
+    if ($Form -and $Form.Visible) { $Form.Visible = $false }
+}
+
+<# DOWNLOADER #########################################################################>
+function Get-Downloader {
+    <#
+    .SYNOPSIS
+        Erstellt ein WebClient-Objekt mit Proxy-Unterstützung.
+
+    .DESCRIPTION
+        Diese Funktion erzeugt ein vorkonfiguriertes .NET-WebClient-Objekt, das
+        Proxy-Einstellungen und Anmeldeinformationen aus der Systemumgebung übernimmt.
+        Sie dient als Grundlage für Datei-Downloads über HTTP/HTTPS.
+
+    .PARAMETER Url
+        Optionale Ziel-URL, um zu prüfen, ob der Proxy den Zugriff umgehen sollte.
+
+    .PARAMETER ProxyUrl
+        Optionaler Proxyserver (z.B. "http://proxy.firma.local:8080").
+
+    .PARAMETER ProxyCredential
+        Anmeldeinformationen für den Proxy (vom Typ [PSCredential]).
+
+    .OUTPUTS
+        Gibt ein konfiguriertes [System.Net.WebClient]-Objekt zurück.
+
+    .EXAMPLE
+        $downloader = Get-Downloader -Url "https://example.com/datei.zip"
+        $download.DownloadFile("https://example.com/datei.zip", "C:\temp\datei.zip")
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)][string] $Url,
+        [Parameter(Mandatory = $false)][string] $ProxyUrl,
+        [Parameter(Mandatory = $false)][System.Management.Automation.PSCredential] $ProxyCredential
+    )
+
+    $downloader = New-Object System.Net.WebClient
+
+    $defaultCreds = [System.Net.CredentialCache]::DefaultCredentials
+    if ($defaultCreds) { $downloader.Credentials = $defaultCreds }
+
+    if ($ProxyUrl) {
+        Write-Host "Verwendung des übergebenen Proxy-Servers '$ProxyUrl'."
+        $proxy = New-Object System.Net.WebProxy -ArgumentList $ProxyUrl, $true
+
+        $proxy.Credentials = if ($ProxyCredential) {
+            $ProxyCredential.GetNetworkCredential()
+        } elseif ($defaultCreds) {
+            $defaultCreds
+        } else {
+            Write-Warning "Keine Proxy-Anmeldedaten gefunden - manuelle Eingabe erforderlich."
+            (Get-Credential).GetNetworkCredential()
+        }
+
+        if (-not $proxy.IsBypassed($Url)) {
+            $downloader.Proxy = $proxy
+        }
+    } 
+
+    return $downloader
+}
+function Request-File {
+    <#
+    .SYNOPSIS
+        Lädt eine Datei von einer URL herunter.
+
+    .DESCRIPTION
+        Lädt eine Datei über HTTP oder HTTPS von der angegebenen Quelle herunter.
+        Unterstützt optionale Proxy-Konfigurationen und Fehlerbehandlung.
+
+    .PARAMETER Url
+        Die vollständige Download-URL der Datei.
+
+    .PARAMETER File
+        Der lokale Speicherpfad, unter dem die Datei gespeichert werden soll.
+
+    .PARAMETER ProxyConfiguration
+        Optionales Hashtable mit Proxy-Parametern (ProxyUrl, ProxyCredential).
+
+    .EXAMPLE
+        Request-File -Url "https://example.com/file.zip" -File "C:\Temp\file.zip"
+
+    .NOTES
+        Diese Funktion nutzt Get-Downloader zur automatischen Proxy-Erkennung.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)][string] $Url,
+        [Parameter(Mandatory = $false)][string] $File,
+        [Parameter(Mandatory = $false)][hashtable] $ProxyConfiguration
+    )
+
+    $dl = Get-Downloader -Url $Url @ProxyConfiguration
+    try { $dl.DownloadFile($Url, $File) }
+    catch { throw "Download fehlgeschlagen: $_" }
+}
+
+<# MESSAGE BOX #########################################################################>
 function Show-MessageBox {
     param (
         [string]$Config,
-        [string]$Text,
-        [string]$Caption = "Information",
+        [string]$Message,
+        [string]$Title = "Information",
         [string]$Icon = "Info",
         [string]$Buttons = "OK"
     )
@@ -166,10 +282,10 @@ function Show-MessageBox {
             $Buttons = "OK"
         }
          default {
-            $Text = "Unbekannte Konfiguration: $Config"
-            $Caption = "Fehler"
-            $Icon = "Error"
-            $Buttons = "OK"
+            $Text    = if ($Message) { $Message } else { "Unbekannte Konfiguration: $Config" }
+            $Caption = if ($Title) { $Title } else { "Fehler" }
+            $Icon    = if ($Icon) { $Icon } else { "Error" }
+            $Buttons = if ($Buttons) { $Buttons } else { "OK" }
         }
     }
 
@@ -209,22 +325,20 @@ function Get-Administrator {
 function Set-DeviceName {
     param ( [string]$NewName )
     if ($NewName -eq $null -or $NewName.Trim() -eq "") {
-        Show-DialogBox -Message "Der Gerätename wurde nicht geändert!" -Title "Fehler" -Buttons "OK" -Icon "Error"
+        Show-MessageBox -Message "Der Gerätename wurde nicht geändert!" -Title "Fehler" -Buttons "OK" -Icon "Error"
     }
     else {
         Rename-Computer -NewName $NewName -Force
-        Show-DialogBox -Message "Der Gerätename wurde erfolgreich geändert! `nIhr neuer Gerätename: $NewName" -Title "Erfolg" -Buttons "OK" -Icon "Information"
-        Show-DialogBox -Message "Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!" -Title "Neustart erforderlich" -Buttons "OK" -Icon "Warning"
+        $restart = Show-MessageBox -Message "Der Gerätename wurde erfolgreich geändert! `nStarten Sie den Computer neu, um die Änderungen zu übernehmen.`nMöchten Sie den Computer jetzt neu starten?" -Title "Erfolg" -Buttons "YesNo" -Icon "Question"
+        if ($restart) {
+            Restart-Computer -Force
+        } else {
+            Show-MessageBox -Message "Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!" -Title "Neustart erforderlich" -Buttons "OK" -Icon "Warning"
+        }
     }
 }
 
 function Watch-Empty {
-    param ( $Value )
-    
-    if ($Value -is [string]) { return [string]::IsNullOrWhiteSpace($Value) }
-    else { return $false }
-}
-function Test-Empty {
     param ( $Value )
     
     if ($null -eq $Value) { return $true }
@@ -240,6 +354,12 @@ function Test-Fill {
     if ($Value -is [System.Collections.IEnumerable]) { return $Value.Count -gt 0 }
     
     return $true
+}
+function Test-String {
+    param ( $Value )
+    
+    if ($Value -is [string]) { return [string]::IsNullOrWhiteSpace($Value) }
+    else { return $false }
 }
 
 function Update-ProcessLabel {
@@ -311,67 +431,9 @@ function Start-Timer {
 }
 ##############################################################################################################
 
-function Show-DialogBox {
-    <#
-    .SYNOPSIS
-        Zeigt ein Dialogfeld mit einer Nachricht, einem Titel, Schaltflächen und einem Symbol an.
-    .PARAMETER Message
-        Die anzuzeigende Nachricht.
-    .PARAMETER Title
-        Der Titel des Dialogfelds.
-    .PARAMETER Buttons
-        Die anzuzeigenden Schaltflächen (z. B. "OK", "YesNo").
-    .PARAMETER Icon
-        Das anzuzeigende Symbol (z. B. "None", "Information", "Warning", "Error").
-    .EXAMPLE
-        Show-DialogBox -Message "Dies ist eine Nachricht" -Title "Titel" -Buttons "OK" -Icon "Information"
-    #>
-    param (
-        [string]$Message,
-        [string]$Title,
-        [string]$Buttons,
-        [string]$Icon
-    )
-    if (-not $Message)  { throw "Der Parameter 'Message' ist erforderlich." }
-    if (-not $Title)    { throw "Der Parameter 'Title' ist erforderlich." }
-    # Konvertiere die Button-Parameter in die entsprechenden Enums
-    switch ($Buttons) {
-        "OK"    { $Buttons = [System.Windows.Forms.MessageBoxButtons]::OK }
-        "YesNo" { $Buttons = [System.Windows.Forms.MessageBoxButtons]::YesNo }
-        default { $Buttons = [System.Windows.Forms.MessageBoxButtons]::OK }
-    }
-    # Konvertiere die Icon-Parameter in die entsprechenden Enums
-    switch ($Icon) {
-        "None"          { $Icon = [System.Windows.Forms.MessageBoxIcon]::None }
-        "Information"   { $Icon = [System.Windows.Forms.MessageBoxIcon]::Information }
-        "Warning"       { $Icon = [System.Windows.Forms.MessageBoxIcon]::Warning }
-        "Error"         { $Icon = [System.Windows.Forms.MessageBoxIcon]::Error }
-        default         { $Icon = [System.Windows.Forms.MessageBoxIcon]::None }
-    }
-
-    $result = [System.Windows.Forms.MessageBox]::Show($Message, $Title, $Buttons, $Icon)
-
-    if ($Buttons -eq [System.Windows.Forms.MessageBoxButtons]::YesNo) {
-        return $result -eq [System.Windows.Forms.DialogResult]::Yes
-    }
-
-    return $result -eq [System.Windows.Forms.DialogResult]::OK
-}
 
 
-function Uninstall-App {
-    param ( $take, [string]$AppName )
-    & $AppLog.Info "Funktion 'Uninstall-App' aufgerufen mit AppName: $AppName"
-    
-    $RootPath = $AppInfo.Path
 
-    switch ($AppName) {
-        "Edge"           { & "$RootPath\Debloat\Uninstall-MicrosoftEdge.ps1" $take; break }
-        "OneDrive"       { & "$RootPath\Debloat\Uninstall-OneDrive.ps1" $take; break }
-        "WinGet"         { & "$RootPath\Debloat\Uninstall-WinGet.ps1" $take; break }
-        default          { & $AppLog.Error "Unbekannter AppName: $AppName" }
-    }
-}
 
 function Start-Command {
     param ( [string]$Command, [switch]$RunAsAdmin )
@@ -382,6 +444,7 @@ function Start-Command {
         return Start-Process powershell -ArgumentList "-Command $Command" -NoNewWindow -Wait
     }
 }
+
 function Remove-StartMenuIcons {
     param ( $take )
     & $AppLog.Info "Funktion 'Remove-StartMenuIcons' aufgerufen."
@@ -392,129 +455,6 @@ function Remove-StartMenuIcons {
 }
 
 
-<# ENERGIEOPTIONEN #>
-function Get-PowerStatus {
-    param ( 
-        [ValidateSet("AC", "DC")]
-        [string]$PowerScheme = "AC", 
-        [string]$StatusType = "Standby", 
-        [switch]$ReturnSeconds,
-        [switch]$TextOutput
-        )
-
-    $result = switch ($StatusType) {
-        "Standby"   { powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE }
-        "Hibernate" { powercfg /query SCHEME_CURRENT SUB_SLEEP HIBERNATEIDLE }
-        "Monitor"   { powercfg /query SCHEME_CURRENT SUB_VIDEO VIDEOIDLE }
-        default     { throw "Ungültiger StatusType. Verwenden Sie 'Standby', 'Hibernate' oder 'Monitor'." }
-    }
-    $powerString    = if ($PowerScheme -eq "AC") { "Wechselstrom" } elseif ($PowerScheme -eq "DC") { "Gleichstrom" }
-    $value          = ($result | Select-String $powerString).ToString().Split(":")[-1].Trim()
-    $seconds        = [convert]::ToInt32($value, 16)
-    $minutes        = $seconds / 60
-
-    # Rückgabe basierend auf den Parametern
-    if ($TextOutput -and $seconds -eq 0) { return "Nie" }
-    elseif ($TextOutput -and $ReturnSeconds) { return "$seconds Sekunden" } 
-    elseif ($TextOutput) { return "$minutes Minuten" } 
-    elseif ($ReturnSeconds) { return $seconds } 
-    else { return $minutes }
-}
-function Set-PowerStatus {
-    param ( [ValidateSet("AC", "DC")][string]$PowerScheme = "AC", [string]$StatusType = "Standby", [int]$Minutes )
-
-    if ($Minutes -lt 0) { throw "Ungültige Minutenanzahl. Bitte geben Sie eine positive Zahl ein." }
-
-    switch ($StatusType) {
-        "Standby"   { if ($PowerScheme -eq "AC") { powercfg /change standby-timeout-ac $Minutes } elseif ($PowerScheme -eq "DC") { powercfg /change standby-timeout-dc $Minutes }}
-        "Hibernate" { if ($PowerScheme -eq "AC") { powercfg /change hibernate-timeout-ac $Minutes } elseif ($PowerScheme -eq "DC") { powercfg /change hibernate-timeout-dc $Minutes }}
-        "Monitor"   { if ($PowerScheme -eq "AC") { powercfg /change monitor-timeout-ac $Minutes } elseif ($PowerScheme -eq "DC") { powercfg /change monitor-timeout-dc $Minutes }}
-        default     { throw "Ungültiger StatusType. Verwenden Sie 'Standby', 'Hibernate' oder 'Monitor'." }
-    }
-}
-function Update-PowerStatus {
-    param ( [ValidateSet("AC", "DC")][string]$PowerScheme = "AC", [string]$StatusType = "Standby" )
-
-    $CurrentMinutes = Get-PowerStatus -PowerScheme $PowerScheme -StatusType $StatusType
-    $GroupBoxText   = if ($StatusType -eq "Standby") { "Energiesparmodus " } elseif ($StatusType -eq "Hibernate") { "Ruhezustand " } elseif ($StatusType -eq "Monitor") { "Bildschirm ausschalten " }
-    $GroupBoxText  += if ($PowerScheme -eq "AC") { "(Netzbetrieb)" } elseif ($PowerScheme -eq "DC") { "(Akkubetrieb)" }
-
-    $Config = @{
-        Properties = @{
-            Text        = "Energieoptionen Ändern"
-            ClientSize  = [Size]::new(280,60)
-            MinimizeBox = $false
-            MaximizeBox = $false
-            KeyPreview  = $true
-            FormBorderStyle = "FixedDialog"
-            Padding     = [Padding]::new(5)
-            BackColor   = Get-Color "Dark"
-        }
-        Controls = [ordered]@{
-            GroupBox = @{
-                Control     = "GroupBox"
-                Text        = $GroupBoxText
-                Dock        = "Fill"
-                Controls    = [ordered]@{
-                    TestTable = @{
-                        Control     = "TableLayoutPanel"
-                        Dock        = "Fill"
-                        Column      = @(50, "AutoSize", "40")
-                        Row         = @(30)
-                        Controls    = [ordered]@{
-                            Minutes = @{
-                                Control     = "NumericUpDown"
-                                Value       = $CurrentMinutes
-                                Font        = Get-Font "Value"
-                                Dock        = "Fill"
-                                Minimum     = 0
-                                Increment   = 5
-                                Maximum     = 999
-                                Add_KeyPress = { 
-                                    # Akzeptiere nur Ziffern
-                                    if (-not [char]::IsDigit($_.KeyChar) -and $_.KeyChar -ne [char]8) { $_.Handled = $true } 
-                                    # Begrenze die Eingabe auf maximal 3 Zeichen
-                                    elseif ($this.Text.Length -ge 3 -and $_.KeyChar -ne [char]8) { $_.Handled = $true }
-                                }
-                            }
-                            MinutesLabel = @{
-                                Control     = "Label"
-                                Text        = "Minuten"
-                                Font        = Get-Font "Label"
-                                Dock        = "Fill"
-                                TextAlign   = "MiddleLeft"
-                            }
-                            ChangeButton = @{
-                                Control     = "Button"
-                                Name        = "ChangeButton"
-                                Text        = "Ändern"
-                                Font        = Get-Font "Button"
-                                Dock        = "Fill"
-                                Add_Click    = {
-                                    $form = $this.FindForm()
-                                    [int]$minutes = $this.Parent.Controls["Minutes"].Text
-                                    Set-PowerStatus -PowerScheme $PowerScheme -StatusType $StatusType -Minutes $minutes
-                                    $form.Close()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Events = @{
-            KeyDown = {
-                # Bestätigt die Eingabe, wenn die Enter-Taste gedrückt wird, aber nur wenn der Fokus auf dem Minuten-Textfeld liegt
-                if ($this.ActiveControl.Name -eq "Minutes") {
-                    if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
-                        $this.Controls["GroupBox"].Controls["TestTable"].Controls["ChangeButton"].PerformClick()
-                    }
-                }
-            }
-        }
-    }
-    Start-Form $Config
-}
 
 <# WINGET #>
 function Get-WinGet {
@@ -808,3 +748,5 @@ function Get-WinGet {
         return Get-Command -Name "winget.exe" -ErrorAction SilentlyContinue
     }
 }
+
+

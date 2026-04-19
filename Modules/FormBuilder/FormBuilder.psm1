@@ -1200,6 +1200,46 @@ function Test-Control {
 
 
 <# PowerStatusForm #>
+function Update-ProcessLabel {
+    param( 
+        [Parameter(Mandatory = $true)]$Control, # $this-Objekt, um auf die Steuerelemente zuzugreifen
+        [string]$Message,                       # Die Nachricht, die im Label angezeigt werden soll
+        [int]$Delay = 0,                        # Optionale Verzögerung in Sekunden, bevor die Nachricht aktualisiert wird
+        [switch]$Final                          # Optionaler Schalter, der angibt, ob dies die letzte Aktualisierung ist (z. B. nach Abschluss eines Prozesses)
+    )
+    # Überprüfen, ob der Aufruf von einem anderen Thread stammt, und gegebenenfalls den Aufruf auf den UI-Thread verschieben.
+    Write-Debug "Prüfe, ob der Aufruf von einem anderen Thread stammt: InvokeRequired = $($Control.InvokeRequired)"
+    if ($Control.InvokeRequired) {
+        $Control.Invoke({ param($l, $m, $d, $f) Update-ProcessLabel -Control $l -Message $m -Delay $d -Final:$f }, $Control, $Message, $Delay, $Final)
+        return
+    }
+
+    
+    $label = if ($Control.Name -eq "ProcessLabel") { $Control } else { Get-Control $Control "ProcessLabel" }
+    
+    # Aktualisiert den Text des Labels mit der übergebenen Nachricht und erzwingt die Aktualisierung der Benutzeroberfläche.
+    Write-Debug "[UPDATE] Aktualisiere Label-Text: $Message"
+    $label.Text = $Message
+    [Application]::DoEvents()
+    
+    # Stellt sicher, dass das Label sichtbar wird, wenn der Status aktualisiert wird.
+    if ($label.Visible -eq $false) {
+        Write-Debug "[UPDATE] Ändere Sichtbarkeit des Labels auf sichtbar, da es derzeit ausgeblendet ist."
+        $label.Visible = $true 
+        Set-Cursor "Wait"
+    }
+
+    # Delay falls angegeben
+    Start-Sleep -Seconds $Delay
+
+    # Wenn der Final-Parameter gesetzt ist, wird das Label nach einer kurzen Verzögerung ausgeblendet.
+    if ($Final) {
+        Write-Debug "Final-Parameter ist gesetzt. Blende Label nach $Delay Sekunden aus."
+        Start-Sleep -Seconds $Delay
+        Set-Cursor "Default"
+        $label.Visible = $false
+    }
+}
 function Show-PowerStatusForm {
     param( [string]$GroupBoxText, [int]$CurrentMinutes, $PowerScheme, $StatusType )
 

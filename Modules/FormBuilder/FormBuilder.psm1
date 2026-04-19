@@ -875,7 +875,6 @@ function New-ListView {
                     $header = if ($col -is [string]) { $col } elseif ($col.Text) { $col.Text } elseif ($col[0]) { [string]$col[0] } else { [string]$col }
                     $width  = if ($col.Width) { $col.Width } elseif ($col[1]) { [int]$col[1] } else { -2 }
                     [void]$listView.Columns.Add($header, $width)
-                    Write-Host "Added column: $header with width $width"
                 }
                 break
             }

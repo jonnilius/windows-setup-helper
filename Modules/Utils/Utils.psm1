@@ -3,9 +3,6 @@ using namespace System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-Get-PSCallStack
-Write-Debug "[INIT] Importiere Utils-Modul: $($MyInvocation.MyCommand.Name) | Version: $($MyInvocation.MyCommand.Version) | Pfad: $($MyInvocation.MyCommand.Path)"
-
 <## PSConsole #########################################################################>
 if (-not ("ConsoleWindowNativeMethods" -as [type])) {
     Add-Type @"
@@ -45,12 +42,18 @@ function Get-PSConsole {
 
 <# WINDOW #########################################################################>
 function Show-Window {
-    param ( [System.Windows.Forms.Form]$Form )
-    if ($Form -and -not $Form.Visible) { $Form.Visible = $true }
+    param ( $Control )
+    if (-not $Control) { return }
+
+    $Form = if ($Control -ne [System.Windows.Forms.Form]) { $Control.FindForm() } else { $Control }
+    if (-not $Form.Visible) { $Form.Visible = $true }
 }
 function Hide-Window {
-    param ( [System.Windows.Forms.Form]$Form )
-    if ($Form -and $Form.Visible) { $Form.Visible = $false }
+    param ( $Control )
+    if (-not $Control) { return }
+
+    $Form = if ($Control -ne [System.Windows.Forms.Form]) { $Control.FindForm() } else { $Control }
+    if ($Form.Visible) { $Form.Visible = $false }
 }
 
 <# DOWNLOADER #########################################################################>
@@ -316,52 +319,73 @@ function Show-MessageBox {
     }
 }
 
+<# SHELL PROCESS #>
+function Start-ShellProcess {
+    <# 
+    .SYNOPSIS
+        Erstellt ein Process-Objekt mit den angegebenen Parametern.
+    .PARAMETER FileName
+        Der Name oder Pfad der ausführbaren Datei oder des Skripts, das gestartet werden soll.
+    .PARAMETER Arguments
+        Zusätzliche Argumente oder Parameter, die an die ausführbare Datei oder das Skript übergeben werden sollen.
+    .EXAMPLE
+        $process = Start-ShellProcess -FileName "notepad.exe" -Arguments "C:\example.txt"
+    #>
+    param( [string]$FileName, [string]$Arguments = "" )
+    
+    # Erstelle ein neues ProcessStartInfo-Objekt mit den angegebenen Parametern und konfiguriere es für die Ausführung eines Shell-Befehls.
+    $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $processStartInfo.FileName                  = $FileName     # Der Name oder Pfad der ausführbaren Datei oder des Skripts, das gestartet werden soll.
+    $processStartInfo.Arguments                 = $Arguments    # Zusätzliche Argumente oder Parameter, die an die ausführbare Datei oder das Skript übergeben werden sollen.
+    $processStartInfo.UseShellExecute           = $false        # Shell-Execute deaktivieren, um die Standardausgabe umzuleiten
+    $processStartInfo.CreateNoWindow            = $true         # Kein neues Fenster erstellen (nützlich für Konsolenanwendungen)
+    $processStartInfo.RedirectStandardOutput    = $true         # Standardausgabe umleiten, damit sie im Hauptprozess gelesen werden kann
+    $processStartInfo.RedirectStandardError     = $true         # Standardfehler umleiten, damit sie im Hauptprozess gelesen werden kann
+
+    # Starte den Prozess mit den konfigurierten Einstellungen
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $processStartInfo
+    $process.Start() | Out-Null 
+
+    # Gebe das Process-Objekt zurück
+    return $process
+}
+function Stop-ShellProcess {
+    param ( [System.Diagnostics.Process]$Process )
+    if ($Process -and -not $Process.HasExited) {
+        $Process.Kill()
+        $Process.WaitForExit(500) | Out-Null  # Warte bis zu 500ms, um sicherzustellen, dass der Prozess vollständig beendet ist
+    }
+}
+
+<# ADMINISTRATOR CHECK #>
 function Get-Administrator {
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Set-DeviceName {
-    param ( [string]$NewName )
-    if ($NewName -eq $null -or $NewName.Trim() -eq "") {
-        Show-MessageBox -Message "Der Gerätename wurde nicht geändert!" -Title "Fehler" -Buttons "OK" -Icon "Error"
-    }
-    else {
-        Rename-Computer -NewName $NewName -Force
-        $restart = Show-MessageBox -Message "Der Gerätename wurde erfolgreich geändert! `nStarten Sie den Computer neu, um die Änderungen zu übernehmen.`nMöchten Sie den Computer jetzt neu starten?" -Title "Erfolg" -Buttons "YesNo" -Icon "Question"
-        if ($restart) {
-            Restart-Computer -Force
-        } else {
-            Show-MessageBox -Message "Der Computer muss neu gestartet werden, damit die Änderung wirksam wird!" -Title "Neustart erforderlich" -Buttons "OK" -Icon "Warning"
-        }
-    }
-}
-
-function Watch-Empty {
-    param ( $Value )
-    
-    if ($null -eq $Value) { return $true }
-    if ($Value -is [string]) { return [string]::IsNullOrWhiteSpace($Value) }
-    else { return $false }
-}
+<# FILL CHECK #>
 function Test-Fill {
     param ( $Value )
-
     if ($null -eq $Value) { return $false }
+
     
     if ($Value -is [string]) { return -not [string]::IsNullOrWhiteSpace($Value) }
-    if ($Value -is [System.Collections.IEnumerable]) { return $Value.Count -gt 0 }
+    if ($Value -is [System.Collections.IEnumerable]) { 
+        foreach ($item in $Value) { return $true }
+        return $false 
+    }
     
     return $true
 }
-function Test-String {
+function Test-Empty {
     param ( $Value )
     
-    if ($Value -is [string]) { return [string]::IsNullOrWhiteSpace($Value) }
-    else { return $false }
+    return [string]::IsNullOrWhiteSpace([string]$Value)
 }
 
+<# PROCESS LABEL #>
 function Update-ProcessLabel {
     param( 
         $Control,           # $this-Objekt, um auf die Steuerelemente zuzugreifen
@@ -408,33 +432,76 @@ function Update-ProcessLabel {
             Set-Cursor "Default"
             $this.Tag.Label.Visible = $false
         }
-        Start-Timer -Interval ($Delay * 1000) -Action $FinalAction -State @{ Label = $label }
+        Start-Timer -Interval ($Delay * 1000) -Action $FinalAction -Context @{ Label = $label }
     }
     return
 }
 
-function Start-Timer {
-    param ( [int]$Interval, [scriptblock]$Action, [hashtable]$State = $null )
-    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
+function Set-Timer {
+    param( $Context, [scriptblock]$Action, [int]$Interval = 150 )
 
-    if (-not $Action) { throw "Der Parameter 'Action' ist erforderlich, um die Aktion zu definieren, die beim Tick des Timers ausgeführt werden soll." }
+
+    $timer = [Timer]::new()
+    $timer.Tag      = $Context
+    $timer.Interval = $Interval
+    $timer.Add_Tick($Action)
+    return $timer
+}
+<# TIMER #>
+function Start-Timer {
+    param ( [Timer]$Timer, [string]$Name = "Timer", [System.Windows.Forms.Control]$Control )
 
     # Erstelle einen Timer mit dem angegebenen Intervall
-    $timer = [Timer]::new()
-    $timer.Interval = $Interval
+    if ($Timer -isnot [Timer]) { return }
+    if (Test-Control $Control) { 
+        if ($Control.Tag -isnot [hashtable]) { $Control.Tag = @{} }
+        $Control.Tag[$Name] = $Timer
+    }
+    
+    $Timer.Start()
 
-    # Wenn ein Status übergeben wurde, speichere ihn im Tag des Timers, damit er im Action-Skript verfügbar ist
-    if ($State) { $timer.Tag = $State }
+}
 
-    $timer.Add_Tick($Action)
-    $timer.Start()
+function Stop-Timer {
+    param( 
+        [System.Windows.Forms.Control]$Control, 
+        [Alias("Name")][string]$TimerName, 
+        [Timer]$Timer 
+        )
+    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: Control='$($Control.Name)', TimerName='$TimerName'"
+
+    # Wenn ein Steuerelement übergeben wird, versuchen, das zugehörige Timer-Objekt aus dem Tag des Steuerelements abzurufen
+    if (Test-Control $Control) { 
+        # Sicherstellen, dass das Steuerelement über die erwarteten Tag-Strukturen verfügt, um Fehler zu vermeiden
+        if (-not ($Control.Tag -is [hashtable])) { return }
+
+        # Timer-Objekt aus dem Tag des Steuerelements abrufen
+        if ( $TimerName -and $Control.Tag.ContainsKey($TimerName)) { $Timer = $Control.Tag[$TimerName] }
+        else { 
+            # Kein TimerName = explizit ALLE Timer stoppen
+            # Achtung: wir iterieren über eine Kopie (@(...)), weil wir währenddessen Einträge entfernen
+            foreach ($key in @($Control.Tag.Keys)) {
+                if ($Control.Tag[$key] -is [Timer]) { 
+                    # Stoppen und Bereinigen des Timer-Objekts
+                    Stop-Timer -Control $Control -TimerName $key
+                }
+            }
+            return
+        }
+    } 
+
+    # Sicherstellen, dass das übergebene Objekt tatsächlich ein Timer ist, um Fehler zu vermeiden
+    if (-not ($Timer -is [Timer])) { return }
+    
+    # WICHTIG: Dispose ist nötig, damit der Timer nicht im Hintergrund weiterlebt
+    # und Referenzen hält (sonst Memory-Leaks / Ghost-Ticks möglich)
+    $Timer.Stop()
+    $Timer.Dispose()   
+    
+    # Timer-Objekt aus dem Tag des Steuerelements entfernen
+    if ($Control -and $TimerName) { $Control.Tag.Remove($TimerName) }
 }
 ##############################################################################################################
-
-
-
-
-
 function Start-Command {
     param ( [string]$Command, [switch]$RunAsAdmin )
     if ($RunAsAdmin) {
@@ -444,309 +511,4 @@ function Start-Command {
         return Start-Process powershell -ArgumentList "-Command $Command" -NoNewWindow -Wait
     }
 }
-
-function Remove-StartMenuIcons {
-    param ( $take )
-    & $AppLog.Info "Funktion 'Remove-StartMenuIcons' aufgerufen."
-
-    # Führe das Skript zum Entfernen der Startmenü-Icons aus
-    $RootPath = $AppInfo.Path
-    & "$RootPath\Debloat\Remove-StartMenuIcons.ps1" $take
-}
-
-
-
-<# WINGET #>
-function Get-WinGet {
-    param ( 
-        [scriptblock]$ShowText = { 
-            param($msg, [switch]$Final) 
-            Write-Host $msg
-            if ($Final) { Start-Sleep -Seconds 2 } 
-        },
-
-        $App,
-        [string]$AppName,
-        [string]$AppId,
-        
-        [PSCustomObject[]]$AppsUpdateAvailable,
-        [object[]]$UninstallApps,
-        $InstallApps,
-        [System.Windows.Forms.ListBox]$ListBoxApps,
-        
-        
-        [switch]$Install,
-        [switch]$Installed,
-        [switch]$List,
-        [switch]$SetupList,
-        [switch]$Uninstall,
-        [switch]$Update,
-        $UpdateApps,
-        [switch]$UpdateAvailable,
-        [switch]$Version
-    )
-
-    # WinGet-Installation, -Deinstallation, -Version, -Liste, -Updates
-    if ($AppVersion) {
-        $AppId = if ($App.Id) { $App.Id } else { throw "Keine gültige App-Id für die Versionsermittlung vorhanden." }
-        $ver = winget show --id=$AppId --source=winget | Where-Object { $_ -match "^Version:" } | ForEach-Object { ($_ -split ":")[1].Trim() }
-        return $ver
-    } elseif ($AppsUpdateAvailable) {
-        $IsUpdateAvailable = $false
-        foreach ($app in $Apps) {
-            $Id = $app.Id
-            $Version = winget show --id=$($app.Id) --source=winget | Where-Object { $_ -match "^Version:" } | ForEach-Object { ($_ -split ":")[1].Trim() }
-            $WinGetPackage = Get-WinGetPackage -Id $Id -Source "winget" -ErrorAction SilentlyContinue
-
-            if ($WinGetPackage -and $WinGetPackage.IsUpdateAvailable) {
-                & $ShowText "Update verfügbar für $($app.Name) (Version: $Version)"
-                $IsUpdateAvailable = $true
-            } else {
-                & $ShowText "$($app.Name) ist auf dem neuesten Stand."
-            }
-        }
-        return $IsUpdateAvailable
-    } elseif ($Install) {
-        if ($Apps -and $Apps.Count -gt 0) {
-            foreach ($currentApp in $Apps) {
-                & $ShowText "Installiere $($currentApp.Name)..."
-                $ok = & $InstallWithMsStore -Id $currentApp.Id -Name $currentApp.Name
-                if (-not $ok) { & $ShowText "Fehler: $($currentApp.Name) konnte nicht installiert werden." }
-            }
-            & $ShowText "Alle ausgewählten Apps wurden installiert." -Final
-            return
-        }
-
-        if (Get-WinGet -Installed){ & $ShowText "$($App.Name) ist bereits installiert." -Final; return }
-        & $ShowText "Starte WinGet-Installation..." 
-
-        & $ShowText "Prüfe, ob WinGet bereits installiert ist..."
-        Install-Script -Name Install-WinGet -Force -ErrorAction SilentlyContinue
-
-        & $ShowText "Installiere WinGet..."
-        winget-install --id=Install-WinGet -e --source=winget --silent
-
-        # # Reserve
-        # Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile winget.msixbundle
-        # Add-AppPackage -ForceApplicationShutdown .\winget.msixbundle
-        # Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.Winget.Source_8wekyb3d8bbwe
-        # del .\winget.msixbundle
-        # winget source reset --force
-        
-        & $ShowText "WinGet wurde erfolgreich installiert." -Final
-
-        Show-MessageBox "InstallWinGetSuccess"
-    } elseif ($InstallApps) {
-        foreach ($app in $InstallApps) {
-            & $AppInfo.DebugText "Installiere $($app.Name) (Id: $($app.Id), Version: $($app.Version))"
-            & $ShowText "Installiere $($app.Name)..."
-            
-            try { 
-                Start-Command "winget install --id=$($app.Id) --source=winget --silent"
-            } catch { 
-                & $ShowText "Fehler beim Installieren von $($app.Name) mit 'winget install'`: $_"
-                try { 
-                    Start-Command "Install-WinGetPackage -Id $($app.Id) -Silent"
-                } catch { 
-                    & $ShowText "Fehler beim Installieren von $($app.Name) mit 'Install-WinGetPackage'`: $_"
-                }
-            }
-        }
-        & $ShowText "Installation abgeschlossen." -Final
-        return
-    } elseif ($Installed) {
-        $WinGetModule = Get-Module -ListAvailable -Name Microsoft.WinGet.Client
-        if ($WinGetModule) { return $true } else { return $false }
-    } elseif ($List) {
-        if ($Setup){
-            $SetupList = [ordered]@{
-                "7Zip.7zip"                         = "7-Zip"
-                "Bitwarden.Bitwarden"               = "Bitwarden"
-                "Discord.Discord"                   = "Discord"
-                "Dropbox.Dropbox"                   = "Dropbox"
-                "Google.Chrome"                     = "Google Chrome"
-                "Google.GoogleDrive"                = "Google Drive"
-                "Greenshot.Greenshot"               = "Greenshot"
-                "KDE.Kate"                          = "Kate"
-                "KeePassXCTeam.KeePassXC"           = "KeePassXC"
-                "TheDocumentFoundation.LibreOffice" = "LibreOffice"
-                "Microsoft.Edge"                    = "Microsoft Edge"
-                "9WZDNCRFJBH4"                      = "Microsoft Photos"
-                "Mozilla.Firefox"                   = "Mozilla Firefox"
-                "Mozilla.Thunderbird"               = "Mozilla Thunderbird"
-                "Notepad++.Notepad++"               = "Notepad++"
-                "SSHFS-Win.SSHFS-Win"               = "SSHFS-Win"
-                "Valve.Steam"                       = "Steam"
-                "TeamSpeakSystems.TeamSpeakClient"  = "TeamSpeak 3 Client"
-                "Devolutions.UniGetUI"              = "UniGetUI"
-                
-            }
-            $AppList = foreach ($key in $SetupList.Keys) {
-                [PSCustomObject]@{
-                    Id      = $key
-                    Name    = $SetupList[$key]
-                }
-            }
-        } else {
-            $WinGetPackages = Get-WinGetPackage -Source "winget" -Verbose | Where-Object { $_.Source -eq "winget" }
-            $WinGetApps = foreach ($pkg in $WinGetPackages) {
-                [PSCustomObject]@{
-                    Id                  = $pkg.Id
-                    Name                = $pkg.Name                    
-                }
-            } 
-            $AppList = $WinGetApps | Sort-Object Name
-        }
-        return $AppList
-    } elseif ($SetupList) {
-        & $AppInfo.DebugText "Funktion 'Get-WinGet -SetupList' aufgerufen. Bereite die Liste der verfügbaren Apps für die Installation vor..."
-        $Items = [ordered]@{
-                "7Zip.7zip"                         = "7-Zip"
-                "Bitwarden.Bitwarden"               = "Bitwarden"
-                "Discord.Discord"                   = "Discord"
-                "Dropbox.Dropbox"                   = "Dropbox"
-                "Google.Chrome"                     = "Google Chrome"
-                "Google.GoogleDrive"                = "Google Drive"
-                "Greenshot.Greenshot"               = "Greenshot"
-                "KDE.Kate"                          = "Kate"
-                "KeePassXCTeam.KeePassXC"           = "KeePassXC"
-                "TheDocumentFoundation.LibreOffice" = "LibreOffice"
-                "Microsoft.Edge"                    = "Microsoft Edge"
-                "9WZDNCRFJBH4"                      = "Microsoft Photos"
-                "Mozilla.Firefox"                   = "Mozilla Firefox"
-                "Mozilla.Thunderbird"               = "Mozilla Thunderbird"
-                "Notepad++.Notepad++"               = "Notepad++"
-                "SSHFS-Win.SSHFS-Win"               = "SSHFS-Win"
-                "Valve.Steam"                       = "Steam"
-                "TeamSpeakSystems.TeamSpeakClient"  = "TeamSpeak 3 Client"
-                "Devolutions.UniGetUI"              = "UniGetUI"
-        }
-        $AppList = foreach ($key in $Items.Keys) {
-            [PSCustomObject]@{
-                Id      = $key
-                Name    = $Items[$key]
-            }
-        }
-        & $AppInfo.DebugText "Rückgabewerte von Get-WinGet -SetupList: `$AppList = $($AppList | Out-String)"
-        return $AppList
-    } elseif ($Uninstall) {
-        if(-not (Show-MessageBox "ConfirmUninstallWinGet")) { & $ShowText "Deinstallation abgebrochen." -Final; return }
-        else { & $ShowText "Deinstallation von WinGet wird gestartet..." }
-        $WinGetName = "Microsoft.DesktopAppInstaller"
-
-        & $ShowText "Finde WinGet-Paketinformationen..."
-        $WinGetPackage = Get-WinGetPackage -Id $WinGetName -Source "winget" -ErrorAction SilentlyContinue
-
-        & $ShowText "Entferne WinGet-Paket..."
-        Remove-AppxPackage -Package $WinGetPackage.PackageFullName -AllUsers
-
-        & $ShowText "Entferne WinGet-ProvisionedPackage..."
-        Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like "*DesktopAppInstaller*" | Remove-AppxProvisionedPackage -Online
-
-        & $ShowText "Entferne WinGet-AppxPackage für alle Benutzer..."
-        Get-AppxPackage *DesktopAppInstaller* | Remove-AppxPackage -AllUsers
-
-        & $ShowText "WinGet wurde erfolgreich deinstalliert." -Final
-        Show-MessageBox "UninstallWinGetSuccess"
-        
-        return
-    } elseif ($UninstallApps) {
-        & $ShowText "Starte Deinstallation der ausgewählten Apps..."
-        foreach ($app in $UninstallApps) {
-            $Id     = $app.Id
-            $Name   = $app.Name
-
-            & $ShowText "Deinstalliere $Name..."
-            try { 
-                Start-Command "winget uninstall --id=$Id --exact --source winget --accept-source-agreements --disable-interactivity"
-            } catch { 
-                & $ShowText "Fehler beim Entfernen von $Name mit 'winget uninstall'`: $_"
-                try { 
-                    Start-Command "Uninstall-WinGetPackage -Id $Id -Silent"
-                } catch { 
-                    & $ShowText "Fehler beim Entfernen von $Name mit 'Uninstall-WinGetPackage'`: $_" 
-                }
-            }
-        }
-        & $ShowText "Deinstallation abgeschlossen." -Final
-        return
-    } elseif ($Update) {
-        & $ShowText "Starte WinGet-Aktualisierung..."
-        $WinGetPackage = Get-WinGetPackage -Id "Microsoft.DesktopAppInstaller" -Source "winget" -ErrorAction SilentlyContinue
-
-        if ($WinGetPackage -and $WinGetPackage.IsUpdateAvailable) {
-            & $ShowText "Update verfügbar für WinGet (Version: $($WinGetPackage.Version))"
-            & $ShowText "Aktualisiere WinGet..."
-            try {
-                winget upgrade --id=Microsoft.DesktopAppInstaller --source=winget --silent -ErrorAction Stop
-            } catch {
-                & $ShowText "Fehlgeschlagen mit 'winget upgrade', versuche es mit 'Update-WinGetPackage'..."
-                try {
-                    Update-WinGetPackage -Id "Microsoft.DesktopAppInstaller" -Silent
-                } catch {
-                    & $ShowText "Fehler: WinGet konnte nicht aktualisiert werden: $_"
-                }
-            }
-            & $ShowText "WinGet wurde erfolgreich aktualisiert." -Final
-        } else {
-            & $ShowText "WinGet ist bereits auf dem neuesten Stand." -Final
-        }
-        return
-    } elseif ($UpdateApps) {
-        foreach ($app in $Apps) {
-            & $ShowText "Aktualisiere $($app.Name)..."
-            $Id = $app.Id
-            $Version = winget show --id=$($app.Id) --source=winget | Where-Object { $_ -match "^Version:" } | ForEach-Object { ($_ -split ":")[1].Trim() }
-
-            try { & $ShowText "winget upgrade $Id"
-                winget upgrade --id=$Id --exact --source winget --accept-source-agreements --disable-interactivity --version $Version --silent
-            } catch { & $ShowText "Fehler beim Aktualisieren von $($app.Name) mit 'winget upgrade'`: $_"
-                try { & $ShowText "Versuche es mit 'Update-WinGetPackage'..."
-                    Update-WinGetPackage -Id $Id -Silent
-                } catch { & $ShowText "Fehler beim Aktualisieren von $($app.Name) mit 'Update-WinGetPackage'`: $_" }
-            }
-
-            # Überprüfen, ob die Aktualisierung erfolgreich war, indem erneut nach dem Paket gesucht wird und die Version verglichen wird
-            $UpdateCheck = Get-WinGetPackage -source "winget" -ErrorAction SilentlyContinue | Where-Object { $_.Id -eq $Id }
-            if ($UpdateCheck -and ($UpdateCheck.Version -ne $Version)) { & $ShowText "$($app.Name) wurde erfolgreich aktualisiert." } 
-            else { & $ShowText "Fehler: $($app.Name) konnte nicht aktualisiert werden." }
-        }
-        & $ShowText "Alle ausgewählten Apps wurden aktualisiert." -Final
-        return
-    } elseif ($UpdateAvailable) {
-        $WinGetPackages = Get-WinGetPackage -Source "winget" -ErrorAction SilentlyContinue
-        $WinGetUpdate = $WinGetPackages | Where-Object { $_.Id -eq "Microsoft.DesktopAppInstaller" }
-
-        if ($WinGetUpdate -and $WinGetUpdate.IsUpdateAvailable) {
-            & $ShowText "Update verfügbar für WinGet (Version: $($WinGetUpdate.Version))"
-            return $true
-        } else {
-            & $ShowText "WinGet ist auf dem neuesten Stand."
-            return $false
-        }
-    } elseif ($Version) {
-            & $ShowText "Prüfe auf installierte WinGet-Versionen..."
-            # $AppVersion = (Get-WinGetVersion) -replace 'v', ''
-            $modules = Get-Module -ListAvailable -Name Microsoft.WinGet.Client | Sort-Object Version -Descending
-            if ($modules.Count -eq 0) {
-                & $ShowText "Microsoft.WinGet.Client ist nicht installiert."
-                return $null
-            } elseif ($modules.Count -gt 1){
-
-                & $ShowText "Mehrere Versionen von Microsoft.WinGet.Client gefunden. Entferne alle Versionen außer der neuesten..."
-                foreach($module in $modules | Select-Object -Skip 1) { 
-                    & $ShowText "Entferne Microsoft.WinGet.Client Version $($module.Version)..."
-                    Uninstall-Module Microsoft.WinGet.Client -RequiredVersion $module.Version -Force 
-                }
-                & $ShowText "Alle älteren Versionen von Microsoft.WinGet.Client wurden entfernt."
-            }
-            $WinGetVersion = ($modules | Select-Object -First 1).Version.ToString()
-            & $ShowText "Die installierte WinGet-Version ist: $WinGetVersion"
-            return $WinGetVersion
-    } else {
-        & $AppLog.Info "Funktion 'Get-WinGet' aufgerufen ohne (gültige) Parameter. Überprüfe, ob WinGet installiert ist..."
-        return Get-Command -Name "winget.exe" -ErrorAction SilentlyContinue
-    }
-}
-
 

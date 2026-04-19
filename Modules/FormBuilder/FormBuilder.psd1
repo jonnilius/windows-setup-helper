@@ -5,6 +5,6 @@
     Author            = "jonnilius"
     Description       = "Form Erstellungs-Modul für Windows Setup Helper"
 
-    RequiredModules   = @( 'Utils')
+    RequiredModules   = @( 'Utils' )
     NestedModules     = @( 'SubModules/SubModules.psd1' )
 }

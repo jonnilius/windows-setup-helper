@@ -14,21 +14,26 @@ using namespace System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -TypeDefinition @"
-using System;
 using System.Drawing;
+using System.Windows.Forms;
+
+public class MyColorTable : ProfessionalColorTable
+{
+    public override Color ToolStripDropDownBackground => Color.FromArgb(30,30,30);
+    public override Color ImageMarginGradientBegin => Color.FromArgb(30,30,30);
+    public override Color ImageMarginGradientMiddle => Color.FromArgb(30,30,30);
+    public override Color ImageMarginGradientEnd => Color.FromArgb(30,30,30);
+
+    public override Color MenuItemSelected => Color.FromArgb(50,50,50);
+    public override Color MenuItemBorder => Color.FromArgb(50,50,50);
+}
+"@
+Add-Type -TypeDefinition @"
 using System.Windows.Forms;
 
 public class MyRenderer : ToolStripProfessionalRenderer
 {
-    public MyRenderer() : base(new ProfessionalColorTable()) {}
-
-    protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
-    {
-        using (SolidBrush brush = new SolidBrush(Color.FromArgb(30, 30, 30)))
-        {
-            e.Graphics.FillRectangle(brush, e.AffectedBounds);
-        }
-    }
+    public MyRenderer() : base(new MyColorTable()) {}
 }
 "@
 
@@ -67,8 +72,8 @@ $script:Defaults = @{
         ShowImageMargin = $true
         Add_Opening = {
             param($src, $e)
-            $sourceControl = $src.SourceControl
-            $e.Cancel = -not $sourceControl -or $sourceControl.SelectedItems.Count -eq 0
+            $sourceControl  = $src.SourceControl
+            $e.Cancel       = -not $sourceControl -or $sourceControl.SelectedItems.Count -eq 0
         }
     }
     FlowLayoutPanel = @{
@@ -173,6 +178,8 @@ $script:Defaults = @{
         BorderStyle = "None"
         Font        = Get-Font -Control "TextBox"
         Dock        = "Fill"
+        ForeColor   = Get-Color "Accent"
+        BackColor   = Get-Color "Dark"
     }
 }
 
@@ -193,6 +200,56 @@ function Merge-Config {
 
     return $merged
 }
+
+
+<##############################################################################################>
+$global:ToolTip = & {
+    <#
+    .SYNOPSIS
+    Globales ToolTip-Objekt für Windows Forms Controls.
+
+    .DESCRIPTION
+    Da ToolTips in Windows Forms nicht direkt an die Controls gebunden werden können, 
+    sondern über die SetToolTip-Methode des ToolTip-Objekts, wird ein globales ToolTip-Objekt 
+    in der gesamten Anwendung verwendet. Dadurch können konsistente ToolTips mit einheitlichem 
+    Styling und Verhalten bereitgestellt werden, ohne für jedes Control ein eigenes 
+    ToolTip-Objekt erstellen zu müssen.
+
+    .NOTES
+    Das ToolTip-Objekt ist als globale Variable verfügbar und sollte für alle Controls 
+    in der Anwendung verwendet werden, um ein konsistentes Erscheinungsbild zu gewährleisten.
+
+    .EXAMPLE
+    $ToolTip.SetToolTip($controlName, "Dies ist ein Tooltip-Text")
+
+    .PROPERTY BackColor
+    Setzt die Hintergrundfarbe des ToolTips auf eine dunkle Farbe für guten Kontrast zum Text.
+
+    .PROPERTY ForeColor
+    Setzt die Textfarbe des ToolTips auf Weiß für gute Lesbarkeit.
+
+    .PROPERTY AutoPopDelay
+    Gibt die Zeit in Millisekunden an, die das ToolTip angezeigt wird, 
+    bevor es automatisch ausgeblendet wird.
+
+    .PROPERTY InitialDelay
+    Gibt die Zeit in Millisekunden an, die gewartet wird, bevor das ToolTip angezeigt wird, 
+    nachdem der Benutzer den Mauszeiger über ein Steuerelement bewegt hat.
+
+    .PROPERTY ReshowDelay
+    Gibt die Zeit in Millisekunden an, die gewartet wird, bevor ein ToolTip erneut angezeigt wird, 
+    nachdem es ausgeblendet wurde.
+    #>
+    $toolTip = [ToolTip]::new()
+    $toolTip.BackColor = Get-Color "Dark"
+    $toolTip.ForeColor = Get-Color "White"
+    $toolTip.AutoPopDelay = 5000
+    $toolTip.InitialDelay = 500
+    $toolTip.ReshowDelay = 500
+    return $toolTip
+}
+
+<### CONTEXT-MENU ###>
 function New-ContextMenu {
     param( [hashtable]$Config = @{} )
     $contextMenu = [ContextMenuStrip]::new()
@@ -241,6 +298,8 @@ function New-MenuItem {
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
             if ($events -contains $name) { $menuItem.$key($Config[$key]) }
+        } elseif ($key -eq "Image") {
+            $menuItem.Image = Get-Image $Config[$key] $PSScriptRoot
         } elseif ($props -contains $key) { 
             $menuItem.$key = $Config[$key] 
         } elseif ($menuItem.PSObject.Properties[$key]) {
@@ -249,53 +308,6 @@ function New-MenuItem {
 
     }
     return $menuItem
-}
-
-<##############################################################################################>
-$global:ToolTip = & {
-    <#
-    .SYNOPSIS
-    Globales ToolTip-Objekt für Windows Forms Controls.
-
-    .DESCRIPTION
-    Da ToolTips in Windows Forms nicht direkt an die Controls gebunden werden können, 
-    sondern über die SetToolTip-Methode des ToolTip-Objekts, wird ein globales ToolTip-Objekt 
-    in der gesamten Anwendung verwendet. Dadurch können konsistente ToolTips mit einheitlichem 
-    Styling und Verhalten bereitgestellt werden, ohne für jedes Control ein eigenes 
-    ToolTip-Objekt erstellen zu müssen.
-
-    .NOTES
-    Das ToolTip-Objekt ist als globale Variable verfügbar und sollte für alle Controls 
-    in der Anwendung verwendet werden, um ein konsistentes Erscheinungsbild zu gewährleisten.
-
-    .EXAMPLE
-    $ToolTip.SetToolTip($controlName, "Dies ist ein Tooltip-Text")
-
-    .PROPERTY BackColor
-    Setzt die Hintergrundfarbe des ToolTips auf eine dunkle Farbe für guten Kontrast zum Text.
-
-    .PROPERTY ForeColor
-    Setzt die Textfarbe des ToolTips auf Weiß für gute Lesbarkeit.
-
-    .PROPERTY AutoPopDelay
-    Gibt die Zeit in Millisekunden an, die das ToolTip angezeigt wird, 
-    bevor es automatisch ausgeblendet wird.
-
-    .PROPERTY InitialDelay
-    Gibt die Zeit in Millisekunden an, die gewartet wird, bevor das ToolTip angezeigt wird, 
-    nachdem der Benutzer den Mauszeiger über ein Steuerelement bewegt hat.
-
-    .PROPERTY ReshowDelay
-    Gibt die Zeit in Millisekunden an, die gewartet wird, bevor ein ToolTip erneut angezeigt wird, 
-    nachdem es ausgeblendet wurde.
-    #>
-    $toolTip = [ToolTip]::new()
-    $toolTip.BackColor = Get-Color "Dark"
-    $toolTip.ForeColor = Get-Color "White"
-    $toolTip.AutoPopDelay = 5000
-    $toolTip.InitialDelay = 500
-    $toolTip.ReshowDelay = 500
-    return $toolTip
 }
 
 <### LAYOUT-CONTAINER ###>
@@ -823,9 +835,10 @@ function New-ListBox {
 function New-ListView {
     param ( [hashtable]$Config = @{} )
     $listView = [ListView]::new()
-
+    
     # Dynamisch Properties und Events setzen
     $type   = $listView.GetType()
+    $type.GetProperty("DoubleBuffered", [System.Reflection.BindingFlags] "NonPublic,Instance").SetValue($listView, $true, $null)
     $events = $type.GetEvents().Name
     $props  = $type.GetProperties().Name
 
@@ -859,9 +872,10 @@ function New-ListView {
             }
             "Columns" {
                 foreach ($col in $Config[$key]) {
-                    $header = if ($col -is [string]) { $col } elseif ($col.Text) { $col.Text } elseif ($col[0]) { $col[0] } else { [string]$col }
-                    $width  = if ($col.Width) { $col.Width } elseif ($col[1]) { $col[1] } else { -2 }
+                    $header = if ($col -is [string]) { $col } elseif ($col.Text) { $col.Text } elseif ($col[0]) { [string]$col[0] } else { [string]$col }
+                    $width  = if ($col.Width) { $col.Width } elseif ($col[1]) { [int]$col[1] } else { -2 }
                     [void]$listView.Columns.Add($header, $width)
+                    Write-Host "Added column: $header with width $width"
                 }
                 break
             }
@@ -1144,9 +1158,6 @@ function New-Control {
         "ComboBox" {       return New-ComboBox $copy }
         "ListBox" {        return New-ListBox $copy }
         "ListView" {       return New-ListView $copy }
-
-        # ContextMenu
-        "ContextMenu" { return New-ContextMenu $copy }
         
         default { throw "Unbekannter Control-Typ: $type" }
     }
@@ -1173,6 +1184,17 @@ function Get-Control {
 
     # Control-Referenz anhand des Namens zurückgeben, oder $null, wenn der Name nicht gefunden wird
     return $form.Tag.Refs[$name]
+}
+function Test-Control {
+    param( $control )
+    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Control: $($control.Name)"
+    if ($null -eq $control -or $control.IsDisposed) { 
+        Write-Debug "[EXIT] $($MyInvocation.MyCommand.Name) - Control ist null oder bereits disposed."; 
+        return $false 
+    } 
+    
+    Write-Debug "[EXIT] $($MyInvocation.MyCommand.Name) - Control '$($control.Name)' ist gültig."
+    return $true 
 }
 
 

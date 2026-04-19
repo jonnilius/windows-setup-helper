@@ -1,6 +1,6 @@
 @{
     RootModule        = 'WindowsSetupHelper.psm1'
-    ModuleVersion     = '0.10.0'
+    ModuleVersion     = '0.11.0'
     GUID              = '12345678-90ab-cdef-1234-567890abcdef'
     Author            = 'jonnilius'
     CompanyName       = 'BORINAS'
@@ -10,7 +10,6 @@
 
     NestedModules     = @(
         'FormBuilder.psd1'
-        'PowerStatus.psm1'
         'Utils.psm1'
     )
 }

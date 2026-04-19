@@ -3,7 +3,6 @@ Add-Type -AssemblyName System.Windows.Forms
 
 # Globale Variablen für den Modulbetrieb definieren, um Statusaktualisierungen und Caching zu ermöglichen
 $script:UpdateLabel = { param($msg, [switch]$Final) Update-ProcessLabel $this $msg 2 -Final:$Final }
-$script:SearchToken = [guid]::NewGuid().ToString("N")
 $script:Cache       = @{
     IsInstalled   = $null
     Version       = $null
@@ -15,12 +14,11 @@ $script:Cache       = @{
 }
 
 
-Write-Debug "[INIT] Importiere Chocolatey-Modul: $($MyInvocation.MyCommand.Name)"
 $FormConfig  = @{
     Properties  = @{
         Text        = "Chocolatey"
         ClientSize  = [Size]::new(650,440)
-        Icon        = Get-Icon "Chocolatey" $PSScriptRoot
+        Icon        = "Chocolatey"
     }
     Controls    = @{
         PackagePanel = @{
@@ -66,7 +64,7 @@ $FormConfig  = @{
                                     Control = "Label"
                                     Text = "Suchergebnisse"
                                     Font = Get-Font -Preset "TabLabel"
-                                    Dock = "Top"
+                                    Dock = "Bottom"
                                     ForeColor = Get-Color "Accent"
                                     Height = 20
                                     Visible = $false
@@ -79,46 +77,13 @@ $FormConfig  = @{
                                     Add_TextChanged = {
                                         param($searchBox, $e)
                                         $query = $searchBox.Text.Trim()
-                                        if (-not ($searchBox.Tag -is [hashtable])) { $searchBox.Tag = @{} }
-
-                                        function Receive-Search {
-                                            param ( [switch]$short, [switch]$empty, [switch]$new, [string]$query, $control = $searchBox )
-
-                                            # Steuerelemente abrufen
-                                            $header     = $control.Parent.Controls["SearchHeader"]
-                                            $tabLabel   = $control.Parent.Controls["TabLabel"]
-                                            $tabList    = $control.Parent.Controls["TabList"]
-                                            $infoLabel  = $control.Parent.Controls["InfoLabel"]
-
-                                            # Token aktualisieren, um veraltete Suchergebnisse zu ignorieren, wenn die Suchanfrage geändert wird
-                                            $script:searchToken = [guid]::NewGuid().ToString("N")
-
-                                            # Statusmeldung basierend auf dem Suchstatus anzeigen
-                                            switch ($true) {
-                                                $new    { $infoLabel.Text = "Suche nach '$query'..."; $header.Visible = $false; break }
-                                                $short  { $infoLabel.Text = "Bitte mindestens 3 Zeichen eingeben, um nach Paketen zu suchen."; $header.Visible = $false; break }
-                                                $empty  { $infoLabel.Text = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen."; $header.Visible = $true; break }
-                                            }
-
-                                            # Suchergebnisse zurücksetzen
-                                            $tabList.Items.Clear()          # Packetliste leeren und ausblenden
-                                            $tabList.Visible    = $false
-                                            $tabLabel.Visible  = $false    # TabLabel ausblenden
-                                            $infoLabel.Visible  = $true     # InfoLabel anzeigen
-                                        }
+                                        if (-not ($searchBox.Tag -is [hashtable])) { $searchBox.Tag = @{} } # Sicherstellen, dass die Tag-Eigenschaft als Hashtable initialisiert ist, um spätere Fehler zu vermeiden
 
                                         # Vorhandenen Suchzeitgeber stoppen und entfernen, wenn die Suchanfrage geändert wird, um unnötige Suchen zu vermeiden
                                         Stop-Search -SearchBox $searchBox
-                                        if ($searchBox.Tag.ContainsKey("SearchTimer") -and $searchBox.Tag.SearchTimer) {
-                                            $searchBox.Tag.SearchTimer.Stop()
-                                            $searchBox.Tag.SearchTimer.Dispose()
-                                            $searchBox.Tag.SearchTimer = $null
-                                        }
+                                        Stop-Timer -Timer $searchBox.Tag.SearchTimer
 
-                                        # Suchanfrage validieren und entsprechenden Status anzeigen
-                                        if (Watch-Empty $query){     Receive-Search -empty; return } # Suchanfrage leer
-                                        if ($query.Length -lt 3) {  Receive-Search -short; return } # Suchanfrage zu kurz
-                                        Receive-Search -new -query $query
+                                        Receive-Search -query $query -control $searchBox
                                         $token = $script:SearchToken
                                         
                                         # Suchzeitgeber erstellen, um die Suche um 300ms zu verzögern (debouncing)
@@ -146,7 +111,7 @@ $FormConfig  = @{
                                             if (-not ($searchBox.Tag -is [hashtable])) { return }
                                             $searchBox.Tag.SearchTimer = $null
 
-                                            $results = Search-Application -Query $state.Query -SearchToken $state.Token -SearchBox $searchBox -Time 12
+                                            $results = Search-Application -Query $state.Query -SearchToken $state.Token -SearchBox $searchBox -Time 15
 
                                             if ($state.Token -ne $script:SearchToken) { return }
                                             if ($searchBox.Text.Trim() -ne $state.Query) { return }
@@ -155,6 +120,7 @@ $FormConfig  = @{
                                             if ($results.Count -gt 0) {
                                                 [void]$state.TabList.Items.AddRange($results)
                                                 $state.TabList.DisplayMember = "DisplayName"
+                                                $state.TabLabel.Text = "$($results.Count) Pakete gefunden"
                                                 $state.TabList.Visible = $true
                                                 $state.TabLabel.Visible = $true
                                                 $state.InfoLabel.Visible = $false
@@ -877,44 +843,7 @@ function Get-SuggestedPackage {
 }
 
 
-<# SHELL PROCESS #>
-function Start-ShellProcess {
-    <# 
-    .SYNOPSIS
-        Erstellt ein Process-Objekt mit den angegebenen Parametern.
-    .PARAMETER FileName
-        Der Name oder Pfad der ausführbaren Datei oder des Skripts, das gestartet werden soll.
-    .PARAMETER Arguments
-        Zusätzliche Argumente oder Parameter, die an die ausführbare Datei oder das Skript übergeben werden sollen.
-    .EXAMPLE
-        $process = Start-ShellProcess -FileName "notepad.exe" -Arguments "C:\example.txt"
-    #>
-    param( [string]$FileName, [string]$Arguments = "" )
-    
-    # Erstelle ein neues ProcessStartInfo-Objekt mit den angegebenen Parametern und konfiguriere es für die Ausführung eines Shell-Befehls.
-    $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $processStartInfo.FileName                  = $FileName  # Der Name oder Pfad der ausführbaren Datei oder des Skripts, das gestartet werden soll.
-    $processStartInfo.Arguments                 = $Arguments # Zusätzliche Argumente oder Parameter, die an die ausführbare Datei oder das Skript übergeben werden sollen.
-    $processStartInfo.UseShellExecute           = $false     # Shell-Execute deaktivieren, um die Standardausgabe umzuleiten
-    $processStartInfo.CreateNoWindow            = $true      # Kein neues Fenster erstellen
-    $processStartInfo.RedirectStandardOutput    = $true      # Standardausgabe umleiten
-    $processStartInfo.RedirectStandardError     = $true      # Fehlerausgabe umleiten
 
-    # Starte den Prozess mit den konfigurierten Einstellungen
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo = $processStartInfo
-    $process.Start() | Out-Null 
-
-    # Gebe das Process-Objekt zurück
-    return $process
-}
-function Stop-ShellProcess {
-    param ( [System.Diagnostics.Process]$Process )
-    if ($Process -and -not $Process.HasExited) {
-        $Process.Kill()
-        $Process.WaitForExit(500) | Out-Null  # Warte bis zu 500ms, um sicherzustellen, dass der Prozess vollständig beendet ist
-    }
-}
 
 <# SEARCH #>
 function Start-Search {
@@ -926,11 +855,11 @@ function Start-Search {
         [string]$Token,
         [int]$SearchDuration = 12000
     )
-    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
+    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: SearchBox='$($SearchBox.Name)', ListBox='$($ListBox.Name)', ResultsCount=$($Results.Count), Token='$Token', SearchDuration=$SearchDuration"
 
     # Sicherstellen, dass die Steuerelemente gültig sind
-    if ($null -eq $SearchBox -or $SearchBox.IsDisposed) { return }
-    if ($null -eq $ListBox -or $ListBox.IsDisposed) { return }
+    if (-not (Test-Control $SearchBox)) { return }
+    if (-not (Test-Control $ListBox))   { return }
 
     # Sicherstellen, dass das Suchfeld über die erwarteten Tag-Strukturen verfügt
     if (-not ($SearchBox.Tag -is [hashtable])) { $SearchBox.Tag = @{} }
@@ -940,137 +869,18 @@ function Start-Search {
 
     # Ergebnisse in die Warteschlange einfügen
     $queue = [System.Collections.Queue]::new()
-    foreach ($result in $Results) { $queue.Enqueue($result) }
+    foreach ($result in $Results) { $queue.Enqueue($result) } # Ergebnisse in die Warteschlange einfügen, um sie schrittweise anzuzeigen und die Benutzeroberfläche reaktionsfähig zu halten, insbesondere bei großen Ergebnislisten
 
     # Timer für die schrittweise Anzeige von Suchergebnissen einrichten
-    Set-Timer -SearchBox $SearchBox -State @{
+    Stop-Timer -Control $SearchBox -Name "TitleEnrichmentTimer" # Sicherstellen, dass kein vorheriger Timer mit demselben Namen existiert, um Konflikte zu vermeiden
+    $TitleEnrichmentTimer = Set-Timer -Context @{
         ListBox         = $ListBox
         SearchBox       = $SearchBox
         Queue           = $queue
         Token           = $Token
         SearchDuration  = $SearchDuration
-    }
-}
-function Stop-Search {
-    param( [System.Windows.Forms.TextBox]$SearchBox )
-
-    # Sicherstellen, dass das Suchfeld gültig ist und über die erwarteten Tag-Strukturen verfügt
-    if ($null -eq $SearchBox -or $SearchBox.IsDisposed) { return }
-    if (-not ($SearchBox.Tag -is [hashtable])) { return }
-
-    # Timer für die schrittweise Anzeige von Suchergebnissen stoppen und bereinigen
-    Reset-Timer -SearchBox $SearchBox
-
-    # Laufenden Prozess für die Titelanreicherung beenden, falls vorhanden
-    Stop-Lookup -SearchBox $SearchBox
-}
-function Update-ListBox {
-    param ( [System.Windows.Forms.ListBox]$ListBox, $Package )
-
-    if ((Watch-Empty $ListBox) -or $ListBox.IsDisposed -or (Watch-Empty $Package)) { return }
-
-    # Zielindex ermitteln, um das entsprechende Listenelement zu aktualisieren
-    foreach ($item in $ListBox.Items) {
-        if ($item.Id -eq $Package.Id) { 
-            $targetIndex = $ListBox.Items.IndexOf($item)
-            break
-        }
-    }
-    if ($targetIndex -lt 0) { return }
-
-    # $targetIndex = -1
-    # for ($index = 0; $index -lt $ListBox.Items.Count; $index++) { if ($ListBox.Items[$index].Id -eq $Package.Id) { $targetIndex = $index; break } }
-
-    # Sicherstellen, dass das ListBox-Tag über die erwarteten Strukturen verfügt, um die Unterdrückung von SelectionChanged-Ereignissen zu ermöglichen, damit die Aktualisierung der Listeneinträge nicht zu unerwünschten Seiteneffekten führt
-    if (-not ($ListBox.Tag -is [hashtable])) { $ListBox.Tag = @{} }
-    $ListBox.Tag.SuppressSelectionChanged = $true
-
-    try {
-        $selectedIds    = @($ListBox.SelectedItems | ForEach-Object { $_.Id })
-        $topIndex       = if ($ListBox.Items.Count -gt 0) { $ListBox.TopIndex } else { 0 }
-
-        $existingItem = $ListBox.Items[$targetIndex]
-        $resolvedVersion = if (Test-Fill $Package.Version) { $Package.Version } else { $existingItem.Version }
-
-        $updatedPackage = [PSCustomObject]@{
-            Id           = $Package.Id
-            Name         = if (Watch-Empty $Package.Name) { $Package.Id } else { $Package.Name }
-            Version      = $resolvedVersion
-            Title        = $Package.Title
-            Published    = $Package.Published
-            Authors      = $Package.Authors
-            Tags         = $Package.Tags
-            Summary      = $Package.Summary
-            Description  = $Package.Description
-            SoftwareSite = $Package.SoftwareSite
-        }
-
-        $listDisplayName = switch ($true) {
-            (Test-Fill $updatedPackage.Title) { $updatedPackage.Title; break }
-            (Test-Fill $updatedPackage.Name)  { $updatedPackage.Name; break }
-            default                           { $updatedPackage.Id }
-        }
-
-        $updatedItem = [PSCustomObject]@{
-            Id          = $Package.Id
-            Name        = $updatedPackage.Name
-            Version     = $updatedPackage.Version
-            Title       = $Package.Title
-            Published    = $Package.Published
-            Authors      = $Package.Authors
-            Tags         = $Package.Tags
-            Summary      = $Package.Summary
-            Description  = $Package.Description
-            SoftwareSite = $Package.SoftwareSite
-            DisplayName = $listDisplayName
-            Raw         = $existingItem.Raw
-        }
-
-        $ListBox.Items.RemoveAt($targetIndex)
-        [void]$ListBox.Items.Insert($targetIndex, $updatedItem)
-        $ListBox.DisplayMember = "DisplayName"
-
-        if ($ListBox.Items.Count -gt 0) {
-            $ListBox.TopIndex = [Math]::Min($topIndex, $ListBox.Items.Count - 1)
-        }
-        for ($index = 0; $index -lt $ListBox.Items.Count; $index++) {
-            if ($selectedIds -contains $ListBox.Items[$index].Id -and -not $ListBox.GetSelected($index)) {
-                $ListBox.SetSelected($index, $true)
-            }
-        }
-    } finally {
-        if ($ListBox.Tag -is [hashtable]){ $ListBox.Tag.SuppressSelectionChanged = $false }
-    }
-}
-
-<# TIMER #>
-function Reset-Timer {
-    param( [System.Windows.Forms.TextBox]$SearchBox )
-
-    if ($null -eq $SearchBox -or $SearchBox.IsDisposed) { return }
-    if (-not ($SearchBox.Tag -is [hashtable])) { return }
-
-    if ($SearchBox.Tag.ContainsKey("TitleEnrichmentTimer") -and $SearchBox.Tag.TitleEnrichmentTimer) {
-        $SearchBox.Tag.TitleEnrichmentTimer.Stop()
-        $SearchBox.Tag.TitleEnrichmentTimer.Dispose()
-        $SearchBox.Tag.TitleEnrichmentTimer = $null
-    }
-}
-function Set-Timer {
-    param( [System.Windows.Forms.TextBox]$SearchBox, $State )
-
-    if ($null -eq $SearchBox -or $SearchBox.IsDisposed) { return }
-    if (-not ($SearchBox.Tag -is [hashtable])) { return }
-
-    # Vorhandenen Timer stoppen, um Konflikte zu vermeiden
-    Reset-Timer -SearchBox $SearchBox
-
-    # Neuen Timer mit dem übergebenen Status erstellen und starten
-    $timer = [Timer]::new()
-    $timer.Interval = 150
-    $timer.Tag = $State
-    $timer.Add_Tick({
-        if ($null -eq $this.Tag) { $this.Stop(); $this.Dispose(); return }
+    } -Action {
+        if ($null -eq $this.Tag) { Stop-Timer -Timer $this; return }
         $State      = $this.Tag
         $searchBox  = $State.SearchBox
         $listBox    = $State.ListBox
@@ -1080,7 +890,8 @@ function Set-Timer {
         
         # Sicherstellen, dass die Steuerelemente noch gültig sind
         if ($searchBox.IsDisposed -or $listBox.IsDisposed) { $this.Stop(); $this.Dispose(); return }
-        if ($token -ne $SearchToken -or (Watch-Empty $searchBox.Text)) { Stop-Search -SearchBox $searchBox; return }
+        if ($token -ne $script:SearchToken -or (Test-Empty $searchBox.Text)) { Stop-Search -SearchBox $searchBox; return }
+        
 
         # Überprüfen, ob bereits ein laufender Prozess für die Titelanreicherung existiert, um Konflikte zu vermeiden
         $activeLookup = $searchBox.Tag.TitleLookup
@@ -1107,10 +918,13 @@ function Set-Timer {
 
             try {
                 [void]$activeLookup.Process.WaitForExit()
+                
+                $stdErr = $activeLookup.StdErrTask.GetAwaiter().GetResult()
                 $stdout = $activeLookup.StdOutTask.GetAwaiter().GetResult() # Standardausgabe des Prozesses abrufen, um die Details des Pakets zu extrahieren
+                if (Test-Fill $stdErr) { Write-Warning "Fehler beim Abrufen der Anwendungsdetails für '$($activeLookup.PackageId)': $stdErr" }
                 $details = ConvertFrom-ChocolateyInfoText -Text $stdout -Name $activeLookup.PackageId -FallbackVersion $activeLookup.PackageVersion
                 if ($details) {
-                    [void](Set-Application -Name $details.Id -Details $details)
+                    $Cache.PackageDetails[$details.Id] = $details # Details im Cache speichern, um zukünftige Abrufe zu beschleunigen
                     Update-ListBox -ListBox $listBox -Package $details
                 } 
             } catch {
@@ -1121,53 +935,132 @@ function Set-Timer {
             return
         }
 
-        if ($queue.Count -eq 0) {
-            $this.Stop()
-            $this.Dispose()
-            $searchBox.Tag.TitleEnrichmentTimer = $null
-            return
-        }
+        if ($queue.Count -eq 0) { Stop-Timer -Control $searchBox -Name "TitleEnrichmentTimer"; return }
 
         $package = $queue.Dequeue()
-        $cachedDetails = Get-Application -Name $package.Id -FallbackVersion $package.Version
-        if ($cachedDetails) {
-            Update-ListBox -ListBox $listBox -Package $cachedDetails
-            return
-        }
+        $cachedDetails = if ($Cache.PackageDetails.ContainsKey($package.Id)) { $Cache.PackageDetails[$package.Id] } else { $null }
+        if ($cachedDetails) { Update-ListBox -ListBox $listBox -Package $cachedDetails; return }
 
         try {
-            $psi = [System.Diagnostics.ProcessStartInfo]::new()
-            $psi.FileName = (Get-Command choco -ErrorAction Stop).Source
-            $psi.Arguments = "info `"$package.Id`""
-            $psi.UseShellExecute = $false
-            $psi.CreateNoWindow = $true
-            $psi.RedirectStandardOutput = $true
-            $psi.RedirectStandardError = $true
-
-            $process = [System.Diagnostics.Process]::new()
-            $process.StartInfo = $psi
-            [void]$process.Start()
+            $process = Start-ShellProcess (Get-Command choco -ErrorAction Stop).Source "info `"$($package.Id)`""
 
             $searchBox.Tag.TitleLookup = @{
-                Process     = $process
-                StdOutTask  = $process.StandardOutput.ReadToEndAsync()
-                PackageId   = $package.Id
-                PackageVersion = $package.Version
-                StartedAt   = [System.DateTime]::UtcNow
+                Process         = $process
+                StdOutTask      = $process.StandardOutput.ReadToEndAsync()
+                StdErrTask      = $process.StandardError.ReadToEndAsync()
+                PackageId       = $package.Id
+                PackageVersion  = $package.Version
+                StartedAt       = [System.DateTime]::UtcNow
             }
         } catch {
             $searchBox.Tag.TitleLookup = $null
         }
-    })
-    $SearchBox.Tag.TitleEnrichmentTimer = $timer
-    $timer.Start()
+    }
+    Start-Timer -Timer $TitleEnrichmentTimer -Control $SearchBox -Name "TitleEnrichmentTimer" 
 }
+function Stop-Search {
+    param( [System.Windows.Forms.TextBox]$SearchBox )
+
+    # Sicherstellen, dass das Suchfeld gültig ist und über die erwarteten Tag-Strukturen verfügt
+    if (-not (Test-Control $SearchBox))         { return }
+    if (-not ($SearchBox.Tag -is [hashtable]))  { return }
+
+    # Timer für die schrittweise Anzeige von Suchergebnissen stoppen und bereinigen
+    Stop-Timer -Timer $SearchBox.Tag.TitleEnrichmentTimer
+
+    # Laufenden Prozess für die Titelanreicherung beenden, falls vorhanden
+    Stop-Lookup -SearchBox $SearchBox
+}
+function Receive-Search {
+    param ( [string]$query, [System.Windows.Forms.Control]$control )
+    $searchTab  = Get-Control $control "SearchTab"
+    if (-not (Test-Control $searchTab)) { return }
+
+    # Suchheader nur anzeigen, wenn die Suchanfrage leer ist
+    $searchTab.Controls["SearchHeader"].Visible = $query.Length -lt 1 
+
+    $searchTab.Controls["TabLabel"].Visible  = $false    # TabLabel ausblenden
+    $searchTab.Controls["TabList"] | ForEach-Object { $_.Visible = $false; $_.Items.Clear() } # TabList leeren und ausblenden
+    $searchTab.Controls["InfoLabel"].Visible = $true
+
+    switch ($query.Length) {
+        0 { $searchTab.Controls["InfoLabel"].Text = "Gib den Namen eines Chocolatey-Paketes ein, um nach verfügbaren Paketen zu suchen."; break }
+        default { $searchTab.Controls["InfoLabel"].Text = "Suche nach '$query'..."; break }
+    }
+
+    # Token aktualisieren, um veraltete Suchergebnisse zu ignorieren, wenn die Suchanfrage geändert wird
+    $script:SearchToken = [guid]::NewGuid().ToString("N")
+}
+function Update-ListBox {
+    param ( [System.Windows.Forms.ListBox]$ListBox, $Package )
+    
+    # Sicherstellen, dass die Steuerelemente gültig sind und die Paketinformationsdaten vorhanden sind, um Fehler zu vermeiden
+    if (-not (Test-Control $ListBox) -or (Test-Empty $Package)) { return }
+
+    # Zielindex ermitteln, um das entsprechende Listenelement zu aktualisieren
+    foreach ($item in $ListBox.Items) { 
+        if ($item.Id -eq $Package.Id) { 
+            $targetIndex = $ListBox.Items.IndexOf($item)
+            break 
+        } 
+    }
+    if ($targetIndex -lt 0) { return }
+
+    # Sicherstellen, dass das ListBox-Tag über die erwarteten Strukturen verfügt, um die Unterdrückung von SelectionChanged-Ereignissen zu ermöglichen, damit die Aktualisierung der Listeneinträge nicht zu unerwünschten Seiteneffekten führt
+    if ($ListBox.Tag -isnot [hashtable]) { $ListBox.Tag = @{} }
+    $ListBox.Tag.SuppressSelectionChanged = $true
+
+    try {
+        $selectedIds    = @($ListBox.SelectedItems | ForEach-Object { $_.Id })
+        $topIndex       = if ($ListBox.Items.Count -gt 0) { $ListBox.TopIndex } else { 0 }
+
+        $existingItem = $ListBox.Items[$targetIndex]
+
+        $updatedPackage = [PSCustomObject]@{
+            Id           = $Package.Id
+            Name         = if ($Package.Name)    { $Package.Name } else { $Package.Id }
+            Version      = if ($Package.Version) { $Package.Version } else { $existingItem.Version }
+            Title        = $Package.Title
+            Published    = $Package.Published
+            Authors      = $Package.Authors
+            Tags         = $Package.Tags
+            Summary      = $Package.Summary
+            Description  = $Package.Description
+            SoftwareSite = $Package.SoftwareSite
+            DisplayName  = $null # Wird weiter unten basierend auf verfügbaren Informationen festgelegt
+            Raw          = $existingItem.Raw # Vorhandene Rohdaten beibehalten, da sie möglicherweise zusätzliche Informationen enthalten, die nicht in den aktualisierten Paketdetails enthalten sind
+        }
+
+        $updatedPackage.DisplayName = if       ($updatedPackage.Title) { $updatedPackage.Title } 
+                                        elseif  ($updatedPackage.Name) { $updatedPackage.Name } 
+                                        else    { $updatedPackage.Id }
+
+
+        $ListBox.Items.RemoveAt($targetIndex)
+        [void]$ListBox.Items.Insert($targetIndex, $updatedPackage)
+        $ListBox.DisplayMember = "DisplayName"
+
+        if ($ListBox.Items.Count -gt 0) {
+            $ListBox.TopIndex = [Math]::Min($topIndex, $ListBox.Items.Count - 1)
+        }
+        for ($index = 0; $index -lt $ListBox.Items.Count; $index++) {
+            if ($selectedIds -contains $ListBox.Items[$index].Id -and -not $ListBox.GetSelected($index)) {
+                $ListBox.SetSelected($index, $true)
+            }
+        }
+    } finally {
+        if ($ListBox.Tag -is [hashtable]){ $ListBox.Tag.SuppressSelectionChanged = $false }
+    }
+}
+
+
+
 
 <# LOOKUP #>
 function Stop-Lookup {
     param( [System.Windows.Forms.TextBox]$SearchBox )
 
-    if ($null -eq $SearchBox -or $SearchBox.IsDisposed) { return }
+    if (-not (Test-Control $SearchBox)) { return }
     if (-not ($SearchBox.Tag -is [hashtable])) { return }
 
     if ($SearchBox.Tag.ContainsKey("TitleLookup") -and $SearchBox.Tag.TitleLookup) {
@@ -1185,24 +1078,34 @@ function Stop-Lookup {
 function Search-Application {
     param( 
         [string]$Query,         # Suchbegriff für die Paketsuche
-        [int]$Time = 12,        # Dauer der Suche in Sekunden
+        [int]$Time = 15,        # Dauer der Suche in Sekunden
         [string]$SearchToken,   # Token zur Identifikation der aktuellen Suche (z.B. für Abbruchbedingungen)
 
-        [System.Windows.Forms.TextBox]$SearchBox  # Optionales TextBox-Steuerelement für die Sucheingabe
+        [System.Windows.Forms.TextBox]$SearchBox  # TextBox-Steuerelement für die Sucheingabe
     )
-    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: `$Query='$Query', `$Time=$Time, `$SearchToken='$SearchToken'"
+    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: `$Query='$Query', `$Time=$Time, `$SearchToken='$SearchToken', `$SearchBox=$($SearchBox.Name)"
 
     # Überprüfen, ob Chocolatey installiert ist, bevor die Suche gestartet wird
     Write-Debug "[CHECK] $($MyInvocation.MyCommand.Name) | Überprüfe Chocolatey-Installation vor Suche mit Query '$Query'"
-    if (-not $Cache.IsInstalled) { Write-Warning "Chocolatey ist nicht installiert. Suche kann nicht durchgeführt werden."; return @() }
-    
-    
+    if (-not $Cache.IsInstalled) { 
+        if (Test-Installation) {
+            Write-Debug "[UPDATE] $($MyInvocation.MyCommand.Name) | Aktualisiere Cache: Chocolatey-Installation bestätigt"
+            $Cache.IsInstalled = $true
+            Write-Information "Chocolatey-Installation bestätigt. Suche kann gestartet werden."
+        } else {
+            Write-Debug "[EXIT] $($MyInvocation.MyCommand.Name) | Chocolatey-Installation nicht bestätigt. Suche abgebrochen."
+            Write-Warning "Chocolatey ist nicht installiert. Suche kann nicht durchgeführt werden."
+            return @() 
+        }
+    }
     
     Write-Information "Suche nach Chocolatey-Paketen mit Query: $Query"
-    $startedAt      = [System.DateTime]::UtcNow
+    $startedAt = [System.DateTime]::UtcNow
     try {
         # Prozess für die Suche starten 
-        $process = Start-ShellProcess (Get-Source) "search `"$Query`" --limit-output"
+        $process = Start-ShellProcess (Get-Command choco -ErrorAction Stop).Source "search `"$Query`" --limit-output"
+        $stdOutTask = $process.StandardOutput.ReadToEndAsync()
+        $stdErrTask = $process.StandardError.ReadToEndAsync()
 
         # Prozess überwachen und Ergebnisse sammeln, bis die Suche abgeschlossen ist oder die Zeit abgelaufen ist
         while (-not $process.HasExited) {
@@ -1211,7 +1114,7 @@ function Search-Application {
             if ("System.Windows.Forms.Application" -as [type]) { [Application]::DoEvents() } # UI-Thread responsive halten
 
             # Überprüfe die Dauer der Suche
-            $timeNow = [System.DateTime]::UtcNow
+            $timeNow     = [System.DateTime]::UtcNow
             $elapsedTime = [int]($timeNow - $startedAt).TotalSeconds
             if ($elapsedTime -ge $Time) {
                 Stop-ShellProcess -Process $process
@@ -1222,20 +1125,20 @@ function Search-Application {
 
             # Suche abbrechen, wenn die Suchanfrage im Suchfeld geändert wurde
             if ($SearchBox -and -not $SearchBox.IsDisposed -and $SearchBox.Text.Trim() -ne $Query) {
-                Write-Debug "[ABORT] $($MyInvocation.MyCommand.Name) | Suche nach '$Query' wurde abgebrochen, da die Suchanfrage geändert wurde."
                 Stop-ShellProcess -Process $process
+                Write-Debug "[ABORT] $($MyInvocation.MyCommand.Name) | Suche nach '$Query' wurde abgebrochen, da die Suchanfrage geändert wurde."
                 return @()
             }
             
         }
         
         # Fehlerausgabe protokollieren, falls vorhanden
-        $stdErr = $process.StandardError.ReadToEnd()
+        $stdErr = $stdErrTask.GetAwaiter().GetResult()
         if ($stdErr) { Write-Warning "Chocolatey-Suche meldet Fehler: $stdErr" }
 
         # Standardausgabe und Fehlerausgabe des Prozesses lesen
-        $stdOut     = $process.StandardOutput.ReadToEnd()
-        $lines      = @($stdOut -split "`r?`n" | Where-Object { Test-Fill $_ }) # Leere Zeilen entfernen
+        $stdOut     = $stdOutTask.GetAwaiter().GetResult()
+        $lines      = @($stdOut -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) # Leere Zeilen entfernen
         $results    = foreach ($line in $lines) {
             if ($line -match '^([^|]+)\|(.+)$') {
                 $id      = $matches[1].Trim()
@@ -1309,55 +1212,6 @@ function Uninstall-Application {
         return $false
     }
 }
-function Get-Application {
-    param( [string]$Name, [int]$Time = 8, [string]$FallbackVersion = "" )
-    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: `$Name=$Name, `$Time=$Time, `$FallbackVersion=$FallbackVersion"
-
-    # Überprüfen, ob Chocolatey installiert ist, bevor die Anwendungsdetails abgerufen werden, um Fehler zu vermeiden
-    Write-Debug "[CHECK] $($MyInvocation.MyCommand.Name) | Überprüfe Chocolatey-Installation vor Abrufen der Anwendungsdetails für '$Name'"
-    if (-not $Cache.IsInstalled) { Write-Warning "Chocolatey ist nicht installiert. Abrufen der Anwendungsdetails für '$Name' ist nicht möglich."; return $null }
-
-    Write-Debug "[INFO] Starte Prozess zum Abrufen der Anwendungsdetails für '$Name'"
-    $process = Start-ShellProcess (Get-Source) "info `"$Name`""
-
-    # Prozess überwachen und Ergebnisse sammeln, bis die Details abgerufen wurden oder die Zeit abgelaufen ist
-    $startedAt = [System.DateTime]::UtcNow
-    while (-not $process.HasExited) {
-        Start-Sleep -Milliseconds 60
-        if ("System.Windows.Forms.Application" -as [type]) { [Application]::DoEvents() }
-
-        $timeNow        = [System.DateTime]::UtcNow
-        $elapsedTime    = [int]($timeNow - $startedAt).TotalSeconds
-        if ($elapsedTime -ge $Time) { 
-            Stop-ShellProcess -Process $process
-            Write-Warning "Zeitüberschreitung beim Abrufen der Anwendungsdetails für '$Name'."
-            return $null 
-        }
-    }
-
-    # Fehlerausgabe protokollieren, falls vorhanden, um den Benutzer über mögliche Probleme beim Abrufen der Anwendungsdetails zu informieren
-    $stdErr = $process.StandardError.ReadToEnd()
-    if (Test-Fill $stdErr) { Write-Warning "Fehler beim Abrufen der Anwendungsdetails für '$Name': $stdErr" }
-    
-    Write-Debug "[INFO] Prozess zum Abrufen der Anwendungsdetails für '$Name' wurde erfolgreich abgeschlossen. Verarbeite Ausgabe..."
-    $stdOut     = $process.StandardOutput.ReadToEnd()
-    $details    = ConvertFrom-ChocolateyInfoText -Text $stdOut -Name $Name -FallbackVersion $FallbackVersion
-
-    Write-Debug "[INFO] Anwendungsdetails für '$Name' wurden erfolgreich verarbeitet. Speichere im Cache und gebe zurück."
-    $details.DisplayName = Get-DisplayName -Package $details
-    $Cache.PackageDetails[$Name] = $details
-
-    Write-Debug "[EXIT] $($MyInvocation.MyCommand.Name) | Anwendungsdetails für '$Name' wurden erfolgreich abgerufen und verarbeitet."
-    return $details
-}
-function Set-Application {
-    param( [string]$Name, $Details )
-
-    if ($null -eq $Details) { return }
-
-    $Cache.PackageDetails[$Name] = $Details
-    return $Details
-}
 function Update-Application {
     param( [string]$Name, [string]$Manager )
     
@@ -1378,91 +1232,138 @@ function Update-Application {
     }
 }
 
+<# PACKAGE FUNCTIONS #>
+function Get-PackageInfo {
+    param ( [string]$Name, [string]$FallbackVersion = "" )
+
+    # Überprüfen, ob Chocolatey installiert ist, bevor versucht wird, Paketinformationen abzurufen, um Fehler zu vermeiden
+    Write-Debug "[CHECK] $($MyInvocation.MyCommand.Name) | Überprüfe Chocolatey-Installation vor Abrufen der Paketinformationen"
+    if (-not $Cache.IsInstalled) { 
+        if (Test-Installation) {
+            Write-Debug "[UPDATE] $($MyInvocation.MyCommand.Name) | Aktualisiere Cache: Chocolatey-Installation bestätigt"
+            $Cache.IsInstalled = $true
+            Write-Information "Chocolatey-Installation bestätigt. Abrufen der Paketinformationen ist möglich."
+        } else {
+            Write-Debug "[EXIT] $($MyInvocation.MyCommand.Name) | Chocolatey-Installation nicht bestätigt. Abrufen der Paketinformationen abgebrochen."
+            Write-Warning "Chocolatey ist nicht installiert. Abrufen der Paketinformationen ist nicht möglich."
+            return
+        }
+    }
+
+    Write-Debug "[INFO] Starte Prozess zum Abrufen der Paketinformationen für '$Name'"
+    $process = Start-ShellProcess (Get-Command choco -ErrorAction Stop).Source "info `"$Name`""
+    $stdOutTask = $process.StandardOutput.ReadToEndAsync()
+    $stdErrTask = $process.StandardError.ReadToEndAsync()
+
+    $startTime = [System.DateTime]::UtcNow
+    while (-not $process.HasExited) {
+        Start-Sleep -Milliseconds 60
+        if ("System.Windows.Forms.Application" -as [type]) { [Application]::DoEvents() }
+
+        $currentTime    = [System.DateTime]::UtcNow
+        $elapsedSeconds = [int]($currentTime - $startTime).TotalSeconds
+        if ($elapsedSeconds -ge 15) {
+            Stop-ShellProcess -Process $process
+            Write-Warning "Zeitüberschreitung beim Abrufen der Paketinformationen für '$Name'."
+            return # $null
+        }
+    }
+
+    $stdErr = $stdErrTask.GetAwaiter().GetResult()
+    $stdOut = $stdOutTask.GetAwaiter().GetResult()
+    if (Test-Fill $stdErr) { Write-Warning "Fehler beim Abrufen der Paketinformationen für '$Name': $stdErr" }
+    $details = ConvertFrom-ChocolateyInfoText -Text $stdOut -Name $Name -FallbackVersion $FallbackVersion
+    if ($details) {
+        $details.DisplayName = Get-DisplayName -Package $details
+        $Cache.PackageDetails[$Name] = $details
+        return $details
+    } else {
+        Write-Warning "Konnte keine gültigen Paketinformationen für '$Name' abrufen."
+        return # $null
+    }
+
+}
+function Set-PackageInfo {
+    param ( [System.Windows.Forms.Control]$Control, $Package, [string]$InfoLabel = "Lade Details..." )
+    if (-not (Test-Control $Control)) { Write-Warning "Kein gültiges Steuerelement übergeben. Aktualisierung der Paketinformationen wird abgebrochen."; return }
+
+    $packageInfo = if ($Control.Name -eq "PackageInfo") { $Control } else { Get-Control $Control "PackageInfo" }
+    if (-not $packageInfo) { Write-Warning "Steuerelement 'PackageInfo' nicht gefunden. Aktualisierung der Paketinformationen wird abgebrochen."; return }
 
 
+    # Hilfsfunktionen zur Aktualisierung der Anzeigeelemente im Paketinformationsbereich
+    # - Wird ein boolescher Wert übergeben, steuert dieser die Sichtbarkeit des jeweiligen Anzeigeelements
+    # - Wird ein String übergeben, wird dieser als Text gesetzt
+    function Set-Info {
+        param( $var, $elementName )
+        $element = $packageInfo.Controls[$elementName]
+        if ($null -eq $element) { Write-Warning "Anzeigeelement '$elementName' nicht gefunden. Aktualisierung dieses Elements wird übersprungen."; return }
 
-<# Utility Functions #>
+        $element.Visible = if ($var -is [bool])   { $var } else { $true }
+        $element.Text    = if ($var -is [string]) { $var } else { "" }
+    }
+
+
+    function Set-Label {
+        param ( $var, $textAlign = "MiddleLeft", $dock = "Top" )
+        $label = $packageInfo.Controls["PackageInfoLabel"]
+        $label.Visible   = if ($var -is [bool])   { $var } else { $true }
+        $label.Text      = if ($var -is [string]) { $var } else { "" }
+        $label.TextAlign = $textAlign
+        $label.Dock      = $dock
+    }
+
+    Set-Info $false "PackageInfoTitle"
+    Set-Label $InfoLabel -TextAlign "MiddleCenter" -Dock "Fill"
+    Set-Info $false "PackageInfoDescription"
+    if (Test-Empty $Package) { return }
+
+    $Details = Get-PackageInfo -Name $Package.Name -FallbackVersion $Package.Version
+    if ($Details) {
+        $infoTitle       = if ($Details.Title) { $Details.Title } else { Get-DisplayName $Details }
+        $infoLabel       = "Id: $($Details.Id)`nVersion: $($Details.Version)" 
+        $infoDescription = $Details.Description
+        
+        if ($Package.DisplayName -ne $Details.DisplayName) { Update-ListBox $Control $Details }
+        if ($Details.Published) { $infoLabel += "`nVeröffentlicht: $($Details.Published)" }
+        
+    } else {
+        $infoTitle = if ($Package.DisplayName) { $Package.DisplayName } else { $Package.Id }
+        $infoLabel = "Id: $($Package.Id)`nVersion: $($Package.Version)"
+        $infoDescription = "Details konnten nicht geladen werden."
+    }
+    Set-Info $infoTitle "PackageInfoTitle"
+    Set-Label $infoLabel -TextAlign "MiddleLeft" -Dock "Top"
+    Set-Info $infoDescription "PackageInfoDescription"
+}
 function Sync-PackageInfo {
     param( $Control, $List )
 
-    if (Watch-Empty $Control) { Write-Warning "Kein gültiges Steuerelement übergeben. Synchronisierung der Paketinformationen wird abgebrochen."; return }
-    if (Watch-Empty $List) { Write-Warning "Kein gültiges Listensteuerelement übergeben. Synchronisierung der Paketinformationen wird abgebrochen."; return }
+    if (Test-Empty $Control) { Write-Warning "Kein gültiges Steuerelement übergeben. Synchronisierung der Paketinformationen wird abgebrochen."; return }
+    if (Test-Empty $List) { Write-Warning "Kein gültiges Listensteuerelement übergeben. Synchronisierung der Paketinformationen wird abgebrochen."; return }
 
     $listType = $List.GetType().Name
     $selectedItemsCount = if ($listType -eq "CheckedListBox") { $List.CheckedItems.Count } elseif ($listType -eq "ListBox") { $List.SelectedItems.Count } else { 0 }
     
-    if ($selectedItemsCount -eq 0) { $infoLabel = "Wähle ein Paket aus, um Details anzuzeigen." }
-    elseif ($selectedItemsCount -eq 1) { $infoLabel = "Lade Details..."; $Package = $List.SelectedItems[0] }
-    elseif ($selectedItemsCount -gt 1) { $infoLabel = "Mehrere Pakete ausgewählt. Bitte wähle nur ein Paket aus, um Details anzuzeigen." }
-        
-    
-    $packageInfo = Get-Control $Control "PackageInfo"
-    
-
-    function Set-Title {
-        param( $var )
-        $title = $packageInfo.Controls["PackageInfoTitle"]
-
-        # Wird ein boolescher Wert übergeben, steuert dieser die Sichtbarkeit des Titels
-        $title.Visible = if ($var -is [bool]) { $var } else { $true }
-        # Wird ein String übergeben, wird dieser als Titeltext gesetzt; andernfalls wird der Titeltext geleert
-        $title.Text    = if ($var -is [string]) { $var } else { "" }
-    }
-    function Set-Label {
-        param( $Visible = $true, $Text, $TextAlign = "MiddleLeft", $Dock = "Top" )
-        $infoLabel = $packageInfo.Controls["PackageInfoLabel"]
-        $infoLabel.Visible   = $Visible
-        $infoLabel.Text      = $Text
-        $infoLabel.TextAlign = $TextAlign
-        $infoLabel.Dock      = $Dock
-    }
-    function Set-Description {
-        param( $Visible = $true, $Text )
-        $infoDescription = $packageInfo.Controls["PackageInfoDescription"]
-        $infoDescription.Visible   = $Visible
-        $infoDescription.Text      = if ($Text) { $Text } else { "" }
-    }
-
-    # Lade Details anzeigen, während die Informationen synchronisiert werden, um dem Benutzer Feedback zu geben, dass die Informationen aktualisiert werden
-    Set-Description $false
-    Set-Label $true $infoLabel "MiddleCenter" "Fill"
-    Set-Title $false
-    if ($selectedItemsCount -ne 1) { return }
-
-    $selectedTab    = (Get-Control $Control "TabControl").SelectedTab
-    $tabList        = $selectedTab.Controls["TabList"]
-    if ($selectedTab.Name -eq "InstalledTab") { $PackageName = $Package.Name } else { $PackageName = $Package.Id }
-    $Details = Get-Application -Name $PackageName -FallbackVersion $Package.Version
-    if ($Details) {
-        $Details.DisplayName = Get-DisplayName $Details
-        if ($Package.DisplayName -ne $Details.DisplayName) { Update-ListBox $tabList $Details }
-        
-        $infoTitle = $Package.DisplayName
-        $infoLabel = @( "Id: $($Details.Id)", "Version: $($Details.Version)" )
-        $infoDescription = $Details.Description
-        
-        if ($Details.Title) { $infoTitle = $Details.Title }
-        if ($Details.Published) { $infoLabel += "Veröffentlicht: $($Details.Published)" }
-    } else {
-        $infoTitle = if ($Package.DisplayName) { $Package.DisplayName } else { $Package.Id }
-        $infoLabel = @( "Id: $($Package.Id)", "Version: $($Package.Version)" )
-        $infoDescription = "Details konnten nicht geladen werden."
-    }
-    Set-Title $infoTitle
-    Set-Label $true ($infoLabel -join "`n")
-    Set-Description $true $infoDescription
+    if ($selectedItemsCount -eq 0) { Set-PackageInfo -Control $Control -InfoLabel "Wähle ein Paket aus, um Details anzuzeigen." }
+    elseif ($selectedItemsCount -eq 1) { Set-PackageInfo -Control $Control -Package $List.SelectedItems[0] }
+    elseif ($selectedItemsCount -gt 1) { Set-PackageInfo -Control $Control -InfoLabel "Mehrere Pakete ausgewählt. Bitte wähle nur ein Paket aus, um Details anzuzeigen." }
 }
+
+
+
+<# Utility Functions #>
 function Get-DisplayName {
     param( $Package )
     Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: `$Package=$Package"
 
     # Überprüfen, ob das Paketobjekt gültig ist, bevor versucht wird, den Anzeigenamen zu generieren, um Fehler zu vermeiden
-    if ($null -eq $Package) { return "" }
+    if (-not $Package) { return "" }
 
     $nameText       = switch ($true) {
-                         (Test-Fill $Package.Title) { $Package.Title; break }
-                         (Test-Fill $Package.Name)  { $Package.Name; break }
-                         (Test-Fill $Package.Id)    { $Package.Id; break }
+                         ($Package.Title) { $Package.Title; break }
+                         ($Package.Name)  { $Package.Name; break }
+                         ($Package.Id)    { $Package.Id; break }
                          default { "" }
                      }
     $versionText    = if ($Package.Version) { " v$($Package.Version)" } else { "" }
@@ -1492,17 +1393,19 @@ function ConvertFrom-ChocolateyInfoText {
 
     foreach ($line in ($Text -split "`r?`n")) {
         $trimmed = $line.Trim()
+        $isPackagesFoundFooter = $trimmed -match '^\d+\s+packages?\s+found\.?$'
 
         if ($inDescription) {
             if ($line -match '^\s*[A-Za-z][A-Za-z\s-]+:\s*') { $inDescription = $false } 
+            elseif ($isPackagesFoundFooter) { continue }
             elseif (Test-Fill $trimmed) { $descriptionLines += $trimmed; continue } 
             else { continue }
         }
 
         # Leere Zeilen überspringen; befüllte Zeilen enthalten die eigentlichen Metadaten.
-        if (Watch-Empty $trimmed) { continue }
+        if (Test-Empty $trimmed) { continue }
 
-        if ($trimmed -match '^([^\s]+)\s+([^\s]+)\s+\[.*\]$' -and (Watch-Empty $details.Version)) {
+        if ($trimmed -match '^([^\s]+)\s+([^\s]+)\s+\[.*\]$' -and (Test-Empty $details.Version)) {
             $details.Id = $matches[1].Trim()
             $details.Name = $details.Id
             $details.Version = $matches[2].Trim()
@@ -1543,8 +1446,5 @@ function ConvertFrom-ChocolateyInfoText {
 
 <### EXPORT ######################################>
 function Start-ChocolateyUI {
-    Set-Cursor "AppStarting"
-    $form = New-Form $FormConfig 
-    $form.ShowDialog()
-    $form.Dispose()
+    Start-Form $FormConfig
 }

@@ -5,7 +5,7 @@ Add-Type -AssemblyName Microsoft.VisualBasic
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Windows.Forms.DataVisualization
-[System.Windows.Forms.Application]::EnableVisualStyles()
+[Application]::EnableVisualStyles()
 
 
 #Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
@@ -47,14 +47,9 @@ $global:AppConfig = @{
 }
 
 Write-Information "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
-Write-Information "Lade Module..."
 $env:PSModulePath += ";$PSScriptRoot\Modules"
 
-# Import-Module OfficeR
-# Import-Module PowerStatus
 
-
-$script:ApplicationCache = @{}
 if ($AppConfig.HideShell) { Hide-PSConsole }
 <# FORM-DATA ############################################################################>
 $FormConfig = @{
@@ -124,7 +119,7 @@ $FormConfig = @{
 
                                                 Cursor      = Get-Cursor "Hand"
                                                 ToolTip     = "Gerätename ändern"
-                                                Add_Click   = { Start-Form $FormConfig.DeviceName }
+                                                Add_Click   = { Start-DeviceNameUI }
                                             }
 
                                         }
@@ -203,7 +198,7 @@ $FormConfig = @{
                                         Margin      = [Padding]::new(10)
                                         HideSelection = $false
                                         MultiSelect = $true
-                                        Columns     = @( "Name", "Version", "Quelle", "ID" )
+                                        Columns     = @( @("Name", 300), @("ID", 300), @("Version", 200), @("Quelle", 200) )
                                         Add_MouseDown = {
                                             param($listView, $e)
                                             if ($e.Button -ne [MouseButtons]::Right) { return }
@@ -246,7 +241,10 @@ $FormConfig = @{
                                                 Font        = Get-Font -Preset "TableButton"
                                                 Width       = 100
                                                 Anchor      = "Left"
-                                                Add_Click   = { Start-Form $FormConfig.Winget }
+                                                Add_Click   = { 
+                                                    Import-Module WinGet
+                                                    Start-WinGetUI $this
+                                                }
                                             }
                                         }
                                     }
@@ -259,12 +257,13 @@ $FormConfig = @{
                                             Items = @{
                                                 Uninstall = @{
                                                     Text = "Deinstallieren"
+                                                    Image = "uninstall.png"
                                                     Add_Click = {
                                                         $listView = $this.Owner.SourceControl
                                                         if (-not $listView) { return }
 
                                                         $programs = @($listView.SelectedItems | ForEach-Object { $_.Tag })
-                                                        Invoke-InstalledProgramUninstall -Programs $programs
+                                                        Uninstall-Program $programs
                                                         Update-InstalledProgramsList -ListView $listView
                                                     }
                                                 }
@@ -661,10 +660,9 @@ $FormConfig = @{
                                 "PowerTab"      { "ENERGIEOPTIONEN" }
                                 "OfficeTab"     { "OfficeR" }
                             }
-                            # if ($tabName -eq "PackageTab") {
-                            #     $listView = Get-Control $this "InstalledPackagesListBox"
-                            #     if ($listView) { Update-InstalledProgramsList -ListView $listView }
-                            # }                                    
+                            if ($tabName -eq "PackageTab") {
+                                $this.FindForm().MinimumSize = [Size]::new(1000,500)
+                            }                                    
                         }
                         Add_Selecting = {
                             param ($tabControl, $e)
@@ -725,7 +723,7 @@ $FormConfig = @{
                         
                         ToolTip     = "Informationen über das Skript"
                         Cursor      = Get-Cursor "Hand"
-                        Add_Click = { Start-Form $FormConfig.About }
+                        Add_Click = { Start-AboutUI }
                         Add_MouseEnter = { $this.Font = Get-Font -Preset "FooterLinkHover" }
                         Add_MouseLeave = { $this.Font = Get-Font -Preset "FooterLink" }
                     }
@@ -756,61 +754,21 @@ $FormConfig = @{
             FormClosed  = { [System.Environment]::Exit(0) }
             Load        = { $this.Text += if (Get-Administrator) { " – ADMINISTRATOR" } }
 
-            Resize      = { (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold) }
+            Resize      = { 
+                param($src, $e)
+                $screen = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+                $src.Location = [System.Drawing.Point]::new(
+                    ($screen.Width - $src.Width) / 2,
+                    ($screen.Height - $src.Height) / 2
+                )
+
+                (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold) 
+            }
 
             Shown       = { 
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
                 # (Get-Control $this "TabControl").SelectedIndex = 2
             }
-        }
-    }
-    About       = @{
-        Properties  = @{
-            Text            = "About"
-            Icon            = "About"
-            ClientSize      = [Size]::new(350,400)
-            FormBorderStyle = "FixedDialog"
-            KeyPreview      = $true
-        }
-        Controls    = @{
-            Panel = @{
-                Control = "Panel"
-                Padding = [Padding]::new(10)
-                Controls = @{
-                    FlowPanel = @{
-                        Control = "FlowLayoutPanel"
-                        WrapContents = $false
-                        Dock = "Fill"
-                        Controls = [ordered]@{
-                            Label = @{
-                                Control = "Label"
-                                Text = "WINDOWS SETUP HELPER"
-                                ForeColor = Get-Color "Accent"
-                                Dock = "Fill"
-                                TextAlign = "MiddleCenter"
-                                Margin = [Padding]::new(0,10,0,10)
-                                Font = [Font]::new("Consolas", 20 )
-                            }
-                            RichText = @{
-                                Control = "RichTextBox"
-                                Size    = [Size]::new(310,310)
-                                Text    = @"
-Windows Setup Helper ist ein PowerShell-Skript, das die Einrichtung und Grundkonfiguration eines Windows-Systems deutlich vereinfacht.`n
-Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
-Das Skript richtet sich an alle, die Windows-PCs effizient und wiederholbar einrichten möchten - egal ob für den privaten Gebrauch, im Unternehmen oder in Bildungseinrichtungen.`n
-Durch die Integration von Automatisierung und Benutzerfreundlichkeit spart der Windows Setup Helper Zeit und reduziert Fehlerquellen bei der Systemeinrichtung.`n
-Version: $($AppInfo.Version)
-Entwickler: $($AppInfo.Author)
-Lizenz: MIT
-"@
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Events      = @{
-            KeyDown = { if ($_.KeyCode -eq "Escape") { $this.Close() } }
         }
     }
     WinGet      = @{
@@ -875,7 +833,6 @@ Lizenz: MIT
                             }
                         }
                         Add_SelectedIndexChanged = {
-                            & $AppInfo.DebugText "Tab gewechselt: $($this.SelectedTab.Text)"
                             $selectedTab    = $this.SelectedTab
                             $sidebarPanel   = $this.FindForm().Controls["SidebarPanel"]
                             $addList        = $this.TabPages["AddTab"].Controls["AddList"]
@@ -1051,7 +1008,7 @@ Lizenz: MIT
                             
                             $addList.ClearSelected()
                             foreach ($index in $addList.CheckedIndices) { $addList.SetItemChecked($index, $false) }
-                         }
+                            }
                     }
                     UninstallButton = @{
                         Control = "Button"
@@ -1102,64 +1059,8 @@ Lizenz: MIT
             }
         }
     }
-    DeviceName  = @{
-        Properties = @{
-            Text = "Neuer Gerätename"
-            ClientSize  = [Size]::new(370,50)
-            Padding     = [Padding]::new(5)
-            FormBorderStyle = "FixedDialog"
-            Icon = Get-Icon "Default"
-        }
-        Controls = @{
-            TableLayout = @{
-                Control = "TableLayoutPanel"
-                Column  = @( "100", "AutoSize" )
-                Row     = @( 36 )
-                
-                Padding = [Padding]::new(0)
-                Controls = @{
-                    TextBox = @{
-                        Control = "TextBox"
-                        Position = 0,0
-                        Dock = "Fill"
-                        Margin = [Padding]::new(0,4,8,4)
-                        Font = [Font]::new("Consolas", 20)
-                        ForeColor = Get-Color "Accent"
-                        BackColor = Get-Color "Dark"
-                        TextAlign = "Center"
-                        BorderStyle = "None"
-                        Text = $env:COMPUTERNAME
-                        Multiline = $false
-                    }
-                    Button = @{
-                        Control = "Button"
-                        Position = 1,0
-                        Dock = "None"
-                        Anchor = "Left"
-                        AutoSize = $true
-                        MinimumSize = [Size]::new(80,28)
-                        Margin = [Padding]::new(0,4,4,4)
-                        Text = "Ändern"
-                        FlatStyle = "Flat"
-                        TextAlign = "MiddleCenter"
-                        BackColor = Get-Color "Dark"
-                        ForeColor = Get-Color "Accent"
-                        Add_Click = { Set-DeviceName -NewName (Get-Control $this "TextBox").Text }
-                    }
-                }
-            }
-        }
-        Events = @{
-            Shown = { 
-                (Get-Control $this "TextBox").Focus()
-             }
-        }
-    }
 }
 
 Start-Form $FormConfig.Main
-# Start-Form $FormConfig.About
-# Start-ChocolateyUI
-# Start-Form $FormConfig.WinGet
-# Start-Form $FormConfig.DeviceName
+# Start-ChocolateyUI $this
 

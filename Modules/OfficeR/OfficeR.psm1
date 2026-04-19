@@ -593,7 +593,7 @@ function Remove-OfficeResiduals {
 function Resolve-OfficeUninstallCommand {
     param ( [string]$CommandLine )
 
-    if (Watch-Empty $CommandLine) { return $null }
+    if (Test-Empty $CommandLine) { return $null }
 
     $trimmedCommand = $CommandLine.Trim()
     if ($trimmedCommand.StartsWith('"')) {

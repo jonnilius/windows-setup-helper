@@ -59,11 +59,21 @@ function Get-DrawItem {
     $graphics   = $e.Graphics
     $itemBounds = $e.Bounds
 
+    # In der Details-Ansicht werden Hintergrund und Text pro SubItem gezeichnet.
+    # Ein zeilenweites Übermalen hier kann beim Hover SubItems unsichtbar machen.
+    if ($ListView.View -eq [System.Windows.Forms.View]::Details) {
+        if ($e.Item.Selected -and $ListView.Focused) {
+            $e.DrawFocusRectangle()
+        }
+        return
+    }
+
     # Hintergrund zeichnen
     $itemBackground = if ($e.Item.Selected) { [SolidBrush]::new($Config.BackColor) } 
                         else { [SolidBrush]::new($ListView.BackColor) }
     $graphics.FillRectangle($itemBackground, $itemBounds)
     $e.DrawFocusRectangle()
+    $itemBackground.Dispose()
 }
 function Get-DrawSubItem {
     param(
@@ -71,25 +81,37 @@ function Get-DrawSubItem {
         [System.Windows.Forms.DrawListViewSubItemEventArgs]$e
     )
     $graphics       = $e.Graphics
-    $subItemBounds  = $e.Bounds
+    $Bounds         = $e.Bounds
+    $isSelected     = $e.Item.Selected
 
-    $BackColor  = if ($e.Item.Selected) { Get-Color "Accent" } else { $ListView.BackColor }
-    $BackColor  = [SolidBrush]::new($BackColor)
-    $graphics.FillRectangle($BackColor, $subItemBounds)
+    $backColorValue = if ($isSelected) { Get-Color "Accent" } else { $ListView.BackColor }
+    $foreColorValue = if ($isSelected) { Get-Color "Dark" } else { $ListView.ForeColor }
 
-    $ForeColor  = if ($e.Item.Selected) { Get-Color "Dark" } else { $ListView.ForeColor }
-    $ForeColor  = [SolidBrush]::new($ForeColor)
-    $stringFormat = [StringFormat]::new()
+    $backColorBrush = [SolidBrush]::new($backColorValue)
+    try {
+        $graphics.FillRectangle($backColorBrush, $Bounds)
+    } finally {
+        $backColorBrush.Dispose()
+    }
 
     # Location & Größe des Textes
-    $textX      = $subItemBounds.X + 2      # Location.X – Abstand vom linken Rand des SubItems
-    $textY      = $subItemBounds.Y       # Location.Y – Abstand vom oberen Rand des SubItems
-    $textWidth  = $subItemBounds.Width - 2   # Width – Breite des SubItems
-    $textHeight = $subItemBounds.Height  # Height – Höhe des SubItems
-    $textBounds = [System.Drawing.RectangleF]::new($textX, $textY, $textWidth, $textHeight)
-    
-    
-    $stringFormat.LineAlignment = [StringAlignment]::Center
-    $stringFormat.Trimming = [StringTrimming]::EllipsisCharacter
-    $graphics.DrawString($e.SubItem.Text, $ListView.Font, $ForeColor, $textBounds, $stringFormat)
+    $text = if ($e.ColumnIndex -eq 0) { $e.Item.Text } else { $e.SubItem.Text }
+    $textBounds = [System.Drawing.Rectangle]::new(
+        $Bounds.X + 2,
+        $Bounds.Y,
+        [Math]::Max(0, $Bounds.Width - 2),
+        $Bounds.Height
+    )
+
+    [System.Windows.Forms.TextRenderer]::DrawText(
+        $graphics,
+        $text,
+        $ListView.Font,
+        $textBounds,
+        $foreColorValue,
+        [System.Windows.Forms.TextFormatFlags]::Left `
+            -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter `
+            -bor [System.Windows.Forms.TextFormatFlags]::NoPadding `
+            -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis
+    )
 }

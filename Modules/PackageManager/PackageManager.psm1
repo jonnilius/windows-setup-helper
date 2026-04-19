@@ -451,25 +451,15 @@ function Get-WinGet {
     }
 }
 function Get-WinGetPrograms {
-    $WinGetPackages = @(Get-WinGetPackage -ErrorAction SilentlyContinue | Where-Object {
-                $_.Source -eq "winget" -and -not [string]::IsNullOrWhiteSpace([string]$_.Id)
-            })
-            $WinGetApps = foreach ($pkg in $WinGetPackages) {
-                [PSCustomObject]@{
-                    Id      = [string]$pkg.Id
-                    Name    = [string]$pkg.Name
-                    Version = if ($pkg.PSObject.Properties["InstalledVersion"] -and -not [string]::IsNullOrWhiteSpace([string]$pkg.InstalledVersion)) {
-                        [string]$pkg.InstalledVersion
-                    } elseif ($pkg.PSObject.Properties["Version"] -and -not [string]::IsNullOrWhiteSpace([string]$pkg.Version)) {
-                        [string]$pkg.Version
-                    } else {
-                        ""
-                    }
-                    Source = "WinGet"
-                    WingetId = [string]$pkg.Id
-                }
-            }
-            $AppList = $WinGetApps | Sort-Object Name
-            return $AppList
-
+    $WinGetPackage  = @(Get-WinGetPackage -ErrorAction SilentlyContinue | Where-Object { $_.Source -eq "winget" -and ($_.Id) })
+    $WinGetApps     = foreach ($pkg in $WinGetPackage) {
+        [PSCustomObject]@{
+            Id          = [string]$pkg.Id
+            Name        = [string]$pkg.Name
+            Version     = if ([string]$pkg.InstalledVersion) { [string]$pkg.InstalledVersion } elseif ([string]$pkg.Version) { [string]$pkg.Version } else { "" }
+            Source      = "WinGet"
+            WingetId    = [string]$pkg.Id
+        }
+    } 
+    $WinGetApps | Sort-Object Name
 }

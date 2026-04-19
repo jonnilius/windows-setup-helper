@@ -733,10 +733,6 @@ function Get-Version {
     $Cache.Version = $version
     return $version
 }
-function Get-Source {
-    $command = Get-Command choco -ErrorAction Stop
-    return $command.Source
-}
 
 function Get-Package {
     Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name)"
@@ -1027,13 +1023,9 @@ function Update-ListBox {
             Summary      = $Package.Summary
             Description  = $Package.Description
             SoftwareSite = $Package.SoftwareSite
-            DisplayName  = $null # Wird weiter unten basierend auf verfügbaren Informationen festgelegt
+            DisplayName  = if ($Package.Title) { $Package.Title } elseif ($Package.Name) { $Package.Name } else { $Package.Id }
             Raw          = $existingItem.Raw # Vorhandene Rohdaten beibehalten, da sie möglicherweise zusätzliche Informationen enthalten, die nicht in den aktualisierten Paketdetails enthalten sind
         }
-
-        $updatedPackage.DisplayName = if       ($updatedPackage.Title) { $updatedPackage.Title } 
-                                        elseif  ($updatedPackage.Name) { $updatedPackage.Name } 
-                                        else    { $updatedPackage.Id }
 
 
         $ListBox.Items.RemoveAt($targetIndex)

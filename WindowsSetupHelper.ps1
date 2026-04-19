@@ -1061,6 +1061,6 @@ $FormConfig = @{
     }
 }
 
-Start-Form $FormConfig.Main
-# Start-ChocolateyUI $this
+# Start-Form $FormConfig.Main
+Start-ChocolateyUI $this
 

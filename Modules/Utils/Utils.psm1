@@ -385,57 +385,6 @@ function Test-Empty {
     return [string]::IsNullOrWhiteSpace([string]$Value)
 }
 
-<# PROCESS LABEL #>
-function Update-ProcessLabel {
-    param( 
-        $Control,           # $this-Objekt, um auf die Steuerelemente zuzugreifen
-        [string]$Message,   # Die Nachricht, die im Label angezeigt werden soll
-        [int]$Delay = 0,    # Optionale Verzögerung in Sekunden, bevor die Nachricht aktualisiert wird
-        [switch]$Final      # Optionaler Schalter, der angibt, ob dies die letzte Aktualisierung ist (z. B. nach Abschluss eines Prozesses)
-    )
-    Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
-
-    if (-not $Control) { throw "Der Parameter 'Control' ist erforderlich, um auf die Steuerelemente zuzugreifen." }
-    $label = (Get-Control $Control "ProcessLabel")
-
-    # Überprüfen, ob der Aufruf von einem anderen Thread stammt, und gegebenenfalls den Aufruf auf den UI-Thread verschieben.
-    Write-Debug "Prüfe, ob der Aufruf von einem anderen Thread stammt: InvokeRequired = $($label.InvokeRequired)"
-    if ($label.InvokeRequired) {
-        $label.Invoke({ 
-            param($l, $m, $d, $f) 
-            Update-ProcessLabel -Control $l -Message $m -Delay $d -Final:$f 
-        }, $Control, $Message, $Delay, $Final)
-        return
-    }
-    
-    # Aktualisiert den Text des Labels mit der übergebenen Nachricht und erzwingt die Aktualisierung der Benutzeroberfläche.
-    $label.Text = $Message
-    Write-Debug "Aktualisiere Label-Text: $Message"
-    [Application]::DoEvents()
-    
-    # Stellt sicher, dass das Label sichtbar wird, wenn der Status aktualisiert wird.
-    if ($label.Visible -eq $false) {
-        Write-Debug "Ändere Sichtbarkeit des Labels auf sichtbar, da es derzeit ausgeblendet ist."
-        $label.Visible = $true 
-        Set-Cursor "Wait"
-    }
-
-    # Delay falls angegeben
-    Start-Sleep -Seconds $Delay
-
-    # Wenn der Final-Parameter gesetzt ist, wird das Label nach einer kurzen Verzögerung ausgeblendet.
-    if ($Final) {
-        Write-Debug "Final-Parameter ist gesetzt. Blende Label nach $Delay Sekunden aus."
-        $FinalAction = {
-            $this.Stop()
-            $this.Dispose()
-            Set-Cursor "Default"
-            $this.Tag.Label.Visible = $false
-        }
-        Start-Timer -Interval ($Delay * 1000) -Action $FinalAction -Context @{ Label = $label }
-    }
-    return
-}
 
 function Set-Timer {
     param( $Context, [scriptblock]$Action, [int]$Interval = 150 )

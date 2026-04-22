@@ -100,8 +100,6 @@ $FormConfig = @{
                                                 Text        = $SystemInfo.ProductName
                                                 Font        = Get-Font -Preset "TableText"
                                                 TextAlign   = "MiddleLeft"
-
-                                                ToolTip     = "Version ändern"
                                             }
 
                                             # Row 3 – Gerätename

@@ -133,6 +133,10 @@ function Request-File {
     .PARAMETER ProxyConfiguration
         Optionales Hashtable mit Proxy-Parametern (ProxyUrl, ProxyCredential).
 
+    .PARAMETER OnProgress
+        Optionaler ScriptBlock, der bei Fortschritts-Updates aufgerufen wird.
+        Übergibt ProgressPercentage, BytesReceived und TotalBytesToReceive.
+
     .EXAMPLE
         Request-File -Url "https://example.com/file.zip" -File "C:\Temp\file.zip"
 
@@ -143,12 +147,43 @@ function Request-File {
     param(
         [Parameter(Mandatory = $false)][string] $Url,
         [Parameter(Mandatory = $false)][string] $File,
-        [Parameter(Mandatory = $false)][hashtable] $ProxyConfiguration
+        [Parameter(Mandatory = $false)][hashtable] $ProxyConfiguration,
+        [Parameter(Mandatory = $false)][scriptblock] $OnProgress
     )
 
     $dl = Get-Downloader -Url $Url @ProxyConfiguration
-    try { $dl.DownloadFile($Url, $File) }
-    catch { throw "Download fehlgeschlagen: $_" }
+    $syncHash = [hashtable]::Synchronized(@{ Completed = $false; Error = $null })
+    $progressIdentifier = "RequestFileProgress-$([guid]::NewGuid().Guid)"
+    $completedIdentifier = "RequestFileCompleted-$([guid]::NewGuid().Guid)"
+
+    $progressJob = Register-ObjectEvent -InputObject $dl -EventName DownloadProgressChanged -SourceIdentifier $progressIdentifier -MessageData $OnProgress -Action {
+        if ($event.MessageData) {
+            & $event.MessageData $EventArgs.ProgressPercentage $EventArgs.BytesReceived $EventArgs.TotalBytesToReceive
+        }
+    }
+    $completedJob = Register-ObjectEvent -InputObject $dl -EventName DownloadFileCompleted -SourceIdentifier $completedIdentifier -MessageData $syncHash -Action {
+        $event.MessageData.Error = $EventArgs.Error
+        $event.MessageData.Completed = $true
+    }
+
+    try {
+        $dl.DownloadFileAsync([Uri]$Url, $File)
+        while (-not $syncHash.Completed) {
+            if ("System.Windows.Forms.Application" -as [type]) { [System.Windows.Forms.Application]::DoEvents() }
+            Start-Sleep -Milliseconds 200
+        }
+        if ($syncHash.Error) { throw $syncHash.Error }
+    }
+    catch {
+        throw "Download fehlgeschlagen: $_"
+    }
+    finally {
+        Unregister-Event -SourceIdentifier $progressIdentifier -ErrorAction SilentlyContinue
+        Unregister-Event -SourceIdentifier $completedIdentifier -ErrorAction SilentlyContinue
+        if ($progressJob) { Remove-Job -Id $progressJob.Id -Force -ErrorAction SilentlyContinue }
+        if ($completedJob) { Remove-Job -Id $completedJob.Id -Force -ErrorAction SilentlyContinue }
+        $dl.Dispose()
+    }
 }
 
 <# MESSAGE BOX #########################################################################>

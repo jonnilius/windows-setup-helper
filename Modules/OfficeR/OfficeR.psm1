@@ -344,22 +344,29 @@ function Install-Office {
     Hide-Window $control.FindForm()
     Show-ProgressDialog "Office Installation" "Starte Office-Installation..." -Control $control
 
+    # Ermittle die ausgewählten Optionen aus der UI
     $license = (Get-Control $control "LicenseList").SelectedItem
     $version = (Get-Control $control "VersionList").SelectedItem
     $edition = (Get-Control $control "EditionList").SelectedItem
 
+    # Stelle die Download-URL basierend auf den ausgewählten Optionen zusammen
     Update-ProgressDialog "Ermittle URL für $license $version $edition ($architecture, $internet)..."
     $productID      = if ($Offices.Contains($license)) { $edition + $license } else { $edition }
     $downloadURL    = Get-OfficeDownloadURL -productID $productID -language "de-de" -platform $architecture -internet $internet
-    Update-ProgressDialog "Ermittelt: $downloadURL"
 
+    # Bestimme den temporären Dateinamen basierend auf der Installationsart
+    $fileName   = if ($internet -eq "Offline") { "$($productID)_installer.img" } else { "$($productID)_installer.exe" }
+    $tempFile   = Join-Path -Path $env:TEMP -ChildPath $fileName
+    Update-ProgressDialog "Speichere die Datei als: `n$tempFile"
 
-    $fileName = if ($internet -eq "Offline") { "$($productID)_installer.img" } else { "$($productID)_installer.exe" }
-    $tempFile    = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), $fileName)
-    Update-ProgressDialog "Ermittle temporäre Datei: $tempFile"
-
+    Write-Host $downloadURL
     Update-ProgressDialog "Starte Download von $edition..."
-    Request-File -Url $downloadURL -File $tempFile
+    Request-File -Url $downloadURL -File $tempFile -OnProgress {
+        param($ProgressPercentage, $BytesReceived, $TotalBytesToReceive)
+        $mbReceived = [math]::Round($BytesReceived / 1MB, 1)
+        $mbTotal    = if ($TotalBytesToReceive -gt 0) { [math]::Round($TotalBytesToReceive / 1MB, 1) } else { '?' }
+        Update-ProgressDialog "Download: $mbReceived MB / $mbTotal MB ($ProgressPercentage%)"
+    }
 
     Update-ProgressDialog "Starte $fileName..."
     if ($internet -eq "Offline") {
@@ -428,8 +435,8 @@ function Uninstall-Office {
         else { Write-Warning "Keine Möglichkeit gefunden, die ausgewählte Office-Produkt-ID zu ermitteln."; return }
     }
 
-    
-    Stop-OfficeProcesses # Beende alle Office-bezogenen Prozesse, um Deinstallationshindernisse zu minimieren
+    # Beende alle Office-bezogenen Prozesse, um Deinstallationshindernisse zu minimieren
+    Stop-OfficeProcesses
 
     # Suche nach Deinstallationseinträgen, zuerst gezielt nach der ProductID, dann allgemein
     $uninstallEntries = Get-OfficeUninstallEntries -ProductID $ProductID

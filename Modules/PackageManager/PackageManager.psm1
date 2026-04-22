@@ -12,17 +12,16 @@ function Get-InstalledPrograms {
 
                 $key = $wingetApp.Name.ToLowerInvariant()
                 if ($appsByName.ContainsKey($key)) {
-                    $version = if (Test-Empty $appsByName[$key].Version -and -not (Test-Empty $wingetApp.Version)) { $wingetApp.Version } else { $appsByName[$key].Version }
-                    $appsByName[$key].WingetId  = $wingetApp.Id
+                    $appsByName[$key].WingetId  = $wingetApp.WingetId
                     $appsByName[$key].Source    = "$($appsByName[$key].Source), WinGet"
-                    $appsByName[$key].Version   = $version
+                    $appsByName[$key].Version   = if (Test-Empty $appsByName[$key].Version -and -not (Test-Empty $wingetApp.Version)) { $wingetApp.Version } else { $appsByName[$key].Version }
                 } else {
                     $appsByName[$key] = [PSCustomObject]@{
                         Id          = $wingetApp.Id
                         Name        = $wingetApp.Name
                         Version     = $wingetApp.Version
                         Source      = $wingetApp.Source
-                        WingetId    = $wingetApp.Id
+                        WingetId    = $wingetApp.WingetId
                     }
                 }
             }
@@ -108,7 +107,7 @@ function Update-InstalledProgramsList {
             $item.Tag = $program
             [void]$ListView.Items.Add($item)
         }
-        foreach ($column in $ListView.Columns) { $column.Width = -2 }
+        # foreach ($column in $ListView.Columns) { $column.Width = -2 }
     } finally {
         $ListView.EndUpdate()
     }

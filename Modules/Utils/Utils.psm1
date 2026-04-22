@@ -445,7 +445,6 @@ function Start-Timer {
     $Timer.Start()
 
 }
-
 function Stop-Timer {
     param( 
         [System.Windows.Forms.Control]$Control, 

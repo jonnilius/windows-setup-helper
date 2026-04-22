@@ -91,7 +91,7 @@ $script:Defaults = @{
         Padding         = [Padding]::new(10)
         MaximizeBox     = $false
         Text            = $AppInfo.Name
-        Icon            = Get-Icon "Default" $PSScriptRoot
+        Icon            = "Default"
 
         # FormBorderStyle = "FixedSingle"
         # MinimizeBox     = $false
@@ -184,7 +184,20 @@ $script:Defaults = @{
 }
 
 
+function Convert-ToSize($size) {
+    if ($size -is [System.Drawing.Size]) { return $size }
 
+    if ($size -is [string] -and $size -match '^(\d+)x(\d+)$') { return [System.Drawing.Size]::new([int]$Matches[1], [int]$Matches[2]) }
+
+    if ($size -is [System.Collections.IEnumerable]) {
+        $arr = @($size)
+        if ($arr.Count -eq 2 -and $arr[0] -as [int] -and $arr[1] -as [int]) {
+            return [System.Drawing.Size]::new([int]$arr[0], [int]$arr[1])
+        }
+    }
+
+    throw "Ungültiges Size-Format: $size"
+}
 
 function Merge-Config {
     param( [hashtable]$DefaultConfig, [hashtable]$CustomConfig )
@@ -1032,14 +1045,21 @@ function New-Form {
             switch ($key) {
                 # Spezialbehandlung für Text, um den Form-Namen voranzustellen (z.B. "Einstellungen – MeinApp")
                 "Text" {
-                    $formName = ($Config.Properties[$key])
-                    $form.Text = $formName
+                    $formName   = ($Config.Properties[$key])
+                    if ($formName -like "*-only*") { $form.Text = $formName -replace "-only", ""; continue }
+                    $form.Text  = $formName
                     if ($formName -ne $Defaults.Form.Text) { $form.Text = "$formName - $($Defaults.Form.Text)" }
 
                     $form.Icon = if ($formName -like "*Office*") { Get-icon -Name "Office" -ScriptRoot $PSScriptRoot }
-                    else { Get-icon -Name $formName -ScriptRoot $PSScriptRoot }
+                    # else { Get-icon -Name $formName -ScriptRoot $PSScriptRoot }
                     break
                 }
+                "Icon" {
+                    $iconName = $Config.Properties[$key]
+                    $form.Icon = Get-icon -Name $iconName -ScriptRoot $PSScriptRoot
+                    break
+                }
+                "ClientSize" { $form.ClientSize = Convert-ToSize $Config.Properties[$key]; break }
                 default {
                     # Versuche zuerst, die Property direkt zu setzen, wenn sie existiert
                     if ( $props -contains $key) { $form.$key = $Config.Properties[$key] } 
@@ -1252,7 +1272,7 @@ function Show-PowerStatusForm {
             FormBorderStyle = "FixedDialog"
             Padding     = [Padding]::new(5)
             BackColor   = Get-Color "Dark"
-            Icon       = Get-Icon -Name "PowerStatus" -ScriptRoot $PSScriptRoot
+            Icon       = "PowerStatus"
         }
         Controls = [ordered]@{
             GroupBox = @{
@@ -1317,6 +1337,7 @@ function Show-PowerStatusForm {
 
     Start-Form $FormConfig
 }
+
 
 <# Forms dot-source #>
 $FormsPath = Join-Path $PSScriptRoot "Forms"

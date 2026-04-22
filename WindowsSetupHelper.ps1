@@ -86,7 +86,6 @@ $FormConfig = @{
                                                 Control     = "Label"
                                                 Text        = "Systeminformationen"
                                                 Font        = Get-Font -Preset "TableTitle"
-                                                TextAlign   = "MiddleCenter"
                                             }
                                             # Row 2 – Windows-Version
                                             WindowsVersionLabel = @{
@@ -117,7 +116,8 @@ $FormConfig = @{
 
                                                 Cursor      = Get-Cursor "Hand"
                                                 ToolTip     = "Gerätename ändern"
-                                                Add_Click   = { Start-DeviceNameUI }
+                                                Add_Click   = { Set-DeviceName }
+                                                # Add_Click   = { Get-TextInputForm -Title "Gerätename ändern" -Label "Neuer Gerätename:" -DefaultValue $env:COMPUTERNAME }
                                             }
 
                                         }
@@ -665,6 +665,7 @@ $FormConfig = @{
                         Add_Selecting = {
                             param ($tabControl, $e)
                             switch ($e.TabPage.Name) {
+                                "MainTab"    { Import-Module SystemInfo }
                                 "PackageTab" { Import-Module PackageManager }
                                 "PowerTab"   { Import-Module PowerStatus }
                                 "OfficeTab"  { Import-Module OfficeR }
@@ -1060,4 +1061,3 @@ $FormConfig = @{
 }
 
 Start-Form $FormConfig.Main
-

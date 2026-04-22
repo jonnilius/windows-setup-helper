@@ -102,6 +102,7 @@ $script:Defaults = @{
         ForeColor   = Get-Color "Accent"
         BackColor   = Get-Color "Dark"
         Font        = Get-Font -Control "GroupBox"
+        Dock        = "Fill"
     }
     Label = @{
         Text        = "New-Label Text"
@@ -1045,20 +1046,15 @@ function New-Form {
             switch ($key) {
                 # Spezialbehandlung für Text, um den Form-Namen voranzustellen (z.B. "Einstellungen – MeinApp")
                 "Text" {
-                    $formName   = ($Config.Properties[$key])
-                    if ($formName -like "*-only*") { $form.Text = $formName -replace "-only", ""; continue }
-                    $form.Text  = $formName
-                    if ($formName -ne $Defaults.Form.Text) { $form.Text = "$formName - $($Defaults.Form.Text)" }
+                    $formName   = $Config.Properties[$key]
 
-                    $form.Icon = if ($formName -like "*Office*") { Get-icon -Name "Office" -ScriptRoot $PSScriptRoot }
-                    # else { Get-icon -Name $formName -ScriptRoot $PSScriptRoot }
-                    break
+                    # Wenn der Form-Name "-only" enthält, füge den Standard-Form-Namen nicht hinzu
+                    if ($formName -like "*-only*") { $form.Text = $formName -replace "-only", "" }
+                    elseif ($formName -eq $Defaults.Form.Text) { $form.Text = $formName }
+                    else { $form.Text = "$formName - $($Defaults.Form.Text)" }
+                    continue
                 }
-                "Icon" {
-                    $iconName = $Config.Properties[$key]
-                    $form.Icon = Get-icon -Name $iconName -ScriptRoot $PSScriptRoot
-                    break
-                }
+                "Icon"       { $form.Icon = Get-icon -Name $Config.Properties[$key] -ScriptRoot $PSScriptRoot; break }
                 "ClientSize" { $form.ClientSize = Convert-ToSize $Config.Properties[$key]; break }
                 default {
                     # Versuche zuerst, die Property direkt zu setzen, wenn sie existiert
@@ -1067,6 +1063,9 @@ function New-Form {
                     else { Write-Warning "Unbekannte Form-Property: $key" }
                 }
             }
+        }
+        if (-not $Config.Properties["Icon"] -and $Config.Properties["Text"]) {
+            $form.Icon = if ($Config.Properties["Text"] -like "*Office*") { Get-icon -Name "Office" -ScriptRoot $PSScriptRoot }
         }
     }
 
@@ -1278,7 +1277,6 @@ function Show-PowerStatusForm {
             GroupBox = @{
                 Control     = "GroupBox"
                 Text        = $GroupBoxText
-                Dock        = "Fill"
                 Controls    = [ordered]@{
                     TestTable = @{
                         Control     = "TableLayoutPanel"

@@ -190,7 +190,7 @@ function Request-File {
 function Show-MessageBox {
     param (
         [string]$Config,
-        [string]$Message,
+        [Alias("Message")][string]$Text,
         [string]$Title = "Information",
         [string]$Icon = "Info",
         [string]$Buttons = "OK"
@@ -320,7 +320,7 @@ function Show-MessageBox {
             $Buttons = "OK"
         }
          default {
-            $Text    = if ($Message) { $Message } else { "Unbekannte Konfiguration: $Config" }
+            $Text    = if ($Text) { $Text }  else { "Unbekannte Konfiguration: $Config" }
             $Caption = if ($Title) { $Title } else { "Fehler" }
             $Icon    = if ($Icon) { $Icon } else { "Error" }
             $Buttons = if ($Buttons) { $Buttons } else { "OK" }
@@ -330,6 +330,7 @@ function Show-MessageBox {
     # Icon validieren
     $iconEnum = switch ($Icon.ToLower()) {
         "info"      { [System.Windows.Forms.MessageBoxIcon]::Information }
+        "information" { [System.Windows.Forms.MessageBoxIcon]::Information }
         "warning"   { [System.Windows.Forms.MessageBoxIcon]::Warning }
         "question"  { [System.Windows.Forms.MessageBoxIcon]::Question }
         "error"     { [System.Windows.Forms.MessageBoxIcon]::Error }

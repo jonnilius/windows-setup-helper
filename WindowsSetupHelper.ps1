@@ -80,28 +80,12 @@ $FormConfig = @{
                                         Column      = @( "35", "50" )
                                         Row         = @( 35, 25, 25, 30, 30, 30, 30, 30, "AutoSize" )
                                         Controls    = [ordered]@{
-                                            # Row 1 – Systeminformationen
-                                            SystemLabel = @{
+                                            MainLabel = @{
                                                 ColumnSpan  = 2
                                                 Control     = "Label"
                                                 Text        = "Systeminformationen"
                                                 Font        = Get-Font -Preset "TableTitle"
                                             }
-                                            # Row 2 – Windows-Version
-                                            WindowsVersionLabel = @{
-                                                Control     = "Label"
-                                                Text        = "Windows-Version:"
-                                                Font        = Get-Font -Preset "TableLabel" 
-                                                TextAlign   = "MiddleLeft"
-                                            }
-                                            WindowsVersionValue = @{
-                                                Control     = "Label"
-                                                Text        = $SystemInfo.ProductName
-                                                Font        = Get-Font -Preset "TableText"
-                                                TextAlign   = "MiddleLeft"
-                                            }
-
-                                            # Row 3 – Gerätename
                                             DeviceNameLabel = @{
                                                 Control     = "Label"
                                                 Text        = "Gerätename:"
@@ -117,8 +101,52 @@ $FormConfig = @{
                                                 Cursor      = Get-Cursor "Hand"
                                                 ToolTip     = "Gerätename ändern"
                                                 Add_Click   = { Set-DeviceName }
-                                                # Add_Click   = { Get-TextInputForm -Title "Gerätename ändern" -Label "Neuer Gerätename:" -DefaultValue $env:COMPUTERNAME }
                                             }
+                                            # Row 1 – Windows-Informationen
+                                            WindowsLabel = @{
+                                                ColumnSpan  = 2
+                                                Control     = "Label"
+                                                Text        = "Windows"
+                                                Font        = Get-Font -Preset "TableTitle"
+                                            }
+                                            # Row 2 – Windows-Edition
+                                            WindowsEditionLabel = @{
+                                                Control     = "Label"
+                                                Text        = "Edition:"
+                                                Font        = Get-Font -Preset "TableLabel" 
+                                                TextAlign   = "MiddleLeft"
+                                            }
+                                            WindowsEditionValue = @{
+                                                Control     = "Label"
+                                                Text        = $SystemInfo.ProductName
+                                                Font        = Get-Font -Preset "TableText"
+                                                TextAlign   = "MiddleLeft"
+                                            }
+                                            WindowsVersionLabel = @{
+                                                Control     = "Label"
+                                                Text        = "Version:"
+                                                Font        = Get-Font -Preset "TableLabel" 
+                                                TextAlign   = "MiddleLeft"
+                                            }
+                                            WindowsVersionValue = @{
+                                                Control     = "Label"
+                                                Text        = $SystemInfo.DisplayVersion
+                                                Font        = Get-Font -Preset "TableText"
+                                                TextAlign   = "MiddleLeft"
+                                            }
+                                            WindowsBuildLabel = @{
+                                                Control     = "Label"
+                                                Text        = "Build:"
+                                                Font        = Get-Font -Preset "TableLabel" 
+                                                TextAlign   = "MiddleLeft"
+                                            }
+                                            WindowsBuildValue = @{
+                                                Control     = "Label"
+                                                Text        = $SystemInfo.CurrentBuild
+                                                Font        = Get-Font -Preset "TableText"
+                                                TextAlign   = "MiddleLeft"
+                                            }
+
 
                                         }
                                     }

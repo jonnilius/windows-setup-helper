@@ -5,18 +5,17 @@
         [string]$DefaultValue       = "", 
         [string]$Icon               = "TextInput",
         [string]$OKButtonText       = "OK",
-        [string]$CancelButtonText   = "Abbrechen"
+        [string]$CancelButtonText   = "Abbrechen",
+        [string]$WarningMessage     = $null
     )
 
     $FormConfig = @{
         Properties = @{
             Text            = "$Title -only"
-            ClientSize      = 300,100
+            ClientSize      = if ($WarningMessage) { 300,140 } else { 300,110 }
             MinimizeBox     = $false
-            MaximizeBox     = $false
             KeyPreview      = $true
             FormBorderStyle = "FixedDialog"
-            Padding         = [Padding]::new(5)
             BackColor       = Get-Color "Dark"
             Icon            = $Icon
         }
@@ -24,12 +23,10 @@
             GroupBox = @{
                 Control     = "GroupBox"
                 Text        = $Label
-                Dock        = "Fill"
                 Controls    = [ordered]@{
                     InputTable = @{
                         Control     = "TableLayoutPanel"
-                        Dock        = "Fill"
-                        Row         = @("100", 34)
+                        Row         = if ($WarningMessage) { @("100", "100", 34) } else { @("100", 34) }
                         Controls    = [ordered]@{
                             Input = @{
                                 Control     = "TextBox"
@@ -37,6 +34,15 @@
                                 Text        = $DefaultValue
                                 Margin     = [Padding]::new(5)
                                 TextAlign   = "Center"
+                            }
+                            WarnLabel = @{
+                                Control     = "Label"
+                                Name        = "WarnLabel"
+                                Text        = $WarningMessage
+                                ForeColor   = Get-Color "Accent"
+                                TextAlign   = "MiddleCenter"
+                                Font        = Get-Font -Control "Label" -Style "Italic"
+                                Visible     = if ($WarningMessage) { $true } else { $false }
                             }
                             Buttons = @{
                                 Control     = "TableLayoutPanel"
@@ -51,10 +57,6 @@
                                         Anchor      = "Top, Left, Right"
                                         AutoCellDock= $false
                                         DialogResult= "OK"
-                                        Add_Click    = {
-                                            $text = Get-Control $this "Input"
-                                            if ($text.Text.Trim() -eq "") { [System.Media.SystemSounds]::Exclamation.Play() }
-                                        }
                                     }
                                     CancelButton= @{
                                         Control     = "Button"
@@ -84,6 +86,7 @@
         }
     }
 
+    if ($WarningMessage) { [System.Media.SystemSounds]::Exclamation.Play() }
     $form = New-Form $FormConfig
     $result = $form.ShowDialog()
     $textBox = Get-Control $form "Input"

@@ -24,7 +24,7 @@ function Get-Font {
             RichTextBox     = @{ Size = 10; Name = "Consolas";  Style = "Regular" }
             TabControl      = @{ Size = 10; Name = "Consolas";  Style = "Regular" }
             TabPage         = @{ Size = 10; Name = "Consolas";  Style = "Regular" }
-            TextBox         = @{ Size = 11; Name = "Segoe UI";  Style = "Bold" }
+            TextBox         = @{ Size = 12; Name = "Segoe UI";  Style = "Bold" }
         }[$Control]
     } elseif ($Preset) {
         $fontPreset = @{

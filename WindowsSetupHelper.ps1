@@ -193,13 +193,13 @@ $FormConfig = @{
                                 Padding    = [Padding]::new(10,10,10,0)
                                 Controls    = @{
                                     InstalledPackagesListBox = @{
-                                        Control     = "ListView"
-                                        Dock        = "Fill"
-                                        Margin      = [Padding]::new(10)
-                                        HideSelection = $false
-                                        MultiSelect = $true
-                                        Columns     = @( @("Name", 300), @("ID", 300), @("Version", 200), @("Quelle", 200) )
-                                        Add_MouseDown = {
+                                        Control         = "ListView"
+                                        Dock            = "Fill"
+                                        Margin          = [Padding]::new(10)
+                                        HideSelection   = $false
+                                        MultiSelect     = $true
+                                        Columns         = @( @("Name", 310), @("ID", 310), @("Version", 150), @("Quelle", 230) )
+                                        Add_MouseDown   = {
                                             param($listView, $e)
                                             if ($e.Button -ne [MouseButtons]::Right) { return }
 
@@ -1061,6 +1061,5 @@ $FormConfig = @{
     }
 }
 
-# Start-Form $FormConfig.Main
-Start-ChocolateyUI $this
+Start-Form $FormConfig.Main
 

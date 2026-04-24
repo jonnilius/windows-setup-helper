@@ -5,7 +5,7 @@
     Author            = 'jonnilius'
     CompanyName       = 'BORINAS'
     Copyright         = '(c) 2026 jonnilius'
-    Description       = 'Windows Setup Helper'
+    Description       = 'Tool zum Einrichten eines Windows-Systems'
     PowerShellVersion = '5.1'
 
     NestedModules     = @(

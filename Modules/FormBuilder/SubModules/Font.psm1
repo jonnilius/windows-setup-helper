@@ -39,6 +39,7 @@ function Get-Font {
             TableTitle      = @{ Size = 14; Name = "Tahoma"; Style = "Bold" }
             TableLabel      = @{ Size = 10; Name = "Tahoma"; Style = "Bold" }
             TableText       = @{ Size = 10; Name = "Tahoma"; Style = "Regular" }
+            TableTextHover  = @{ Size = 10; Name = "Tahoma"; Style = "Italic" }
             TableLink       = @{ Size = 9;  Name = "Tahoma"; Style = "Italic" }
             TableButton     = @{ Size = 8;  Name = "Tahoma"; Style = "Bold" }
 

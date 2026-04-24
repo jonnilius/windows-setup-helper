@@ -413,24 +413,17 @@ function New-TableLayoutPanel {
                 $control        = New-Control $controlConfig
                 $control.Name   = $cfg.Key
 
-                # Nur automatisch auf Fill docken, wenn kein explizites Layout im Control gesetzt ist.
-                $hasExplicitDock = $controlConfig.ContainsKey("Dock")
-                $hasExplicitAnchor = $controlConfig.ContainsKey("Anchor")
-                $disableAutoCellDock = $controlConfig.ContainsKey("AutoCellDock") -and -not [bool]$controlConfig["AutoCellDock"]
-                if (-not $hasExplicitDock -and -not $hasExplicitAnchor -and -not $disableAutoCellDock) {
-                    $control.Dock = "Fill"
-                }
-
+                # Positionierung im TableLayoutPanel: Wenn eine Position angegeben ist, wird das Control an der entsprechenden Stelle hinzugefügt. Andernfalls wird es einfach in der nächsten verfügbaren Zelle platziert.
                 if ($controlConfig.Position) {
                     $pos = $controlConfig.Position
                     
                     # Column
-                    $col = if($null -ne $pos.Column) { $pos.Column } else { $pos[0] }
+                    $col = if($pos.Column) { $pos.Column } else { $pos[0] }
                     if ($col -is [array]){ $colPos = $col[0]; $colSpan = $col[1] - $col[0] + 1 } 
                     else { $colPos = $col; $colSpan = 1 }
 
                     # Row
-                    $row = if($null -ne $pos.Row) {    $pos.Row }    else { $pos[1] }
+                    $row = if($pos.Row) {    $pos.Row }    else { $pos[1] }
                     if ($row -is [array]){ $rowPos = $row[0]; $rowSpan = $row[1] - $row[0] + 1 }
                     else { $rowPos = $row; $rowSpan = 1 }
                     
@@ -442,9 +435,25 @@ function New-TableLayoutPanel {
                     if ($rowSpan -gt 1) { $table.SetRowSpan($control, $rowSpan) }
 
                 } else { $table.Controls.Add($control) }
-                if ($null -ne $controlConfig.ColumnSpan) { $table.SetColumnSpan($control, $controlConfig.ColumnSpan) }
-                if ($null -ne $controlConfig.RowSpan)    { $table.SetRowSpan($control, $controlConfig.RowSpan) }
+
+                # Span setzen, falls angegeben (alternative Möglichkeit zur Angabe von ColumnSpan und RowSpan direkt im ControlConfig, ohne eine Position angeben zu müssen)
+                if ($controlConfig.ColumnSpan) { $table.SetColumnSpan($control, $controlConfig.ColumnSpan) }
+                if ($controlConfig.RowSpan)    { $table.SetRowSpan($control, $controlConfig.RowSpan) }
+
+                # Nur automatisch auf Fill docken, wenn kein explizites Layout im Control gesetzt ist.
+                if (-not $controlConfig.Dock -and -not $controlConfig.Anchor -and -not $controlConfig.AutoCellDock) { $control.Dock = "Fill" }
+                
+                # Standard-Font für Labels in TableLayoutPanel setzen, wenn kein Font angegeben ist
+                if ($controlConfig.Control -eq "Label" -and -not $controlConfig.Font) { 
+                    $preset = if ($controlConfig.ColumnSpan -gt 1) { "TableTitle" } else { "TableLabel" }
+                    $control.Font = Get-Font -Preset $preset
+                }
             }
+            continue
+        } 
+        # Events mit "Add_" oder "Remove_" Präfix werden direkt über die entsprechenden Methoden hinzugefügt, z.B. Add_CellPaint, Remove_CellPaint, etc.
+        if ($events -contains $key) { 
+            $table.$("Add_$key")($Config[$key])
             continue
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
@@ -454,78 +463,71 @@ function New-TableLayoutPanel {
             $name = $key.Substring(7) 
             if ($events -contains $name) { $table.$key($Config[$key]) }
             continue
-        } elseif ($key -in @("Column", "Row")) {
+        } 
+        if ($key -in @("Column", "Row")) {
             # Spezialbehandlung für RowStyles und ColumnStyles, da diese komplexe Objekte sind und nicht direkt über die Property gesetzt werden können
             $keyConfig  = $Config[$key]
-            $isColumn   = $key -eq "Column"
+            $styleType  = [type]"System.Windows.Forms.${key}Style"
             $sizeTypes  = "Percent", "AutoSize", "Absolute"
+            $percent    = 0
 
             # Alte Styles entfernen
-            if ($isColumn) { $table.ColumnStyles.Clear() } else { $table.RowStyles.Clear() }
+            $table.$($key + "Styles").Clear()
 
             # Anzahl der Spalten/Zeilen setzen
-            if ($isColumn) { $table.ColumnCount = $keyConfig.Count } else { $table.RowCount = $keyConfig.Count }
+            $table.($key + "Count") = $keyConfig.Count
             
             # Neue Styles hinzufügen
             foreach ($style in $keyConfig) { 
 
                 # Wenn bereits ein gültiges TableLayoutStyle-Objekt übergeben wird, dieses direkt verwenden
-                $keyStyle = if ($style -is [System.Windows.Forms.TableLayoutStyle]) { $style 
+                $keyStyle = if ($style -is [System.Windows.Forms.TableLayoutStyle]) { $style }
 
                 # Andernfalls versuchen, die übergebenen Werte zu interpretieren und ein neues TableLayoutStyle-Objekt zu erstellen.
-                } else {
+                else {
 
                     # Startwerte für SizeType und Dimension festlegen
                     $sizeType   = "AutoSize"
                     $dimension  = 0
 
                     
-                    # Wenn ein String übergeben wird, könnte es sich um einen Prozentwert oder einen SizeType handeln
-                    if ($style -is [string]) { 
+                    
+                    if ($style -is [string]) { # Wenn ein String übergeben wird, könnte es sich um einen Prozentwert oder einen SizeType handeln
 
-                        # Wenn der String nur aus Ziffern besteht und zwischen 0 und 100 liegt, interpretieren wir ihn als Prozentwert
-                        if ($style -match '^\d+$' -and ([int]$style -ge 0 -and [int]$style -le 100)) {
+                        if ($style -match '^\d+$' -and ([int]$style -ge 0 -and [int]$style -le 100)) { # Wenn der String nur aus Ziffern besteht und zwischen 0 und 100 liegt, interpretieren wir ihn als Prozentwert
                             $sizeType   = "Percent"
-                            $dimension  = [int]$style
+                            $dimension  =  [int]$style
+                            $percent    += $dimension
 
-                        # Wenn der String einem der SizeTypes entspricht, verwenden wir diesen SizeType mit der Standarddimension von 0 (für AutoSize) oder 100 (für Percent)
-                        } elseif ($sizeTypes -contains $style) { $sizeType = $style }
+                            if ($percent -gt 100) { throw "Die Summe der Prozentwerte für $key darf 100 nicht überschreiten." } # Sicherstellen, dass die Summe der Prozentwerte 100 nicht überschreitet
 
-                    # Wenn ein Integer übergeben wird, interpretieren wir ihn als absoluten Wert in Pixeln
-                    } elseif ($style -is [int]) {
+                        } elseif ($sizeTypes -contains $style) { # Wenn der String einem der SizeTypes entspricht, verwenden wir diesen SizeType mit der Standarddimension von 0 (für AutoSize) oder 100 (für Percent)
+                            $sizeType = $style 
+                        } else { 
+                            throw "Ungültiger Style-Wert: $style. Erwartet wird entweder ein Prozentwert (0-100) oder ein SizeType (${sizeTypes -join ", "})." 
+                        }
+
+                    } elseif ($style -is [int]) { # Wenn ein Integer übergeben wird, interpretieren wir ihn als absoluten Wert in Pixeln
                         $sizeType   = "Absolute"
                         $dimension  = $style
+                    } elseif ($style -is [array]) { # Wenn ein Array übergeben wird, könnte es sich um eine Kombination aus SizeType und Dimension handeln, z.B. ["Percent", 50] oder ["Absolute", 100]
 
-                    # Wenn ein Array übergeben wird, könnte es sich um eine Kombination aus SizeType und Dimension handeln, z.B. ["Percent", 50] oder ["Absolute", 100]
-                    } elseif ($style -is [array]) {
-
-                        # Wenn der erste Wert ein gültiger SizeType ist, verwenden wir diesen. Ansonsten bleibt der Standard-SizeType "AutoSize" erhalten.
-                        if ($style[0] -in $sizeTypes) { $sizeType = $style[0] } 
-
-                        # Wenn ein zweiter Wert vorhanden ist und eine gültige Dimension darstellt (z.B. eine positive Zahl), verwenden wir diesen als Dimension. Ansonsten bleibt die Standard-Dimension 0 (für AutoSize) oder 100 (für Percent) erhalten.
-                        if ($style.Count -gt 1 -and $style[1] -ge 0) { $dimension = $style[1] } 
+                        if ($style[0] -in $sizeTypes) { $sizeType = $style[0] } # Wenn der erste Wert ein gültiger SizeType ist, verwenden wir diesen. Ansonsten bleibt der Standard-SizeType "AutoSize" erhalten.
+                        if ($style.Count -gt 1 -and $style[1] -ge 0) { $dimension = $style[1] } #  Wenn ein zweiter Wert vorhanden ist und eine gültige Dimension darstellt (z.B. eine positive Zahl), verwenden wir diesen als Dimension. Ansonsten bleibt die Standard-Dimension 0 (für AutoSize) oder 100 (für Percent) erhalten.
                     } 
 
                     # Neues ColumnStyle- oder RowStyle-Objekt basierend auf den ermittelten SizeType- und Dimension-Werten erstellen
-                    if ($isColumn) { [ColumnStyle]::new([SizeType]::$sizeType, $dimension) }
-                    else { [RowStyle]::new([SizeType]::$sizeType, $dimension) }
+                    $styleType::new([SizeType]::$sizeType, $dimension)
                 }
                 
                 # Neuen Style zum TableLayoutPanel hinzufügen
-                if ($isColumn) { [void]$table.ColumnStyles.Add($keyStyle) }
-                else { [void]$table.RowStyles.Add($keyStyle) }
+                [void]$table.($key + "Styles").Add($keyStyle)
             }
             continue
-        } elseif ($key -eq "Position") {
-            continue # Position wird speziell bei Controls innerhalb eines TableLayoutPanels behandelt, daher hier übersprungen
         } elseif ($key -eq "ToolTip") {
             $ToolTip.SetToolTip($table, $Config[$key])
             continue
-        } elseif ($props -contains $key) { 
-            $table.$key = $Config[$key] 
-        } elseif ($table.PSObject.Properties[$key]) {
-            $table.$key = $Config[$key]
-        }
+        } elseif ($props -contains $key) { $table.$key = $Config[$key] } 
     }    
 
     # Return
@@ -796,19 +798,23 @@ function New-Label {
     foreach ($key in $Config.Keys) {
         if ($key -eq "ToolTip") {
             $ToolTip.SetToolTip($label, $Config[$key])
+            continue
+        } 
+        # Events mit "Add_" oder "Remove_" Präfix werden direkt über die entsprechenden Methoden hinzugefügt, z.B. Add_Click, Remove_Click, etc.
+        if ($events -contains $key) { 
+            $label.$("Add_$key")($Config[$key])
+            continue
         } elseif ($key -like "Add_*") { 
             $name = $key.Substring(4) 
             if ($events -contains $name) { $label.$key($Config[$key]) }
+            continue
         } elseif ($key -like "Remove_*") { 
             $name = $key.Substring(7) 
             if ($events -contains $name) { $label.$key($Config[$key]) }
-        } elseif ($prop -contains $key) {
-            $label.$key = $Config[$key]
-        } else {
-            if ($label.PSObject.Properties[$key]) {
-                $label.$key = $Config[$key]
-            }
-        }
+            continue
+        } 
+        
+        if ($prop -contains $key) { $label.$key = $Config[$key] } 
     }
 
     # Return

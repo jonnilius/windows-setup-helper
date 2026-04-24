@@ -33,6 +33,8 @@ $global:SystemInfo = @{
 
     Architecture = if ([System.Environment]::Is64BitOperatingSystem) { "64-bit" } else { "32-bit" }
 }
+
+# App-Info
 $Manifest = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot "WindowsSetupHelper.psd1")
 $global:AppInfo = @{
     Name        = "Windows Setup Helper"
@@ -41,16 +43,19 @@ $global:AppInfo = @{
     Company     = $Manifest.CompanyName
     License     = "MIT License"
 }
+Write-Information "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
+
+# App-Konfiguration
 $global:AppConfig = @{
+    ModulePath  = "$PSScriptRoot\Modules"
     IconPath    = "$PSScriptRoot\Assets\Icons"
     HideShell   = $false
 }
-
-Write-Information "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
-$env:PSModulePath += ";$PSScriptRoot\Modules"
-
-
 if ($AppConfig.HideShell) { Hide-PSConsole }
+
+$ModulePaths = $env:PSModulePath -Split ";" | ForEach-Object { $_.Trim() }
+if ($AppConfig.ModulePath -notin $ModulePaths) { $env:PSModulePath += ";$($AppConfig.ModulePath)" }
+
 <# FORM-DATA ############################################################################>
 $FormConfig = @{
     Main        = @{
@@ -108,9 +113,9 @@ $FormConfig = @{
                                     }
                                 }
                             }
-                            DebloatTab  = @{
+                            TweakTab  = @{
                                 Control     = "TabPage"
-                                Text        = "Debloat"
+                                Text        = "Tweaks"
                                 Controls    = @{
                                     TableLayout = @{
                                         Control     = "TableLayoutPanel"
@@ -135,7 +140,7 @@ $FormConfig = @{
                                                 
                                                 Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
                                                 Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
-                                                Add_Click       = { & (Join-Path $PSScriptRoot "Debloat/Uninstall-OneDrive.ps1") }
+                                                Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-OneDrive.ps1") }
                                             }
                                             UninstallEdge = @{
                                                 Control     = "Label"
@@ -146,7 +151,7 @@ $FormConfig = @{
 
                                                 Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
                                                 Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
-                                                Add_Click       = { & (Join-Path $PSScriptRoot "Debloat/Uninstall-MicrosoftEdge.ps1") }
+                                                Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-MicrosoftEdge.ps1") }
                                             }   
                                             # Column 2 – System aufräumen
                                             CleanerLabel = @{
@@ -162,9 +167,16 @@ $FormConfig = @{
                                                 Font        = Get-Font -Preset "TableButton"
                                                 Position    = 1,1
                                                 Margin      = [Padding]::new(20,0,20,0)
-                                                Add_Click   = { & (Join-Path $PSScriptRoot "Debloat/Remove-StartMenuIcons.ps1") }
+                                                Add_Click   = { & (Join-Path $PSScriptRoot "Scripts/Remove-StartMenuIcons.ps1") }
                                             }
-
+                                            DisableTelemetry = @{
+                                                Control     = "Button"
+                                                Text        = "Telemetrie deaktivieren"
+                                                Font        = Get-Font -Preset "TableButton"
+                                                Position    = 1,2
+                                                Margin      = [Padding]::new(20,0,20,0)
+                                                Add_Click   = { & (Join-Path $PSScriptRoot "Scripts/Disable-Telemetry.ps1") }
+                                            }
                                         }
                                     }
                                 }
@@ -765,13 +777,13 @@ $FormConfig = @{
                                                         ColumnSpan  = 2
                                                         Control     = "Label"
                                                         Text        = "Gerätespezifikationen"
-                                                        Font        = Get-Font -Preset "TableTitle"
+                                                        # Font        = Get-Font -Preset "TableTitle"
                                                     }
                                                     # Row 2 - Gerätename
                                                     DeviceNameLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Gerätename:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        # Font        = Get-Font -Preset "TableLabel" 
                                                         TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceNameValue = @{
@@ -782,20 +794,20 @@ $FormConfig = @{
 
                                                         Cursor      = Get-Cursor "Hand"
                                                         ToolTip     = "Klicken zum Kopieren des Gerätenamens in die Zwischenablage"
-                                                        Add_MouseEnter = { $this.Text = "Klicken zum Kopieren" }
-                                                        Add_MouseLeave = { $this.Text = Get-DeviceInfo -Name }
+                                                        Add_MouseEnter = { $this.Text = "Klicken zum Kopieren"; $this.Font = Get-Font -Preset "TableTextHover" }
+                                                        Add_MouseLeave = { $this.Text = Get-DeviceInfo -Name; $this.Font = Get-Font -Preset "TableText" }
                                                         Add_Click = { 
                                                             Set-Clipboard (Get-DeviceInfo -Name) 
                                                             $this.Text = "Gerätename kopiert!"
                                                             Start-Sleep -Seconds 2
                                                             $this.Text = Get-DeviceInfo -Name
                                                         }
+                                                        DoubleClick = { Set-DeviceName }
                                                     }
                                                     # Row 3 - Prozessor
                                                     DeviceProcessorLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Prozessor:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
                                                         TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceProcessorValue = @{
@@ -808,7 +820,6 @@ $FormConfig = @{
                                                     DeviceRAMLabel = @{
                                                         Control     = "Label"
                                                         Text        = "RAM:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
                                                         TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceRAMValue = @{
@@ -821,20 +832,17 @@ $FormConfig = @{
                                                     DeviceGPUlLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Grafikkarte:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
                                                         TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceGPUValue = @{
                                                         Control     = "Label"
                                                         Text        = Get-DeviceInfo -GPU
-                                                        Font        = Get-Font -Preset "TableText"
                                                         TextAlign   = "MiddleLeft"
                                                     }
                                                     # Row 6 - Speicher
                                                     DeviceStorageLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Speicher:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
                                                         TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceStorageValue = @{
@@ -847,7 +855,6 @@ $FormConfig = @{
                                                     ProductIDLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Produkt-ID:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
                                                         TextAlign   = "MiddleLeft"
                                                     }
                                                     ProductIDValue = @{
@@ -860,7 +867,6 @@ $FormConfig = @{
                                                     SystemTypeLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Systemtyp:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
                                                         TextAlign   = "MiddleLeft"
                                                     }
                                                     SystemTypeValue = @{
@@ -878,13 +884,13 @@ $FormConfig = @{
                         }
                         Add_SelectedIndexChanged = {
                             param ($tabControl, $e)
-                            $form    = $this.FindForm()
+                            $form        = $this.FindForm()
                             $selectedTab = $tabControl.SelectedTab
-                            $header  = Get-Control $this "Header"
+                            $header      = Get-Control $this "Header"
 
                             switch ($selectedTab.Name) {
                                 "MainTab"       { $header.Text = $AppInfo.Name.ToUpper() }
-                                "DebloatTab"    { $header.Text = "WINDOWS DEBLOATER" }
+                                "TweakTab"      { $header.Text = "WINDOWS TWEAKS" }
                                 "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG"; $form.MinimumSize = [Size]::new(1000,500) }
                                 "PowerTab"      { $header.Text = "ENERGIEOPTIONEN" }
                                 "OfficeTab"     { $header.Text = "OfficeR" }
@@ -893,15 +899,19 @@ $FormConfig = @{
                                 }
                             }
                         }
+                        # Vor dem TabPage-Wechsel
                         Add_Selecting = {
                             param ($tabControl, $e)
+                            # Module nur bei Bedarf laden, um die Startzeit des Skripts zu verkürzen
                             switch ($e.TabPage.Name) {
                                 "MainTab"    { Import-Module SystemInfo }
                                 "PackageTab" { Import-Module PackageManager }
                                 "PowerTab"   { Import-Module PowerStatus }
                                 "OfficeTab"  { Import-Module OfficeR }
+                                "InfoTab"    { Import-Module SystemInfo }
                             }
                         }
+                        # Nach dem TabPage-Wechsel
                         Add_Selected = {
                             param ($tabControl, $e)
                             switch ($e.TabPage.Name) {

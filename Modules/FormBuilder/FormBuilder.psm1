@@ -68,7 +68,7 @@ $script:Defaults = @{
     }
     ContextMenu = @{
         ForeColor       = Get-Color "Accent"
-        BackColor       = Get-Color "Dark"
+        # BackColor       = Get-Color "Dark"
         ShowImageMargin = $true
         Add_Opening = {
             param($src, $e)
@@ -261,6 +261,10 @@ $global:ToolTip = & {
     $toolTip.InitialDelay = 500
     $toolTip.ReshowDelay = 500
     return $toolTip
+}
+function Show-Tooltip {
+    param( [Control]$Control, [string]$Message, [int]$Duration = 2000 )
+    $ToolTip.Show($Message, $Control, $Duration)
 }
 
 <### CONTEXT-MENU ###>
@@ -855,8 +859,6 @@ function New-ListView {
     $type.GetProperty("DoubleBuffered", [System.Reflection.BindingFlags] "NonPublic,Instance").SetValue($listView, $true, $null)
     $events = $type.GetEvents().Name
     $props  = $type.GetProperties().Name
-
-
 
     foreach ($key in $Config.Keys) {
         switch -Wildcard ($key) {

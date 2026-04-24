@@ -91,6 +91,10 @@ function Get-InstalledPrograms {
     return $script:InstalledProgramsCache
 }
 
+if (-not $script:InstalledProgramsListRequests) {
+    $script:InstalledProgramsListRequests = @{}
+}
+
 function Update-InstalledProgramsList {
     param( [System.Windows.Forms.ListView]$ListView )
     
@@ -107,44 +111,75 @@ function Update-InstalledProgramsList {
             $item.Tag = $program
             [void]$ListView.Items.Add($item)
         }
-        # foreach ($column in $ListView.Columns) { $column.Width = -2 }
     } finally {
         $ListView.EndUpdate()
     }
 }
+
+
+<# INSTALL & UNINSTALL FUNCTIONS #>
 function Uninstall-Program {
-    param ( [System.Collections.IEnumerable]$Programs )
-    $selectedPrograms = @($Programs)
-    if ($selectedPrograms.Count -eq 0) { return }
-    if (-not (Show-MessageBox "UninstallPackagesConfirm")) { return }
+    param ( [PSCustomObject]$program, [switch]$Force )
+    if (-not $Force -and -not (Show-MessageBox "UninstallPackagesConfirm")) { return }
 
     # Starte Deinstallation mit Fortschrittsanzeige
     Show-ProgressDialog "Deinstallation" "Deinstallation wird vorbereitet..."
     try {
-        foreach ($program in $selectedPrograms) {
-            Update-ProgressDialog "Deinstalliere $($program.Name)..."
+        Update-ProgressDialog "Deinstalliere $($program.Name)..."
 
-            # Wenn eine WingetId vorhanden ist, versuchen wir zuerst die Deinstallation über WinGet, da dies oft zuverlässiger ist und auch Apps deinstallieren kann, die nicht über die Registry erfasst werden (z.B. MS Store Apps).
-            $VersionParam = if ($program.Version) { "--version `"$($program.Version)`"" } else { "" }
-            if ($program.WingetId) { $command = "winget uninstall --id `"$($program.WingetId)`" --exact --source winget --accept-source-agreements --disable-interactivity $VersionParam --silent" }
-            elseif ($program.Source -match "Chocolatey" -and $program.Id) { $command = "choco uninstall `"$($program.Id)`" --yes --exact --no-color --silent" }
-            else { $command = "winget uninstall --id `"$($program.Id)`" --exact --source winget --accept-source-agreements --disable-interactivity $VersionParam --silent" }
-
-            if (Test-Empty $command) {
-                Update-ProgressDialog "Keine Deinstallationsroutine für $($program.Name) gefunden."
-                Start-Sleep -Seconds 1
-                continue
-            }
-
-            Start-Command $command
+        # Wenn eine WingetId vorhanden ist, versuchen wir zuerst die Deinstallation über WinGet, da dies oft zuverlässiger ist und auch Apps deinstallieren kann, die nicht über die Registry erfasst werden (z.B. MS Store Apps).
+        $VersionParam   = if ($program.Version) { "--version `"$($program.Version)`"" } else { "" }
+        $command        = if ($program.WingetId) { 
+            "winget uninstall --id `"$($program.WingetId)`" --exact --source winget --accept-source-agreements --disable-interactivity $VersionParam --silent" 
+        } elseif ($program.Source -match "Chocolatey" -and $program.Id) { 
+            "choco uninstall `"$($program.Id)`" --yes --exact --no-color --silent" 
+        } else { 
+            "winget uninstall --id `"$($program.Id)`" --exact --source winget --accept-source-agreements --disable-interactivity $VersionParam --silent" 
         }
 
+        # Wenn kein gültiger Deinstallationsbefehl gefunden wurde, informieren und abbrechen
+        if (Test-Empty $command) { Update-ProgressDialog "Keine Deinstallationsroutine für $($program.Name) gefunden."; return }
+        Start-Command $command
+
+        # Nach der Deinstallation den Cache der installierten Programme invalidieren, damit die Liste aktualisiert wird, wenn sie das nächste Mal abgerufen wird.
         $script:InstalledProgramsCache = $null
         Close-ProgressDialog "Deinstallation abgeschlossen."
     } catch {
         Close-ProgressDialog "Deinstallation fehlgeschlagen." $_.Exception.Message
         throw
     }
+}
+function Install-Program {
+    param ( [PSObject]$program )
+    
+    # Starte Installation mit Fortschrittsanzeige
+    Show-ProgressDialog "Installation" "Installation wird vorbereitet..."
+    try {
+        if (-not $Program.Id)   { throw "Programm-Objekt muss eine gültige Id-Eigenschaft besitzen." }
+        if (-not $Program.Name) { throw "Programm-Objekt muss eine gültige Name-Eigenschaft besitzen." }
+        Update-ProgressDialog "Installiere $($Program.Name)..."
+        
+        # Stelle den Installationsbefehl basierend auf den verfügbaren Informationen zusammen. Wenn eine WingetId vorhanden ist, verwenden wir diese bevorzugt, da sie in der Regel zuverlässiger ist und auch die genaue Version berücksichtigen kann. Wenn die Quelle "Chocolatey" ist und eine Id vorhanden ist, verwenden wir den Chocolatey-Befehl. Andernfalls versuchen wir es mit einem generischen Winget-Installationsbefehl, der die Id verwendet.
+        $command = if ($Program.WingetId) {
+            "winget install --id `"$($Program.WingetId)`" --exact --source winget --accept-source-agreements --disable-interactivity --silent"
+        } elseif ($Program.Source -match "Chocolatey" -and $Program.Id) {
+            "choco install `"$($Program.Id)`" --yes --exact --no-color --silent"
+        } else {
+            "winget install --id `"$($Program.Id)`" --exact --source winget --accept-source-agreements --disable-interactivity --silent"
+        }
+
+        # Wenn kein gültiger Installationsbefehl gefunden wurde, informieren und abbrechen
+        if (Test-Empty $command) { throw "Keine Installationsroutine für $($Program.Name) gefunden."; return }
+        Start-Command $command
+        
+        # Nach der Installation den Cache der installierten Programme invalidieren, damit die Liste aktualisiert wird, wenn sie das nächste Mal abgerufen wird.
+        $script:InstalledProgramsCache = $null
+        Close-ProgressDialog "Installation abgeschlossen."
+    } catch {
+        Close-ProgressDialog "Installation fehlgeschlagen." $_.Exception.Message
+        throw
+    }
+
 }
 
 

@@ -102,50 +102,6 @@ $FormConfig = @{
                                                 ToolTip     = "Gerätename ändern"
                                                 Add_Click   = { Set-DeviceName }
                                             }
-                                            # Row 1 – Windows-Informationen
-                                            WindowsLabel = @{
-                                                ColumnSpan  = 2
-                                                Control     = "Label"
-                                                Text        = "Windows"
-                                                Font        = Get-Font -Preset "TableTitle"
-                                            }
-                                            # Row 2 – Windows-Edition
-                                            WindowsEditionLabel = @{
-                                                Control     = "Label"
-                                                Text        = "Edition:"
-                                                Font        = Get-Font -Preset "TableLabel" 
-                                                TextAlign   = "MiddleLeft"
-                                            }
-                                            WindowsEditionValue = @{
-                                                Control     = "Label"
-                                                Text        = $SystemInfo.ProductName
-                                                Font        = Get-Font -Preset "TableText"
-                                                TextAlign   = "MiddleLeft"
-                                            }
-                                            WindowsVersionLabel = @{
-                                                Control     = "Label"
-                                                Text        = "Version:"
-                                                Font        = Get-Font -Preset "TableLabel" 
-                                                TextAlign   = "MiddleLeft"
-                                            }
-                                            WindowsVersionValue = @{
-                                                Control     = "Label"
-                                                Text        = $SystemInfo.DisplayVersion
-                                                Font        = Get-Font -Preset "TableText"
-                                                TextAlign   = "MiddleLeft"
-                                            }
-                                            WindowsBuildLabel = @{
-                                                Control     = "Label"
-                                                Text        = "Build:"
-                                                Font        = Get-Font -Preset "TableLabel" 
-                                                TextAlign   = "MiddleLeft"
-                                            }
-                                            WindowsBuildValue = @{
-                                                Control     = "Label"
-                                                Text        = $SystemInfo.CurrentBuild
-                                                Font        = Get-Font -Preset "TableText"
-                                                TextAlign   = "MiddleLeft"
-                                            }
 
 
                                         }
@@ -216,12 +172,11 @@ $FormConfig = @{
                             PackageTab  = @{
                                 Control     = "TabPage"
                                 Text        = "Programme"
-                                Padding    = [Padding]::new(10,10,10,0)
+                                Padding    = [Padding]::new(10,10,10,10)
                                 Controls    = @{
                                     InstalledPackagesListBox = @{
                                         Control         = "ListView"
                                         Dock            = "Fill"
-                                        Margin          = [Padding]::new(10)
                                         HideSelection   = $false
                                         MultiSelect     = $true
                                         Columns         = @( @("Name", 310), @("ID", 310), @("Version", 150), @("Quelle", 230) )
@@ -239,10 +194,10 @@ $FormConfig = @{
                                         }
                                     }
                                     PaketManagerTable = @{
-                                        Control    = "TableLayoutPanel"
-                                        Column      = @( "40", "30", "30" )
-                                        Dock       = "Bottom"
-                                        Height     = 40
+                                        Control     = "TableLayoutPanel"
+                                        Column      = @( "40", 100, 100, 100 )
+                                        Dock        = "Bottom"
+                                        Height      = 40
                                         Controls    = [ordered]@{
                                             PaketManagerLabel = @{
                                                 Control     = "Label"
@@ -272,6 +227,18 @@ $FormConfig = @{
                                                     Start-WinGetUI $this
                                                 }
                                             }
+                                            CargoButton = @{
+                                                Control     = "Button"
+                                                Text        = "Cargo (Rust)"
+                                                Font        = Get-Font -Preset "TableButton"
+                                                Width       = 100
+                                                Anchor      = "Left"
+                                                Add_Click   = { 
+                                                    Import-Module Cargo
+                                                    Start-CargoUI $this
+                                                }
+                                            }
+
                                         }
                                     }
                                 }
@@ -281,16 +248,48 @@ $FormConfig = @{
                                     if (-not $listView.ContextMenuStrip) { 
                                         $listView.ContextMenuStrip = New-ContextMenu @{
                                             Items = @{
-                                                Uninstall = @{
-                                                    Text = "Deinstallieren"
-                                                    Image = "uninstall.png"
+                                                ReinstallItem = @{
+                                                    Text    = "Neu installieren"
+                                                    Image   = "reinstall.png"
                                                     Add_Click = {
                                                         $listView = $this.Owner.SourceControl
                                                         if (-not $listView) { return }
 
                                                         $programs = @($listView.SelectedItems | ForEach-Object { $_.Tag })
-                                                        Uninstall-Program $programs
+                                                        foreach ($program in $programs) {
+                                                            Show-ProgressDialog "Neuinstallation von $($program.Name)..." "Starte Neuinstallation von $($program.Name)..."
+                                                            Uninstall-Program $program
+                                                            Install-Program $program
+                                                        }
                                                         Update-InstalledProgramsList -ListView $listView
+                                                    }
+                                                }
+                                                UninstallItem = @{
+                                                    Text    = "Deinstallieren"
+                                                    Image   = "uninstall.png"
+                                                    Add_Click = {
+                                                        $listView = $this.Owner.SourceControl
+                                                        if (-not $listView) { return }
+
+                                                        $programs = @($listView.SelectedItems | ForEach-Object { $_.Tag })
+                                                        foreach ($program in $programs) {
+                                                            Show-ProgressDialog "Deinstallation von $($program.Name)..." "Starte Deinstallation von $($program.Name)..."
+                                                            Uninstall-Program $program
+                                                        }
+                                                        Update-InstalledProgramsList -ListView $listView
+                                                    }
+                                                }
+                                                DetailItem = @{
+                                                    Text    = "Details anzeigen"
+                                                    Image   = "details.png"
+                                                    Add_Click = {
+                                                        $listView = $this.Owner.SourceControl
+                                                        if (-not $listView) { return }
+
+                                                        $programs = @($listView.SelectedItems | ForEach-Object { $_.Tag })
+                                                        foreach ($program in $programs) {
+                                                            Show-ProgramDetails $program
+                                                        }
                                                     }
                                                 }
                                             }
@@ -673,22 +672,226 @@ $FormConfig = @{
                                     }
                                 }
                             }
+                            InfoTab = @{
+                                Control     = "TabPage"
+                                Text        = "Info"
+                                Controls    = [ordered]@{
+                                    ContentPanel = @{
+                                        Control     = "Panel"
+                                        Dock        = "Fill"
+                                        Padding     = [Padding]::new(10)
+                                        AutoScroll  = $true
+                                        Controls    = [ordered]@{
+                                        
+                                            WindowsTable = @{
+                                                Control     = "TableLayoutPanel"
+                                                Dock        = "Top"
+                                                AutoSize   = $true
+                                                AutoSizeMode = "GrowAndShrink"
+                                                Column      = @( "40", "60" )
+                                                Row         = @( 35, "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize" )
+                                                Controls    = [ordered]@{
+                                                    # Row 1 - Windows-Spezifikationen
+                                                    WindowsInfoLabel = @{
+                                                        ColumnSpan  = 2
+                                                        Control     = "Label"
+                                                        Text        = "Windows-Spezifikationen"
+                                                        Font        = Get-Font -Preset "TableTitle"
+                                                    }
+                                                    # Row 2 - Windows-Edition
+                                                    WindowsEditionLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Edition:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    WindowsEditionValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-WindowsInfo -Edition
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    # Row 3 - Windows-Version
+                                                    WindowsVersionLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Version:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    WindowsVersionValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-WindowsInfo -Version
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    # Row 4 - Windows-Buildnummer
+                                                    WindowsBuildLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Betriebssystembuild:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    WindowsBuildValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-WindowsInfo -Build
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    # Row 5 - Windows-Lizenzschlüssel
+                                                    WindowsKeyLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Produktschlüssel:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    WindowsKeyValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-WindowsInfo -Key
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                }
+                                            }
+                                            DeviceTable = @{
+                                                Control     = "TableLayoutPanel"
+                                                Dock        = "Top"
+                                                AutoSize    = $true
+                                                AutoSizeMode = "GrowAndShrink"
+                                                Column      = @( "25", "75" )
+                                                Row         = @( 35, "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize" )
+                                                Controls    = [ordered]@{
+                                                    # Row 1 - Gerät-Informationen
+                                                    DeviceInfoLabel = @{
+                                                        ColumnSpan  = 2
+                                                        Control     = "Label"
+                                                        Text        = "Gerätespezifikationen"
+                                                        Font        = Get-Font -Preset "TableTitle"
+                                                    }
+                                                    # Row 2 - Gerätename
+                                                    DeviceNameLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Gerätename:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    DeviceNameValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-DeviceInfo -Name
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+
+                                                        Cursor      = Get-Cursor "Hand"
+                                                        ToolTip     = "Klicken zum Kopieren des Gerätenamens in die Zwischenablage"
+                                                        Add_MouseEnter = { $this.Text = "Klicken zum Kopieren" }
+                                                        Add_MouseLeave = { $this.Text = Get-DeviceInfo -Name }
+                                                        Add_Click = { 
+                                                            Set-Clipboard (Get-DeviceInfo -Name) 
+                                                            $this.Text = "Gerätename kopiert!"
+                                                            Start-Sleep -Seconds 2
+                                                            $this.Text = Get-DeviceInfo -Name
+                                                        }
+                                                    }
+                                                    # Row 3 - Prozessor
+                                                    DeviceProcessorLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Prozessor:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    DeviceProcessorValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-DeviceInfo -Processor
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    # Row 4 - RAM
+                                                    DeviceRAMLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "RAM:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    DeviceRAMValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-DeviceInfo -RAM
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    # Row 5 - Grafikkarte
+                                                    DeviceGPUlLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Grafikkarte:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    DeviceGPUValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-DeviceInfo -GPU
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    # Row 6 - Speicher
+                                                    DeviceStorageLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Speicher:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    DeviceStorageValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-DeviceInfo -Storage
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    # Row 7 - Produkt-ID
+                                                    ProductIDLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Produkt-ID:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    ProductIDValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-DeviceInfo -ProductID
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    # Row 8 - Systemtyp
+                                                    SystemTypeLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Systemtyp:"
+                                                        Font        = Get-Font -Preset "TableLabel" 
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                    SystemTypeValue = @{
+                                                        Control     = "Label"
+                                                        Text        = Get-DeviceInfo -SystemType
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        TextAlign   = "MiddleLeft"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                         Add_SelectedIndexChanged = {
                             param ($tabControl, $e)
-                            $tabName = $tabControl.SelectedTab.Name
-                            $header = Get-Control $this "Header"
+                            $form    = $this.FindForm()
+                            $selectedTab = $tabControl.SelectedTab
+                            $header  = Get-Control $this "Header"
 
-                            $header.Text = switch ($tabName) {
-                                "MainTab"       { $AppInfo.Name.ToUpper() }
-                                "DebloatTab"    { "WINDOWS DEBLOATER" }
-                                "PackageTab"    { "PROGRAMMVERWALTUNG" }
-                                "PowerTab"      { "ENERGIEOPTIONEN" }
-                                "OfficeTab"     { "OfficeR" }
+                            switch ($selectedTab.Name) {
+                                "MainTab"       { $header.Text = $AppInfo.Name.ToUpper() }
+                                "DebloatTab"    { $header.Text = "WINDOWS DEBLOATER" }
+                                "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG"; $form.MinimumSize = [Size]::new(1000,500) }
+                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN" }
+                                "OfficeTab"     { $header.Text = "OfficeR" }
+                                "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN"; $form.MinimumSize = [Size]::new(550,400)
+
+                                }
                             }
-                            if ($tabName -eq "PackageTab") {
-                                $this.FindForm().MinimumSize = [Size]::new(1000,500)
-                            }                                    
                         }
                         Add_Selecting = {
                             param ($tabControl, $e)
@@ -713,7 +916,7 @@ $FormConfig = @{
                                     Set-OfficeDropdown  $this
                                  }
                             }
-                         }
+                        }
                     }
                 }
             }
@@ -794,7 +997,7 @@ $FormConfig = @{
 
             Shown       = { 
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-                # (Get-Control $this "TabControl").SelectedIndex = 2
+                (Get-Control $this "TabControl").SelectedIndex = 5
             }
         }
     }

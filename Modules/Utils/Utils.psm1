@@ -496,3 +496,51 @@ function Start-Command {
     }
 }
 
+<# WINDOWS INFOS #>
+function Get-WindowsInfo {
+    param ( [switch]$Edition, [switch]$Version, [switch]$Build, [switch]$Key )
+
+    switch ($true) {
+        $Edition    { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName }
+        $Version    { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion }
+        $Build      { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuild + "." + (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").UBR }
+        $Key        { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault }
+    }
+}
+function Get-DeviceInfo {
+    param ( 
+        [switch]$Name, 
+        [switch]$Processor, 
+        [switch]$RAM,
+        [switch]$GPU,
+        [switch]$Storage,
+        [switch]$ID,
+        [switch]$ProductID,
+        [switch]$SystemType
+    )
+
+    switch ($true) {
+        $Name           { return (Get-CimInstance Win32_ComputerSystem).Name }
+        $Processor      { return (Get-CimInstance Win32_Processor).Name }
+        $RAM            { 
+            $totalRAM   = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB, 2) 
+            $avaibleRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
+            return "$totalRAM GB ($avaibleRAM GB verwendbar)"
+        }
+        $GPU           { 
+            $gpus = Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name
+            return ($gpus -join ", ")
+        }
+        $Storage       { 
+            $disk = Get-CimInstance Win32_DiskDrive | Select-Object -First 1
+            $sizeGB = [math]::Round($disk.Size / 1GB, 0)
+            $diskModel = $disk.Model.Trim()
+            $diskType = (Get-PhysicalDisk | Where { $_.Model -eq $diskModel }).MediaType
+            return "$sizeGB GB $diskType $diskModel"
+
+        }
+        $ProductID     { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductId }
+        $SystemType    { return (Get-CimInstance Win32_ComputerSystem).SystemType }
+    }
+}
+

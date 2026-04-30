@@ -75,9 +75,9 @@ $FormConfig = @{
                         Control     = "TabControl"
                         MultiLine   = $true
                         Controls    = [ordered]@{
-                            MainTab     = @{
+                            StartTab     = @{
                                 Control     = "TabPage"
-                                Text        = "System"
+                                Text        = "Start"
                                 Controls    = [ordered]@{
                                     MainTable = @{
                                         Control     = "TableLayoutPanel"
@@ -86,27 +86,18 @@ $FormConfig = @{
                                         Column      = @( "35", "50" )
                                         Row         = @( 35, 25, 25, 30, 30, 30, 30, 30, "AutoSize" )
                                         Controls    = [ordered]@{
-                                            MainLabel = @{
+                                            StartTitle = @{
                                                 ColumnSpan  = 2
                                                 Control     = "Label"
-                                                Text        = "Systeminformationen"
-                                                Font        = Get-Font -Preset "TableTitle"
+                                                Text        = "Start-Einstellungen"
                                             }
-                                            DeviceNameLabel = @{
+                                            StartLabel = @{
                                                 Control     = "Label"
-                                                Text        = "Gerätename:"
-                                                Font        = Get-Font -Preset "TableLabel"
-                                                TextAlign   = "MiddleLeft"
+                                                Text        = ""
                                             }
-                                            DeviceNameValue = @{
+                                            StartValue = @{
                                                 Control     = "Label"
-                                                Text        = $($env:COMPUTERNAME)
-                                                Font        = Get-Font -Preset "TableText"
-                                                TextAlign   = "MiddleLeft"
-
-                                                Cursor      = Get-Cursor "Hand"
-                                                ToolTip     = "Gerätename ändern"
-                                                Add_Click   = { Set-DeviceName }
+                                                Text        = "$($SystemInfo.MachineName)"
                                             }
 
 
@@ -154,8 +145,8 @@ $FormConfig = @{
                                                 Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
                                                 Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-MicrosoftEdge.ps1") }
                                             }   
-                                            # Column 2 – System aufräumen
-                                            CleanerLabel = @{
+                                            # Column 2 – System
+                                            SystemLabel = @{
                                                 Control     = "Label"
                                                 Text        = "System"
                                                 Font        = Get-Font -Preset "TableTitle"
@@ -701,6 +692,7 @@ $FormConfig = @{
                                                 Dock        = "Top"
                                                 AutoSize   = $true
                                                 AutoSizeMode = "GrowAndShrink"
+                                                TextAlign  = "MiddleLeft"
                                                 Column      = @( "40", "60" )
                                                 Row         = @( 35, "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize" )
                                                 Controls    = [ordered]@{
@@ -709,59 +701,46 @@ $FormConfig = @{
                                                         ColumnSpan  = 2
                                                         Control     = "Label"
                                                         Text        = "Windows-Spezifikationen"
-                                                        Font        = Get-Font -Preset "TableTitle"
                                                     }
                                                     # Row 2 - Windows-Edition
                                                     WindowsEditionLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Edition:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     WindowsEditionValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-WindowsInfo -Edition
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Ermittle Windows-Edition..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                     # Row 3 - Windows-Version
                                                     WindowsVersionLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Version:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     WindowsVersionValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-WindowsInfo -Version
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Lese Windows-Version aus..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                     # Row 4 - Windows-Buildnummer
                                                     WindowsBuildLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Betriebssystembuild:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     WindowsBuildValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-WindowsInfo -Build
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Frage Windows-Build ab..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                     # Row 5 - Windows-Lizenzschlüssel
                                                     WindowsKeyLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Produktschlüssel:"
-                                                        Font        = Get-Font -Preset "TableLabel" 
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     WindowsKeyValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-WindowsInfo -Key
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Lese Produktschlüssel aus..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                 }
                                             }
@@ -770,6 +749,7 @@ $FormConfig = @{
                                                 Dock        = "Top"
                                                 AutoSize    = $true
                                                 AutoSizeMode = "GrowAndShrink"
+                                                TextAlign   = "MiddleLeft"
                                                 Column      = @( "25", "75" )
                                                 Row         = @( 35, "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize", "AutoSize" )
                                                 Controls    = [ordered]@{
@@ -778,40 +758,22 @@ $FormConfig = @{
                                                         ColumnSpan  = 2
                                                         Control     = "Label"
                                                         Text        = "Gerätespezifikationen"
-                                                        # Font        = Get-Font -Preset "TableTitle"
                                                     }
                                                     # Row 2 - Gerätename
                                                     DeviceNameLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Gerätename:"
-                                                        # Font        = Get-Font -Preset "TableLabel" 
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceNameValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-DeviceInfo -Name
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
-
-                                                        Cursor      = Get-Cursor "Hand"
-                                                        ToolTip     = "Klicken zum Kopieren, Rechtsklick zum Ändern"
-                                                        ContextMenuStrip = New-ContextMenu @{
-                                                            # Das Default-Opening aus FormBuilder ist auf SelectedItems ausgelegt (ListView).
-                                                            # Fuer Labels muss das ueberschrieben werden, damit das Menu immer oeffnen kann.
-                                                            Add_Opening = {
-                                                                param($src, $e)
-                                                                $e.Cancel = -not $src.SourceControl
-                                                            }
-                                                            Items = @{
-                                                                RenameDeviceItem = @{
-                                                                    Text = "Ändern"
-                                                                    Add_Click = {
-                                                                        $label = $this.Owner.SourceControl
-                                                                        Set-DeviceName
-                                                                        if ($label) {
-                                                                            $label.Text = Get-DeviceInfo -Name
-                                                                        }
-                                                                    }
+                                                        Text        = "Lese Gerätename aus..."
+                                                        Anchor      = "Left,Top,Bottom"
+                                                        ContextMenu = @{
+                                                            ChangeDeviceName = @{
+                                                                Text = "Gerätename ändern"
+                                                                Add_Click = { 
+                                                                    Set-DeviceName 
+                                                                    $this.Owner.SourceControl.Text = Get-SystemInfo -DeviceName
                                                                 }
                                                             }
                                                         }
@@ -820,73 +782,61 @@ $FormConfig = @{
                                                     DeviceProcessorLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Prozessor:"
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceProcessorValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-DeviceInfo -Processor
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Lese Prozessor aus..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                     # Row 4 - RAM
                                                     DeviceRAMLabel = @{
                                                         Control     = "Label"
                                                         Text        = "RAM:"
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceRAMValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-DeviceInfo -RAM
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Lese RAM aus..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                     # Row 5 - Grafikkarte
                                                     DeviceGPUlLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Grafikkarte:"
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceGPUValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-DeviceInfo -GPU
-                                                        TextAlign   = "MiddleLeft"
-                                                        Font        = Get-Font -Preset "TableText"
+                                                        Text        = "Lese Grafikkarte aus..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                     # Row 6 - Speicher
                                                     DeviceStorageLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Speicher:"
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     DeviceStorageValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-DeviceInfo -Storage
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Lese Speicher aus..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                     # Row 7 - Produkt-ID
                                                     ProductIDLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Produkt-ID:"
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     ProductIDValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-DeviceInfo -ProductID
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Lese Produkt-ID aus..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                     # Row 8 - Systemtyp
                                                     SystemTypeLabel = @{
                                                         Control     = "Label"
                                                         Text        = "Systemtyp:"
-                                                        TextAlign   = "MiddleLeft"
                                                     }
                                                     SystemTypeValue = @{
                                                         Control     = "Label"
-                                                        Text        = Get-DeviceInfo -SystemType
-                                                        Font        = Get-Font -Preset "TableText"
-                                                        TextAlign   = "MiddleLeft"
+                                                        Text        = "Lese Systemtyp aus..."
+                                                        Anchor      = "Left,Top,Bottom"
                                                     }
                                                 }
                                             }
@@ -897,51 +847,10 @@ $FormConfig = @{
                         }
                         Add_SelectedIndexChanged = {
                             param ($tabControl, $e)
-                            $form        = $this.FindForm()
                             $selectedTab = $tabControl.SelectedTab
-                            $header      = Get-Control $this "Header"
 
                             switch ($selectedTab.Name) {
-                                "MainTab"       { $header.Text = $AppInfo.Name.ToUpper() }
-                                "TweakTab"      { $header.Text = "WINDOWS TWEAKS" }
-                                "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG"; $form.MinimumSize = [Size]::new(1000,500) }
-                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN" }
-                                "OfficeTab"     { $header.Text = "OfficeR" }
-                                "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN"; $form.MinimumSize = [Size]::new(550,400)
-                                    $SystemInfoValues = @(
-                                        "WindowsEditionValue",
-                                        "WindowsVersionValue",
-                                        "WindowsBuildValue",
-                                        "WindowsKeyValue",
-                                        "DeviceNameValue",
-                                        "DeviceProcessorValue",
-                                        "DeviceRAMValue",
-                                        "DeviceGPUValue",
-                                        "DeviceStorageValue",
-                                        "ProductIDValue",
-                                        "SystemTypeValue"
-                                    )    
-                                    foreach ($label in $SystemInfoValues) { Show-CopyValueHover -Label (Get-Control $this $label) }
-                                }
-                            }
-                        }
-                        # Vor dem TabPage-Wechsel
-                        Add_Selecting = {
-                            param ($tabControl, $e)
-                            # Module nur bei Bedarf laden, um die Startzeit des Skripts zu verkürzen
-                            switch ($e.TabPage.Name) {
-                                "MainTab"    { Import-Module SystemInfo }
-                                "PackageTab" { Import-Module PackageManager }
-                                "PowerTab"   { Import-Module PowerStatus }
-                                "OfficeTab"  { Import-Module OfficeR }
-                                "InfoTab"    { Import-Module SystemInfo }
-                            }
-                        }
-                        # Nach dem TabPage-Wechsel
-                        Add_Selected = {
-                            param ($tabControl, $e)
-                            switch ($e.TabPage.Name) {
-                                "PackageTab" { Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox") }
+                                "PackageTab" { Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox") } 
                                 "PowerTab" { 
                                     # Triggern des Enter-Events, um die Werte zu aktualisieren
                                     $powerTab = Get-Control $this "PowerTab"
@@ -950,7 +859,46 @@ $FormConfig = @{
                                 "OfficeTab" { 
                                     Set-InstallDropdown $this
                                     Set-OfficeDropdown  $this
-                                 }
+                                }
+                                "InfoTab"    { 
+                                    foreach ($table in @("WindowsTable", "DeviceTable")) {
+                                        $tableControl = Get-Control $this $table
+                                        if ($tableControl) {
+                                            foreach ($label in $tableControl.Controls) {
+                                                if ($label.Name -notlike "*Value") { continue }
+                                                $name = $label.Name -replace "Value", ""
+                                                $params = @{ $name = $true }
+                                                $label.Text = Get-SystemInfo @params
+                                                Enable-LabelCopyOnClick -Label $label
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        # Vor dem TabPage-Wechsel
+                        Add_Selecting = {
+                            param ($tabControl, $e)
+                            $header = Get-Control $this "Header"
+                            # Module nur bei Bedarf laden, um die Startzeit des Skripts zu verkürzen
+                            switch ($e.TabPage.Name) {
+                                "StartTab"      { $header.Text = $AppInfo.Name.ToUpper() }
+                                "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG"   ; Import-Module PackageManager }
+                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN"      ; Import-Module PowerStatus }
+                                "OfficeTab"     { $header.Text = "OfficeR"              ; Import-Module OfficeR }
+                                "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN"  ; Import-Module SystemInfo }
+                                default { $header.Refresh() }
+                            }
+                        }
+                        # Nach dem TabPage-Wechsel
+                        Add_Selected = {
+                            param ($tabControl, $e)
+                            
+                            switch ($tabControl.SelectedTab.Name) {
+                                "PackageTab" { $this.FindForm().MinimumSize = [Size]::new(1000,500) }
+                                "PowerTab"   { $this.FindForm().MinimumSize = [Size]::new(550,400) }
+                                "OfficeTab"  { $this.FindForm().MinimumSize = [Size]::new(550,400) }
+                                "InfoTab"    { $this.FindForm().MinimumSize = [Size]::new(550,400) }
                             }
                         }
                     }
@@ -1033,7 +981,7 @@ $FormConfig = @{
 
             Shown       = { 
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-                (Get-Control $this "TabControl").SelectedIndex = 5
+                (Get-Control $this "TabControl").SelectedIndex = 1
             }
         }
     }

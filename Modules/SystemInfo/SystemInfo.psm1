@@ -1,30 +1,60 @@
 ﻿# SystemInfo.psm1 - Funktionen zum Abrufen von Systeminformationen und Verwalten von Geräteinformationen
 
-# Diese Funktionen ermöglichen das Abrufen von Informationen über die Windows-Edition, -Version, -Build, -Produktschlüssel
-function Get-WindowsEdition { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName }
-function Get-WindowsVersion { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion }
-function Get-WindowsBuild { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuild + "." + (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").UBR }
-function Get-WindowsKey { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform").BackupProductKeyDefault }
-
-function Get-DeviceName { return (Get-CimInstance Win32_ComputerSystem).Name }
-function Get-DeviceProcessor { return (Get-CimInstance Win32_Processor).Name }
-function Get-DeviceRAM { 
-    $totalRAM   = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB, 2) 
-    $avaibleRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
-    return "$totalRAM GB ($avaibleRAM GB verwendbar)"
+# Funktionen zum Abrufen von Windows- und Geräteinformationen
+function Get-WindowsInfo {
+    param (
+        [switch]$Edition,
+        [switch]$Version,
+        [switch]$Build,
+        [switch]$Key
+    )
+    
+    # Gebe die angeforderten Informationen zurück
+    switch ($true) {
+        $Edition { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName }
+        $Version { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion }
+        $Build   { 
+            $currentVersion = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+            return $currentVersion.CurrentBuild + "." + $currentVersion.UBR }
+        $Key     { 
+            $SoftwareProtectionPlatform = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform"
+            return $SoftwareProtectionPlatform.BackupProductKeyDefault
+        }
+    }
 }
-function Get-DeviceGPU { return (Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name) -join ", " }
-function Get-DeviceStorage { 
-    $disk = Get-CimInstance Win32_DiskDrive | Select-Object -First 1
-    $sizeGB = [math]::Round($disk.Size / 1GB, 0)
-    $diskModel = $disk.Model.Trim()
-    $diskType = (Get-PhysicalDisk | Where-Object { $_.Model -eq $diskModel }).MediaType
-    return "$sizeGB GB $diskType $diskModel"
+function Get-DeviceInfo {
+    param (
+        [switch]$Name,
+        [switch]$Processor,
+        [switch]$RAM,
+        [switch]$GPU,
+        [switch]$Storage,
+        [switch]$ID,
+        [switch]$ProductID,
+        [switch]$SystemType
+    )
+    # Gebe die angeforderten Informationen zurück
+    switch ($true) {
+        $Name       { return (Get-CimInstance Win32_ComputerSystem).Name }
+        $Processor  { return (Get-CimInstance Win32_Processor).Name }
+        $RAM        { 
+            $totalRAM   = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB, 2) 
+            $avaibleRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
+            return "$totalRAM GB ($avaibleRAM GB verwendbar)"
+        }
+        $GPU        { return (Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name) -join ", " }
+        $Storage    { 
+            $disk = Get-CimInstance Win32_DiskDrive | Select-Object -First 1
+            $sizeGB = [math]::Round($disk.Size / 1GB, 0)
+            $diskModel = $disk.Model.Trim()
+            $diskType = (Get-PhysicalDisk | Where-Object { $_.Model -eq $diskModel }).MediaType
+            return "$sizeGB GB $diskType $diskModel"
+        }
+        $ID         { return (Get-CimInstance Win32_ComputerSystem).Name }
+        $ProductID  { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductId }
+        $SystemType { return (Get-CimInstance Win32_ComputerSystem).SystemType }
+    }
 }
-function Get-DeviceID { return (Get-CimInstance Win32_ComputerSystem).Name }
-function Get-ProductID { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductId }
-function Get-SystemType { return (Get-CimInstance Win32_ComputerSystem).SystemType }
-
 function Get-SystemInfo {
     param (
         [switch]$WindowsEdition,
@@ -38,37 +68,27 @@ function Get-SystemInfo {
         [switch]$DeviceStorage,
         [switch]$DeviceID,
         [switch]$ProductID,
-        [switch]$SystemType,
-        [string]$Property
+        [switch]$SystemType
     )
-    # Wenn eine spezifische Property angefragt wird, rufe die Funktion rekursiv mit dem entsprechenden Switch auf, um nur diese Information zurückzugeben
-    if ($Property) {
-        $propertyNames = @(
-            "WindowsEdition", "WindowsVersion", "WindowsBuild", "WindowsKey",
-            "DeviceName", "DeviceProcessor", "DeviceRAM", "DeviceGPU", "DeviceStorage",
-            "DeviceID", "ProductID", "SystemType"
-        )
-        if ($propertyNames -notcontains $Property) { throw "Ungültige Property. Erlaubte Werte: $($propertyNames -join ", ")" }
-        else { $params = @{ $Property = $true }; return Get-SystemInfo @params }
-    }
 
     # Gebe die angeforderten Informationen zurück
     switch ($true) {
-        $WindowsEdition   { return Get-WindowsEdition }
-        $WindowsVersion   { return Get-WindowsVersion }
-        $WindowsBuild     { return Get-WindowsBuild }
-        $WindowsKey       { return Get-WindowsKey }
-        $DeviceName       { return Get-DeviceName }
-        $DeviceProcessor  { return Get-DeviceProcessor }
-        $DeviceRAM        { return Get-DeviceRAM }
-        $DeviceGPU        { return Get-DeviceGPU }
-        $DeviceStorage    { return Get-DeviceStorage }
-        $DeviceID         { return Get-DeviceID }
-        $ProductID        { return Get-ProductID }
-        $SystemType       { return Get-SystemType }
+        $WindowsEdition   { return Get-WindowsInfo -Edition }
+        $WindowsVersion   { return Get-WindowsInfo -Version }
+        $WindowsBuild     { return Get-WindowsInfo -Build }
+        $WindowsKey       { return Get-WindowsInfo -Key }
+        $DeviceName       { return Get-DeviceInfo -Name }
+        $DeviceProcessor  { return Get-DeviceInfo -Processor }
+        $DeviceRAM        { return Get-DeviceInfo -RAM }
+        $DeviceGPU        { return Get-DeviceInfo -GPU }
+        $DeviceStorage    { return Get-DeviceInfo -Storage }
+        $DeviceID         { return Get-DeviceInfo -ID }
+        $ProductID        { return Get-DeviceInfo -ProductID }
+        $SystemType       { return Get-DeviceInfo -SystemType }
     }
 }
 
+# Funktion zum Aktivieren der "Klicken zum Kopieren"-Funktionalität für ein Label
 function Enable-LabelCopyOnClick {
     param ( [Parameter(Mandatory=$true)][System.Windows.Forms.Label]$Label )
 
@@ -87,6 +107,9 @@ function Enable-LabelCopyOnClick {
         Set-Clipboard -Value $this.Tag
         Show-MessageBox -Text "'$($this.Tag)' wurde in die Zwischenablage kopiert." -Title "Kopiert" -Buttons "OK" -Icon "Information"
     })
+
+    # Aktualisiere den Label-Text, um die Änderungen anzuzeigen
+    $Label.Refresh()
 }
 
 function Set-DeviceName { 

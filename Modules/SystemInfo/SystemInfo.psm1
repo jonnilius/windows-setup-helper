@@ -1,4 +1,24 @@
-﻿function Set-DeviceName { 
+﻿function Show-CopyValueHover {
+    param ( [Parameter(Mandatory=$true)][System.Windows.Forms.Label]$Label )
+
+    # Speichere den ursprünglichen Text im Tag-Property, damit wir ihn später wiederherstellen können
+    $Label.Tag = $Label.Text
+
+    # Cursor auf Hand ändern, um anzuzeigen, dass es klickbar ist
+    $Label.Cursor = Get-Cursor "Hand"
+
+    # Füge MouseEnter- und MouseLeave-Events hinzu, um den Text und die Schriftart zu ändern
+    $Label.Add_MouseEnter({ $this.Text = "Klicken zum Kopieren";    $this.Font = Get-Font -Preset "TableTextHover" })
+    $Label.Add_MouseLeave({ $this.Text = $this.Tag;                 $this.Font = Get-Font -Preset "TableText" })
+
+    # Füge ein Click-Event hinzu, um den Text in die Zwischenablage zu kopieren
+    $Label.Add_Click({
+        Set-Clipboard -Value $this.Tag
+        Show-MessageBox -Text "'$($this.Tag)' wurde in die Zwischenablage kopiert." -Title "Kopiert" -Buttons "OK" -Icon "Information"
+    })
+}
+
+function Set-DeviceName { 
     $params = @{
         Title        = "PC umbenennen"
         Label        = "Neuer PC-Name:"

@@ -53,6 +53,7 @@ $global:AppConfig = @{
 }
 if ($AppConfig.HideShell) { Hide-PSConsole }
 
+# Module-Pfade setzen
 $ModulePaths = $env:PSModulePath -Split ";" | ForEach-Object { $_.Trim() }
 if ($AppConfig.ModulePath -notin $ModulePaths) { $env:PSModulePath += ";$($AppConfig.ModulePath)" }
 
@@ -793,16 +794,27 @@ $FormConfig = @{
                                                         TextAlign   = "MiddleLeft"
 
                                                         Cursor      = Get-Cursor "Hand"
-                                                        ToolTip     = "Klicken zum Kopieren des Gerätenamens in die Zwischenablage"
-                                                        Add_MouseEnter = { $this.Text = "Klicken zum Kopieren"; $this.Font = Get-Font -Preset "TableTextHover" }
-                                                        Add_MouseLeave = { $this.Text = Get-DeviceInfo -Name; $this.Font = Get-Font -Preset "TableText" }
-                                                        Add_Click = { 
-                                                            Set-Clipboard (Get-DeviceInfo -Name) 
-                                                            $this.Text = "Gerätename kopiert!"
-                                                            Start-Sleep -Seconds 2
-                                                            $this.Text = Get-DeviceInfo -Name
+                                                        ToolTip     = "Klicken zum Kopieren, Rechtsklick zum Ändern"
+                                                        ContextMenuStrip = New-ContextMenu @{
+                                                            # Das Default-Opening aus FormBuilder ist auf SelectedItems ausgelegt (ListView).
+                                                            # Fuer Labels muss das ueberschrieben werden, damit das Menu immer oeffnen kann.
+                                                            Add_Opening = {
+                                                                param($src, $e)
+                                                                $e.Cancel = -not $src.SourceControl
+                                                            }
+                                                            Items = @{
+                                                                RenameDeviceItem = @{
+                                                                    Text = "Ändern"
+                                                                    Add_Click = {
+                                                                        $label = $this.Owner.SourceControl
+                                                                        Set-DeviceName
+                                                                        if ($label) {
+                                                                            $label.Text = Get-DeviceInfo -Name
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
                                                         }
-                                                        DoubleClick = { Set-DeviceName }
                                                     }
                                                     # Row 3 - Prozessor
                                                     DeviceProcessorLabel = @{
@@ -838,6 +850,7 @@ $FormConfig = @{
                                                         Control     = "Label"
                                                         Text        = Get-DeviceInfo -GPU
                                                         TextAlign   = "MiddleLeft"
+                                                        Font        = Get-Font -Preset "TableText"
                                                     }
                                                     # Row 6 - Speicher
                                                     DeviceStorageLabel = @{
@@ -895,7 +908,20 @@ $FormConfig = @{
                                 "PowerTab"      { $header.Text = "ENERGIEOPTIONEN" }
                                 "OfficeTab"     { $header.Text = "OfficeR" }
                                 "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN"; $form.MinimumSize = [Size]::new(550,400)
-
+                                    $SystemInfoValues = @(
+                                        "WindowsEditionValue",
+                                        "WindowsVersionValue",
+                                        "WindowsBuildValue",
+                                        "WindowsKeyValue",
+                                        "DeviceNameValue",
+                                        "DeviceProcessorValue",
+                                        "DeviceRAMValue",
+                                        "DeviceGPUValue",
+                                        "DeviceStorageValue",
+                                        "ProductIDValue",
+                                        "SystemTypeValue"
+                                    )    
+                                    foreach ($label in $SystemInfoValues) { Show-CopyValueHover -Label (Get-Control $this $label) }
                                 }
                             }
                         }

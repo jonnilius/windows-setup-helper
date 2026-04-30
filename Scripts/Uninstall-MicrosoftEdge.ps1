@@ -1,6 +1,20 @@
 ﻿<# Written by bibicadotnet – https://github.com/bibicadotnet/microsoft-edge-debloater #>
 param( [switch]$Silent, [switch]$Force )
 $ErrorActionPreference = "SilentlyContinue"
+Add-Type -AssemblyName System.Windows.Forms
+
+
+# Administratorrechte überprüfen
+if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    if ($Force) { 
+        $params = "-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath
+        if ($Silent) { $params += " -Silent" } elseif ($Force) { $params += " -Force" }
+        Start-Process powershell.exe -ArgumentList $params -Verb RunAs; return 
+        [System.Environment]::Exit(0)
+    }
+    [System.Windows.Forms.MessageBox]::Show("Dieses Skript muss mit Administratorrechten ausgeführt werden. Bitte starte die PowerShell als Administrator und versuche es erneut.", "Administratorrechte erforderlich", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    return
+}
 
 if ($Silent) {
     function Show-ProgressDialog    { }
@@ -9,14 +23,11 @@ if ($Silent) {
 } else {
     if (-not (Get-Command Show-ProgressDialog)) { function Show-ProgressDialog { param ( $Title, $Message ) Write-Host "`n -- $Title -- " -ForegroundColor Cyan; Write-Host "$Message" } }
     if (-not (Get-Command Update-ProgressDialog)) { function Update-ProgressDialog { param ( $Message ) Write-Host $Message } }
-    if (-not (Get-Command Close-ProgressDialog)) { function Close-ProgressDialog { param ( $Title, $Message ) Write-Host $Message; Write-Host " -- by bibicadotnet --`n" -ForegroundColor Cyan } }
+    if (-not (Get-Command Close-ProgressDialog)) { function Close-ProgressDialog { param ( $Message ) Write-Host $Message; Write-Host " -- by bibicadotnet --`n" -ForegroundColor Cyan } }
 }
 
 # Prüfe, ob System.Windows.Forms bereits geladen ist, andernfalls lade es
 if (-not $Silent -and -not $Force) { 
-    # Prüfe, ob System.Windows.Forms bereits geladen ist, andernfalls lade es (da wir es für die Bestätigung benötigen)
-    if (-not ([AppDomain]::CurrentDomain.GetAssemblies().GetName().Name -contains "System.Windows.Forms")) { Add-Type -AssemblyName System.Windows.Forms }
-
     # Bestätigungsdialog anzeigen
     $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Microsoft Edge wirklich entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
     if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) { return }
@@ -138,5 +149,5 @@ Update-ProgressDialog "Entferne geplante Aufgaben..."
 Get-ScheduledTask -TaskName "MicrosoftEdgeUpdate*" | Unregister-ScheduledTask -Confirm:$false
 
 # Finish message
-Close-ProgressDialog "Microsoft Edge Entfernen" "Microsoft Edge wurde erfolgreich deinstalliert!"
+Close-ProgressDialog "Microsoft Edge wurde erfolgreich deinstalliert!"
 

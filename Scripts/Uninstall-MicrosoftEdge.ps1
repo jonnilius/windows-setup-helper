@@ -1,16 +1,26 @@
-﻿<#
-# Written by bibicadotnet – https://github.com/bibicadotnet/microsoft-edge-debloater
-#>
-param(  )
+﻿<# Written by bibicadotnet – https://github.com/bibicadotnet/microsoft-edge-debloater #>
+param( [switch]$Silent, [switch]$Force )
+$ErrorActionPreference = "SilentlyContinue"
 
-# Prüfe, ob System.Windows.Forms bereits geladen ist, andernfalls lade es
-if (-not ([AppDomain]::CurrentDomain.GetAssemblies().GetName().Name -contains "System.Windows.Forms")) {
-    Add-Type -AssemblyName System.Windows.Forms
+if ($Silent) {
+    function Show-ProgressDialog    { }
+    function Update-ProgressDialog  { }
+    function Close-ProgressDialog   { }
+} else {
+    if (-not (Get-Command Show-ProgressDialog)) { function Show-ProgressDialog { param ( $Title, $Message ) Write-Host "`n -- $Title -- " -ForegroundColor Cyan; Write-Host "$Message" } }
+    if (-not (Get-Command Update-ProgressDialog)) { function Update-ProgressDialog { param ( $Message ) Write-Host $Message } }
+    if (-not (Get-Command Close-ProgressDialog)) { function Close-ProgressDialog { param ( $Title, $Message ) Write-Host $Message; Write-Host " -- by bibicadotnet --`n" -ForegroundColor Cyan } }
 }
 
-# Bestätigungsdialog anzeigen
-$confirm = Show-MessageBox -Message "Möchten Sie Microsoft Edge wirklich entfernen?" -Title "Bestätigung" -Buttons "YesNo" -Icon "Warning"
-if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+# Prüfe, ob System.Windows.Forms bereits geladen ist, andernfalls lade es
+if (-not $Silent -and -not $Force) { 
+    # Prüfe, ob System.Windows.Forms bereits geladen ist, andernfalls lade es (da wir es für die Bestätigung benötigen)
+    if (-not ([AppDomain]::CurrentDomain.GetAssemblies().GetName().Name -contains "System.Windows.Forms")) { Add-Type -AssemblyName System.Windows.Forms }
+
+    # Bestätigungsdialog anzeigen
+    $confirm = [System.Windows.Forms.MessageBox]::Show("Möchten Sie Microsoft Edge wirklich entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+}
 
 # Initial message
 Show-ProgressDialog "Microsoft Edge Entfernen" "Entferne Microsoft Edge..."
@@ -19,8 +29,8 @@ Show-ProgressDialog "Microsoft Edge Entfernen" "Entferne Microsoft Edge..."
 Update-ProgressDialog "Beende Edge-Prozesse..."
 $edgeProcesses = @("msedge", "MicrosoftEdgeUpdate", "edgeupdate", "edgeupdatem", "MicrosoftEdgeSetup")
 foreach ($process in $edgeProcesses) {
-    $currentProcesses = Get-Process -Name $process -ErrorAction SilentlyContinue
-    if ($currentProcesses) { Stop-Process -Name $process -Force -ErrorAction SilentlyContinue }
+    $currentProcesses = Get-Process -Name $process
+    if ($currentProcesses) { Stop-Process -Name $process -Force }
 }
 
 # Entferne Dateien und Ordner
@@ -36,7 +46,7 @@ $edgeFolders = @(
     "${env:LOCALAPPDATA}\Microsoft\EdgeCore", 
     "${env:LOCALAPPDATA}\Microsoft\Edge SxS\Application"
 ) 
-foreach ($folder in $edgeFolders) { if (Test-Path $folder) { Remove-Item $folder -Recurse -Force -ErrorAction SilentlyContinue } }
+foreach ($folder in $edgeFolders) { if (Test-Path $folder) { Remove-Item $folder -Recurse -Force } }
 
 # Entferne Verknüpfungen
 Update-ProgressDialog "Entferne Verknüpfungen..."
@@ -52,7 +62,7 @@ foreach ($location in $locations) {
     if (Test-Path $location) { 
         foreach ($name in $edgeVariants) {
             $path = Join-Path $location "$name.lnk"
-            if (Test-Path $path) { Remove-Item $path -Force -ErrorAction SilentlyContinue }
+            if (Test-Path $path) { Remove-Item $path -Force }
         }
     } 
 }
@@ -64,7 +74,7 @@ $edgeRegistryPaths = @(
     "HKCU:\Software\Microsoft\Edge",
     "HKLM:\Software\Policies\Microsoft\Edge"
 ) 
-foreach ($regPath in $edgeRegistryPaths) { if (Test-Path $regPath) { Remove-Item $regPath -Recurse -Force -ErrorAction SilentlyContinue } }
+foreach ($regPath in $edgeRegistryPaths) { if (Test-Path $regPath) { Remove-Item $regPath -Recurse -Force } }
 
 # Entferne StartMenuInternet-Einträge
 Update-ProgressDialog "Entferne StartMenuInternet-Einträge..."
@@ -76,7 +86,7 @@ $startMenuInternetPaths = @(
 foreach ($regPath in $startMenuInternetPaths) {
     if (Test-Path $regPath) {
         $regEdgePath = Get-ChildItem $regPath | Where-Object { $_.Name -like "*Microsoft Edge*" } 
-        foreach ($edgeEntry in $regEdgePath) { Remove-Item $edgeEntry.PsPath -Recurse -Force -ErrorAction SilentlyContinue }
+        foreach ($edgeEntry in $regEdgePath) { Remove-Item $edgeEntry.PsPath -Recurse -Force }
     }
 }
 
@@ -89,11 +99,11 @@ $uninstallPaths = @(
 )
 foreach ($regPath in $uninstallPaths) {
     if (Test-Path $regPath) {
-        $regEdgePath = Get-ChildItem $regPath -ErrorAction SilentlyContinue | Where-Object {
-            $displayName = (Get-ItemProperty $_.PsPath -Name DisplayName -ErrorAction SilentlyContinue).DisplayName
+        $regEdgePath = Get-ChildItem $regPath | Where-Object {
+            $displayName = (Get-ItemProperty $_.PsPath -Name DisplayName).DisplayName
             $displayName -and $displayName -like "*Microsoft Edge*"
         }
-        foreach ($edgeEntry in $regEdgePath) { Remove-Item $edgeEntry.PsPath -Recurse -Force -ErrorAction SilentlyContinue }
+        foreach ($edgeEntry in $regEdgePath) { Remove-Item $edgeEntry.PsPath -Recurse -Force }
     }
 }
 
@@ -107,11 +117,11 @@ $installerPaths = @(
 )
 foreach ($regPath in $installerPaths) {
     if (Test-Path $regPath) {
-        $regEdgePath = Get-ChildItem $regPath -Recurse -ErrorAction SilentlyContinue | Where-Object {
-            $props = Get-ItemProperty $_.PsPath -ErrorAction SilentlyContinue
+        $regEdgePath = Get-ChildItem $regPath -Recurse | Where-Object {
+            $props = Get-ItemProperty $_.PsPath
             ($props.ProductName -like "*Microsoft Edge*") -or ($props.DisplayName -like "*Microsoft Edge*")
         }
-        foreach ($edgeEntry in $regEdgePath) { Remove-Item $edgeEntry.PsPath -Recurse -Force -ErrorAction SilentlyContinue }
+        foreach ($edgeEntry in $regEdgePath) { Remove-Item $edgeEntry.PsPath -Recurse -Force }
     }
 }
 
@@ -119,13 +129,13 @@ foreach ($regPath in $installerPaths) {
 Update-ProgressDialog "Entferne Einträge aus registrierten Apps..."
 $regApps = "HKLM:\SOFTWARE\RegisteredApplications"
 if (Test-Path $regApps) {
-    $regEdgeApps = Get-ItemProperty $regApps -ErrorAction SilentlyContinue | Get-Member -MemberType NoteProperty | Where-Object { $_.Name -like "*Microsoft Edge*" }
-    foreach ($edgeApp in $regEdgeApps) { Remove-ItemProperty -Path $regApps -Name $edgeApp.Name -ErrorAction SilentlyContinue }
+    $regEdgeApps = Get-ItemProperty $regApps | Get-Member -MemberType NoteProperty | Where-Object { $_.Name -like "*Microsoft Edge*" }
+    foreach ($edgeApp in $regEdgeApps) { Remove-ItemProperty -Path $regApps -Name $edgeApp.Name }
 }
 
 # Entferne geplante Aufgaben
 Update-ProgressDialog "Entferne geplante Aufgaben..."
-Get-ScheduledTask -TaskName "MicrosoftEdgeUpdate*" -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false
+Get-ScheduledTask -TaskName "MicrosoftEdgeUpdate*" | Unregister-ScheduledTask -Confirm:$false
 
 # Finish message
 Close-ProgressDialog "Microsoft Edge Entfernen" "Microsoft Edge wurde erfolgreich deinstalliert!"

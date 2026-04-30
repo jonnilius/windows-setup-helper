@@ -491,29 +491,27 @@ function New-TabControl {
     $events = $type.GetEvents().Name
 
     foreach ($key in $Config.Keys) {
+
         if ($key -eq "Controls"){
             $ControlConfig = $Config[$key]
+
             foreach ($item in $ControlConfig.GetEnumerator()) {
+                if (-not $item.Value.Control) { $item.Value.Control = "TabPage" } # Standard-Control für TabControl ist TabPage, wenn kein anderes Control angegeben ist
+                
                 $control        = New-Control $item.Value
                 $control.Name   = $item.Key
+                
                 $tabControl.TabPages.Add($control)
             }
             continue
-        } elseif ($key -like "Add_*") { 
-            $name = $key.Substring(4) 
-            if ($events -contains $name) { $tabControl.$key($Config[$key]) }
-            continue
-        } elseif ($key -like "Remove_*") { 
-            $name = $key.Substring(7) 
-            if ($events -contains $name) { $tabControl.$key($Config[$key]) }
-            continue
-        } elseif ($prop -contains $key) { 
-            $tabControl.$key = $Config[$key] 
-        } else {
-            if ($tabControl.PSObject.Properties[$key]) {
-                $tabControl.$key = $Config[$key]
-            }
         }
+
+        # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Add_SelectedIndexChanged" oder "Remove_SelectedIndexChanged"
+        $name = if ($key -like "Add_*") { $key.Substring(4) } elseif ($key -like "Remove_*") { $key.Substring(7) } else { $key }
+        
+        # Prüfen, ob es sich um ein Event oder eine Property handelt, und entsprechend setzen
+        if ($events -contains $name)    { $tabControl.$key($Config[$key]) } 
+        elseif ($prop -contains $name)  { $tabControl.$key = $Config[$key] }
     }    
     return $tabControl
 }

@@ -1,38 +1,17 @@
 ﻿using namespace System.Windows.Forms
 using namespace System.Drawing
 using namespace Console
+
+param ( [switch]$Force )
 Add-Type -AssemblyName Microsoft.VisualBasic
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Windows.Forms.DataVisualization
 [Application]::EnableVisualStyles()
 
-
-#Überprüfen, ob das Skript mit Administratorrechten ausgeführt wird
-if ( -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]'Administrator')){
-    Write-Host "Starte als Administrator neu..."
-    Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath) -Verb RunAs
-    [System.Environment]::Exit(0)
-}
-
 $global:ErrorActionPreference = "SilentlyContinue"
-$global:SystemInfo = @{
-    ProductName     = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName
-    DisplayVersion  = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion
-    CurrentBuild    = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").CurrentBuild
-    
-    OSVersion   = [System.Environment]::OSVersion.Version
-    BuildNumber = [System.Environment]::OSVersion.Version.Build
-    Is64Bit     = [System.Environment]::Is64BitOperatingSystem
-    UserName    = [System.Environment]::UserName
-    MachineName = [System.Environment]::MachineName
-    SystemDrive = [System.Environment]::SystemDrive
-    SystemRoot  = [System.Environment]::SystemRoot
-    ProcessorCount = [System.Environment]::ProcessorCount
-    CLRVersion  = [System.Environment]::Version.ToString()
 
-    Architecture = if ([System.Environment]::Is64BitOperatingSystem) { "64-bit" } else { "32-bit" }
-}
+
 
 # App-Info
 $Manifest = Import-PowerShellDataFile -Path (Join-Path $PSScriptRoot "WindowsSetupHelper.psd1")
@@ -43,19 +22,21 @@ $global:AppInfo = @{
     Company     = $Manifest.CompanyName
     License     = "MIT License"
 }
-Write-Information "Starte $($AppInfo.Name) v$($AppInfo.Version) by $($AppInfo.Author)"
+
 
 # App-Konfiguration
 $global:AppConfig = @{
     ModulePath  = "$PSScriptRoot\Modules"
     IconPath    = "$PSScriptRoot\Assets\Icons"
-    HideShell   = $false
+    # HideShell   = $true
 }
-if ($AppConfig.HideShell) { Hide-PSConsole }
+if ($AppConfig.ModulePath -notin ($env:PSModulePath.Split(";"))) { $env:PSModulePath += ";$($AppConfig.ModulePath)" }
 
-# Module-Pfade setzen
-$ModulePaths = $env:PSModulePath -Split ";" | ForEach-Object { $_.Trim() }
-if ($AppConfig.ModulePath -notin $ModulePaths) { $env:PSModulePath += ";$($AppConfig.ModulePath)" }
+
+# Initialisiere Konfiguration
+Set-AppConfig
+Set-Administrator -Command $PSCommandPath -Enable
+
 
 <# FORM-DATA ############################################################################>
 $FormConfig = @{
@@ -76,7 +57,6 @@ $FormConfig = @{
                         MultiLine   = $true
                         Controls    = [ordered]@{
                             StartTab     = @{
-                                Control     = "TabPage"
                                 Text        = "Start"
                                 Controls    = [ordered]@{
                                     MainTable = @{
@@ -97,7 +77,7 @@ $FormConfig = @{
                                             }
                                             StartValue = @{
                                                 Control     = "Label"
-                                                Text        = "$($SystemInfo.MachineName)"
+                                                Text        = "Randrom Text"
                                             }
 
 
@@ -106,7 +86,6 @@ $FormConfig = @{
                                 }
                             }
                             TweakTab  = @{
-                                Control     = "TabPage"
                                 Text        = "Tweaks"
                                 Controls    = @{
                                     TableLayout = @{
@@ -174,9 +153,8 @@ $FormConfig = @{
                                 }
                             }
                             PackageTab  = @{
-                                Control     = "TabPage"
                                 Text        = "Programme"
-                                Padding    = [Padding]::new(10,10,10,10)
+                                Padding    = [Padding]::new(10)
                                 Controls    = @{
                                     InstalledPackagesListBox = @{
                                         Control         = "ListView"
@@ -303,7 +281,6 @@ $FormConfig = @{
                                 }
                             }
                             PowerTab = @{
-                                Control     = "TabPage"
                                 Text        = "Energieoptionen"
                                 Controls    = @{
                                     PowerTable = @{
@@ -549,7 +526,6 @@ $FormConfig = @{
                                 }
                             }
                             OfficeTab = @{
-                                Control     = "TabPage"
                                 Text        = "Office"
                                 Controls    = @{
                                     OfficeTable  = @{
@@ -677,7 +653,6 @@ $FormConfig = @{
                                 }
                             }
                             InfoTab = @{
-                                Control     = "TabPage"
                                 Text        = "Info"
                                 Controls    = [ordered]@{
                                     ContentPanel = @{

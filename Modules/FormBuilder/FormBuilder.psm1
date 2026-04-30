@@ -352,13 +352,18 @@ function New-TableLayoutPanel {
                 if ($controlConfig.Anchor -and -not $controlConfig.AutoSize) { $control.AutoSize = $true }
                 
                 # Standard-Font für Labels in TableLayoutPanel setzen, wenn kein Font angegeben ist
-                if ($controlConfig.Control -eq "Label") { 
-                    $preset = if ($controlConfig.ColumnSpan -gt 1) { "TableTitle" } elseif ($cfg.Key -match "Label") { "TableLabel" } else { "TableText" }
-                    
-                    if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset $preset }
-                    if (-not $controlConfig.TextAlign) { 
-                        if ($preset -eq "TableTitle") { $control.TextAlign = "MiddleCenter" }
-                        elseif ($Config["TextAlign"]) { $control.TextAlign = $Config["TextAlign"] }
+                switch ($controlConfig.Control) {
+                    "Label" { 
+                        $preset = if ($controlConfig.ColumnSpan -gt 1) { "TableTitle" } elseif ($cfg.Key -match "Label") { "TableLabel" } else { "TableText" }
+                        
+                        if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset $preset }
+                        if (-not $controlConfig.TextAlign) { 
+                            if ($preset -eq "TableTitle") { $control.TextAlign = "MiddleCenter" }
+                            elseif ($Config["TextAlign"]) { $control.TextAlign = $Config["TextAlign"] }
+                        }
+                    }
+                    "Button" {
+                        if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset "TableButton" }
                     }
                 }
             }
@@ -492,12 +497,13 @@ function New-TabControl {
 
     foreach ($key in $Config.Keys) {
 
+        # Spezialbehandlung für Controls, da TabControl eine spezielle Struktur mit TabPages als Unter-Controls hat, die ebenfalls konfiguriert werden müssen
         if ($key -eq "Controls"){
             $ControlConfig = $Config[$key]
 
             foreach ($item in $ControlConfig.GetEnumerator()) {
                 if (-not $item.Value.Control) { $item.Value.Control = "TabPage" } # Standard-Control für TabControl ist TabPage, wenn kein anderes Control angegeben ist
-                
+
                 $control        = New-Control $item.Value
                 $control.Name   = $item.Key
                 
@@ -512,7 +518,9 @@ function New-TabControl {
         # Prüfen, ob es sich um ein Event oder eine Property handelt, und entsprechend setzen
         if ($events -contains $name)    { $tabControl.$key($Config[$key]) } 
         elseif ($prop -contains $name)  { $tabControl.$key = $Config[$key] }
-    }    
+    }
+
+    # Return
     return $tabControl
 }
 function New-TabPage {

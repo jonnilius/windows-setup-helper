@@ -134,7 +134,7 @@ $FormConfig = @{
                                             }
                                             HideStartMenuIcons = @{
                                                 Control     = "Button"
-                                                Text        = "Startmenü aufräumen"
+                                                Text        = "Startmenü-Icons entfernen"
                                                 Font        = Get-Font -Preset "TableButton"
                                                 Position    = 1,1
                                                 Margin      = [Padding]::new(20,0,20,0)

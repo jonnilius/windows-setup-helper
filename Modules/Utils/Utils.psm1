@@ -400,6 +400,13 @@ function Get-Administrator {
     $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
     return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
+function Set-Administrator {
+    param ( [switch]$Enable, $Command = $PSCommandPath )
+    if ($Enable -and -not (Get-Administrator)) {
+        Start-Process powershell.exe -ArgumentList ("-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $Command) -Verb RunAs
+        [System.Environment]::Exit(0)
+    }
+}
 
 <# FILL CHECK #>
 function Test-Fill {
@@ -422,6 +429,7 @@ function Test-Empty {
 }
 
 
+<# TIMER #>
 function Set-Timer {
     param( $Context, [scriptblock]$Action, [int]$Interval = 150 )
 
@@ -485,6 +493,7 @@ function Stop-Timer {
     # Timer-Objekt aus dem Tag des Steuerelements entfernen
     if ($Control -and $TimerName) { $Control.Tag.Remove($TimerName) }
 }
+
 ##############################################################################################################
 function Start-Command {
     param ( [string]$Command, [switch]$RunAsAdmin )
@@ -496,3 +505,11 @@ function Start-Command {
     }
 }
 
+<# APP CONFIG #>
+function Set-AppConfig {
+    param ( [string]$Key, $Value )
+    if (-not $global:AppConfig) { $global:AppConfig = @{} }
+    if ($Key) { $global:AppConfig[$Key] = $Value; return }
+    
+    if ($global:AppConfig.HideShell) { Hide-PSConsole } else { Show-PSConsole }
+}

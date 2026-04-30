@@ -13,29 +13,6 @@ using namespace System.Drawing
 ########################################################################################>
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
-Add-Type -TypeDefinition @"
-using System.Drawing;
-using System.Windows.Forms;
-
-public class MyColorTable : ProfessionalColorTable
-{
-    public override Color ToolStripDropDownBackground => Color.FromArgb(30,30,30);
-    public override Color ImageMarginGradientBegin => Color.FromArgb(30,30,30);
-    public override Color ImageMarginGradientMiddle => Color.FromArgb(30,30,30);
-    public override Color ImageMarginGradientEnd => Color.FromArgb(30,30,30);
-
-    public override Color MenuItemSelected => Color.FromArgb(50,50,50);
-    public override Color MenuItemBorder => Color.FromArgb(50,50,50);
-}
-"@
-Add-Type -TypeDefinition @"
-using System.Windows.Forms;
-
-public class MyRenderer : ToolStripProfessionalRenderer
-{
-    public MyRenderer() : base(new MyColorTable()) {}
-}
-"@
 
 $script:Defaults = @{
     Button = @{
@@ -65,16 +42,6 @@ $script:Defaults = @{
         Font            = Get-Font -Control "ComboBox"
         ForeColor       = Get-Color "White"
         BackColor       = Get-Color "Dark"
-    }
-    ContextMenu = @{
-        ForeColor       = Get-Color "Accent"
-        # BackColor       = Get-Color "Dark"
-        ShowImageMargin = $true
-        Add_Opening = {
-            param($src, $e)
-            $sourceControl  = $src.SourceControl
-            $e.Cancel       = -not $sourceControl -or $sourceControl.SelectedItems.Count -eq 0
-        }
     }
     FlowLayoutPanel = @{
         Dock            = "Fill"
@@ -267,66 +234,6 @@ function Show-Tooltip {
     $ToolTip.Show($Message, $Control, $Duration)
 }
 
-<### CONTEXT-MENU ###>
-function New-ContextMenu {
-    param( [hashtable]$Config = @{} )
-    $contextMenu = [ContextMenuStrip]::new()
-    $contextMenu.Renderer = [MyRenderer]::new()
-    $Config = Merge-Config -DefaultConfig $script:Defaults.ContextMenu -CustomConfig $Config
-
-    $type   = $contextMenu.GetType()
-    $props  = $type.GetProperties().Name
-    $events = $type.GetEvents().Name
-
-    foreach ($key in $Config.Keys) {
-        if ($key -eq "Items") { 
-            $itemConfig = $Config[$key]
-            foreach ($cfg in $itemConfig.GetEnumerator()) {
-                $menuItem        = New-MenuItem $cfg.Value
-                $menuItem.Name   = $cfg.Key
-                [void]$contextMenu.Items.Add($menuItem)
-            }
-        } elseif ($key -like "Add_*") { 
-            $name = $key.Substring(4) 
-            if ($events -contains $name) { $contextMenu.$key($Config[$key]) }
-        } elseif ($key -like "Remove_*") { 
-            $name = $key.Substring(7) 
-            if ($events -contains $name) { $contextMenu.$key($Config[$key]) }
-        } elseif ($props -contains $key) { 
-            $contextMenu.$key = $Config[$key] 
-        } elseif ($contextMenu.PSObject.Properties[$key]) {
-            $contextMenu.$key = $Config[$key]
-        }
-    }
-
-    return $contextMenu
-}
-function New-MenuItem {
-    param( [hashtable]$Config = @{} )
-    $menuItem = [ToolStripMenuItem]::new()
-
-    $type   = $menuItem.GetType()
-    $props  = $type.GetProperties().Name
-    $events = $type.GetEvents().Name
-
-    foreach ($key in $Config.Keys) {
-        if ($key -like "Add_*") { 
-            $name = $key.Substring(4) 
-            if ($events -contains $name) { $menuItem.$key($Config[$key]) }
-        } elseif ($key -like "Remove_*") { 
-            $name = $key.Substring(7) 
-            if ($events -contains $name) { $menuItem.$key($Config[$key]) }
-        } elseif ($key -eq "Image") {
-            $menuItem.Image = Get-Image $Config[$key] $PSScriptRoot
-        } elseif ($props -contains $key) { 
-            $menuItem.$key = $Config[$key] 
-        } elseif ($menuItem.PSObject.Properties[$key]) {
-            $menuItem.$key = $Config[$key]
-        }
-
-    }
-    return $menuItem
-}
 
 <### LAYOUT-CONTAINER ###>
 function New-Panel {
@@ -442,11 +349,17 @@ function New-TableLayoutPanel {
 
                 # Nur automatisch auf Fill docken, wenn kein explizites Layout im Control gesetzt ist.
                 if (-not $controlConfig.Dock -and -not $controlConfig.Anchor -and -not $controlConfig.AutoCellDock) { $control.Dock = "Fill" }
+                if ($controlConfig.Anchor -and -not $controlConfig.AutoSize) { $control.AutoSize = $true }
                 
                 # Standard-Font für Labels in TableLayoutPanel setzen, wenn kein Font angegeben ist
-                if ($controlConfig.Control -eq "Label" -and -not $controlConfig.Font) { 
-                    $preset = if ($controlConfig.ColumnSpan -gt 1) { "TableTitle" } else { "TableLabel" }
-                    $control.Font = Get-Font -Preset $preset
+                if ($controlConfig.Control -eq "Label") { 
+                    $preset = if ($controlConfig.ColumnSpan -gt 1) { "TableTitle" } elseif ($cfg.Key -match "Label") { "TableLabel" } else { "TableText" }
+                    
+                    if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset $preset }
+                    if (-not $controlConfig.TextAlign) { 
+                        if ($preset -eq "TableTitle") { $control.TextAlign = "MiddleCenter" }
+                        elseif ($Config["TextAlign"]) { $control.TextAlign = $Config["TextAlign"] }
+                    }
                 }
             }
             continue
@@ -1156,6 +1069,23 @@ function New-Control {
     # Control-Typ ermitteln und Control erstellen
     $type = $Config.Control
     $copy = $Config.Clone()
+
+    # Kontextmenü-Konfiguration erkennen und Kontextmenü erstellen, falls vorhanden
+    if ($copy.ContainsKey("ContextMenu")) {
+        $contextMenuConfig = $copy["ContextMenu"]
+
+        # Wenn die Kontextmenü-Konfiguration kein Hashtable ist oder nicht den Schlüssel "Items" enthält, behandeln wir sie als einfache Liste von Menüeinträgen und packen sie in ein Hashtable mit dem Schlüssel "Items"
+        if ($contextMenuConfig -isnot [hashtable] -or -not $contextMenuConfig.ContainsKey("Items")) { $contextMenuConfig = @{ Items = $contextMenuConfig } }
+
+        # Kontextmenü erstellen und dem Control zuweisen
+        $contextMenu = New-ContextMenu $contextMenuConfig
+        $copy["ContextMenuStrip"] = $contextMenu
+
+        # Kontextmenü-Konfiguration aus der Control-Konfiguration entfernen, da sie bereits verarbeitet wurde
+        $copy.Remove("ContextMenu")
+    }
+
+    # Standardwerte für den Control-Typ mit der übergebenen Konfiguration zusammenführen, damit fehlende Werte aus den Defaults ergänzt werden
     $copy = Merge-Config $Defaults.$type $copy
     $copy.Remove("Control")
     

@@ -7,6 +7,7 @@
 
     NestedModules     = @(
         'Color.psm1'
+        'ContextMenu.psm1'
         'Cursor.psm1'
         'Draw.psm1'
         'Font.psm1'

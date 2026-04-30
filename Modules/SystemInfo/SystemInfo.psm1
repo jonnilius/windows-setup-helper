@@ -1,5 +1,4 @@
-﻿# SystemInfo.psm1 - Funktionen zum Abrufen von Systeminformationen und Verwalten von Geräteinformationen
-
+﻿
 # Funktionen zum Abrufen von Windows- und Geräteinformationen
 function Get-WindowsInfo {
     param (
@@ -14,6 +13,7 @@ function Get-WindowsInfo {
         $Edition { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName }
         $Version { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion }
         $Build   { 
+            # $currentBuild = [System.Environment]::OSVersion.Version.Build
             $currentVersion = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
             return $currentVersion.CurrentBuild + "." + $currentVersion.UBR }
         $Key     { 
@@ -35,8 +35,14 @@ function Get-DeviceInfo {
     )
     # Gebe die angeforderten Informationen zurück
     switch ($true) {
-        $Name       { return (Get-CimInstance Win32_ComputerSystem).Name }
-        $Processor  { return (Get-CimInstance Win32_Processor).Name }
+        $Name       { 
+            # [System.Environment]::MachineName
+            return (Get-CimInstance Win32_ComputerSystem).Name 
+        }
+        $Processor  { 
+            # [System.Environment]::ProcessorCount # Anzahl der logischen Prozessoren
+            return (Get-CimInstance Win32_Processor).Name 
+        }
         $RAM        { 
             $totalRAM   = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB, 2) 
             $avaibleRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
@@ -52,7 +58,10 @@ function Get-DeviceInfo {
         }
         $ID         { return (Get-CimInstance Win32_ComputerSystem).Name }
         $ProductID  { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductId }
-        $SystemType { return (Get-CimInstance Win32_ComputerSystem).SystemType }
+        $SystemType { 
+            # [System.Environment]::Is64BitOperatingSystem
+            return (Get-CimInstance Win32_ComputerSystem).SystemType 
+        }
     }
 }
 function Get-SystemInfo {
@@ -88,7 +97,7 @@ function Get-SystemInfo {
     }
 }
 
-# Funktion zum Aktivieren der "Klicken zum Kopieren"-Funktionalität für ein Label
+# 
 function Enable-LabelCopyOnClick {
     param ( [Parameter(Mandatory=$true)][System.Windows.Forms.Label]$Label )
 

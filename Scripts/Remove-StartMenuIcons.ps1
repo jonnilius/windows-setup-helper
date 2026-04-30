@@ -1,37 +1,41 @@
 ﻿using namespace System.Windows.Forms
+
+param ( [switch]$Silent, [switch]$Force )
+$ErrorActionPreference = "SilentlyContinue"
 Add-Type -AssemblyName System.Windows.Forms
 
 # Administratorrechte überprüfen
 if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    [System.Windows.MessageBox]::Show("Dieses Skript muss mit Administratorrechten ausgeführt werden. Bitte starte die PowerShell als Administrator und versuche es erneut.", "Administratorrechte erforderlich", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Error)
+    if ($Force) { 
+        $params = "-NoProfile -ExecutionPolicy Bypass -File `"{0}`"" -f $PSCommandPath
+        if ($Silent) { $params += " -Silent" } elseif ($Force) { $params += " -Force" }
+        Start-Process powershell.exe -ArgumentList $params -Verb RunAs; return 
+        [System.Environment]::Exit(0)
+    }
+    [System.Windows.Forms.MessageBox]::Show("Dieses Skript muss mit Administratorrechten ausgeführt werden. Bitte starte die PowerShell als Administrator und versuche es erneut.", "Administratorrechte erforderlich", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
     return
 }
 
+if ($Silent) { function Show-ProgressDialog { }; function Update-ProgressDialog { }; function Close-ProgressDialog { } }
+else {
+    if (-not (Get-Command Show-ProgressDialog))     { function Show-ProgressDialog      { param ( $Title, $Message ) Write-Host "`n -- $Title -- " -ForegroundColor Cyan; Write-Host "$Message" } }
+    if (-not (Get-Command Update-ProgressDialog))   { function Update-ProgressDialog    { param ( $Message ) Write-Host $Message } }
+    if (-not (Get-Command Close-ProgressDialog))    { function Close-ProgressDialog     { param ( $Message ) Write-Host $Message; Write-Host " --  --`n" -ForegroundColor Cyan } }
+}
 
-# Bestätigungsdialog anzeigen, bevor die Startmenü-Icons entfernt werden
-$Request = {
-    $Title   = "Bestätigung"
-    $Text    = "Möchtest du wirklich alle Startmenü-Icons entfernen?"
-    $Buttons = [MessageBoxButtons]::YesNo
-    $Icon    = [MessageBoxIcon]::Warning 
-    $YesNo   = [System.Windows.Forms.DialogResult]::Yes
-    
-    # Zeige den Bestätigungsdialog an
-    $confirm = [MessageBox]::Show($Text, $Title, $Buttons, $Icon)
-    
-    # Überprüfe die Benutzerantwort und gib true zurück, wenn "Yes" ausgewählt wurde, andernfalls false
-    return  $confirm -eq $YesNo
+# Bestätigungsdialog anzeigen, wenn nicht im Silent- oder Force-Modus
+if (-not $Silent -and -not $Force) { 
+    # Bestätigungsdialog anzeigen
+    $confirm = [System.Windows.Forms.MessageBox]::Show("Möchtest du wirklich alle Startmenü-Icons entfernen?", "Bestätigung", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    if ($confirm -ne [System.Windows.Forms.DialogResult]::Yes) { return }
 }
-if (-not (& $Request)) {
-    Close-ProgressDialog "Startmenü-Icons entfernen" "Entfernung der Startmenü-Icons abgebrochen."
-    return
-}
+
 
 # Statusmeldung anzeigen
-Show-ProgressDialog "Entferne Startmenü-Icons..."
+Show-ProgressDialog "Startmenü-Icons entfernen" "Entferne Startmenü-Icons..."
 
 # Definiere Startmenü-Layout als XML-String
-Update-ProgressDialog "Startmenü-Icons entfernen" "Definiere ein Startmenü-Layout..."
+Update-ProgressDialog "Definiere ein Startmenü-Layout..."
 $layoutFile = "C:\Windows\StartMenuLayout.xml"
 If ( Test-Path $layoutFile ) { Remove-Item $layoutFile }
 $START_MENU_LAYOUT = @"

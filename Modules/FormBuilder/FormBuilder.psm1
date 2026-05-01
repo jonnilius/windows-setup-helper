@@ -316,20 +316,21 @@ function New-TableLayoutPanel {
     foreach ($key in $Config.Keys) {
         if ($key -eq "Controls") { 
             foreach ($cfg in $Config[$key].GetEnumerator()) {
-                $controlConfig  = $cfg.Value
-                $control        = New-Control $controlConfig
+                # Control erstellen und konfigurieren
+                $control        = New-Control $cfg.Value
                 $control.Name   = $cfg.Key
+                $controlConfig  = $cfg.Value
 
-                # Positionierung im TableLayoutPanel: Wenn eine Position angegeben ist, wird das Control an der entsprechenden Stelle hinzugefügt. Andernfalls wird es einfach in der nächsten verfügbaren Zelle platziert.
+                # Positionierung vom Control im TableLayoutPanel
                 if ($controlConfig.Position) {
                     $pos = $controlConfig.Position
                     
-                    # Column
+                    # Column (Spalte)
                     $col = if($pos.Column) { $pos.Column } else { $pos[0] }
                     if ($col -is [array]){ $colPos = $col[0]; $colSpan = $col[1] - $col[0] + 1 } 
                     else { $colPos = $col; $colSpan = 1 }
 
-                    # Row
+                    # Row (Zeile)
                     $row = if($pos.Row) {    $pos.Row }    else { $pos[1] }
                     if ($row -is [array]){ $rowPos = $row[0]; $rowSpan = $row[1] - $row[0] + 1 }
                     else { $rowPos = $row; $rowSpan = 1 }
@@ -341,11 +342,11 @@ function New-TableLayoutPanel {
                     if ($colSpan -gt 1) { $table.SetColumnSpan($control, $colSpan) }
                     if ($rowSpan -gt 1) { $table.SetRowSpan($control, $rowSpan) }
 
-                } else { $table.Controls.Add($control) }
+                } else { $table.Controls.Add($control) } # Wenn keine Position angegeben ist, einfach hinzufügen und automatisch positionieren lassen
 
                 # Span setzen, falls angegeben (alternative Möglichkeit zur Angabe von ColumnSpan und RowSpan direkt im ControlConfig, ohne eine Position angeben zu müssen)
                 if ($controlConfig.ColumnSpan) { $table.SetColumnSpan($control, $controlConfig.ColumnSpan) }
-                if ($controlConfig.RowSpan)    { $table.SetRowSpan($control, $controlConfig.RowSpan) }
+                if ($controlConfig.RowSpan)    { $table.SetRowSpan($control,    $controlConfig.RowSpan) }
 
                 # Nur automatisch auf Fill docken, wenn kein explizites Layout im Control gesetzt ist.
                 if (-not $controlConfig.Dock -and -not $controlConfig.Anchor -and -not $controlConfig.AutoCellDock) { $control.Dock = "Fill" }
@@ -354,16 +355,22 @@ function New-TableLayoutPanel {
                 # Standard-Font für Labels in TableLayoutPanel setzen, wenn kein Font angegeben ist
                 switch ($controlConfig.Control) {
                     "Label" { 
-                        $preset = if ($controlConfig.ColumnSpan -gt 1) { "TableTitle" } elseif ($cfg.Key -match "Label") { "TableLabel" } else { "TableText" }
-                        
-                        if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset $preset }
-                        if (-not $controlConfig.TextAlign) { 
-                            if ($preset -eq "TableTitle") { $control.TextAlign = "MiddleCenter" }
-                            elseif ($Config["TextAlign"]) { $control.TextAlign = $Config["TextAlign"] }
+                        # Preset für Font-Auswahl basierend auf der Position und dem Namen des Controls festlegen
+                        $preset = switch ($true) {
+                            ($controlConfig.ColumnSpan -gt 1)   { "TableTitle"; break }
+                            ($cfg.Key -match "Title")           { "TableTitle"; break }
+                            ($cfg.Key -match "Label")           { "TableLabel"; break }
+                            ($cfg.Key -match "Value")           { "TableText";  break }
+                            default { "TableText" }
                         }
+                        $control.Font = if ($controlConfig.Font) { $controlConfig.Font } else { Get-Font -Preset $preset }
+                        
+                        # TextAlign basierend auf der Position und dem Namen des Controls festlegen, wenn kein TextAlign angegeben ist
+                        $control.TextAlign = if ($controlConfig.TextAlign) { $controlConfig.TextAlign } elseif ($preset -eq "TableTitle") { "MiddleCenter" } else { "MiddleLeft" }
                     }
                     "Button" {
                         if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset "TableButton" }
+                        if (-not $controlConfig.Anchor) { $control.Anchor = "Top,Left,Right" }
                     }
                 }
             }
@@ -382,6 +389,7 @@ function New-TableLayoutPanel {
             if ($events -contains $name) { $table.$key($Config[$key]) }
             continue
         } 
+
         if ($key -in @("Column", "Row")) {
             # Spezialbehandlung für RowStyles und ColumnStyles, da diese komplexe Objekte sind und nicht direkt über die Property gesetzt werden können
             $keyConfig  = $Config[$key]
@@ -442,10 +450,9 @@ function New-TableLayoutPanel {
                 [void]$table.($key + "Styles").Add($keyStyle)
             }
             continue
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($table, $Config[$key])
-            continue
         } elseif ($props -contains $key) { $table.$key = $Config[$key] } 
+
+        if ($key -eq "ToolTip") { $global:ToolTip.SetToolTip($table, $Config[$key]) }
     }    
 
     # Return
@@ -665,7 +672,6 @@ function New-CheckedListBox {
 function New-ComboBox {
     param ( [hashtable]$Config )
     $comboBox   = [ComboBox]::new()
-    $Config     = Merge-Config $Defaults.ComboBox $Config
     $deferredSelectedIndex = $null
 
     # Properties und Events dynamisch setzen
@@ -674,36 +680,34 @@ function New-ComboBox {
     $prop   = $type.GetProperties().Name
 
     foreach ($key in $Config.Keys) {
-        if ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($comboBox, $Config[$key])
-        } elseif ($key -like "Add_*") {
-            $name = $key.Substring(4)
-            if ($events -contains $name) { $comboBox.$key($Config[$key]) }
-        } elseif ($key -like "Remove_*") {
-            $name = $key.Substring(7)
-            if ($events -contains $name) { $comboBox.$key($Config[$key]) }
-        } elseif ($key -eq "Items") {
-            foreach ($item in $Config[$key]) { [void]$comboBox.Items.Add($item) }
-        } elseif ($key -eq "SelectedIndex") {
-            # Erst nach Items setzen, sonst ist 0 ungueltig, wenn Items noch leer sind.
-            $deferredSelectedIndex = [int]$Config[$key]
-        } elseif ($prop -contains $key) {
-            $comboBox.$key = $Config[$key]
-        } elseif ($comboBox.PSObject.Properties[$key]) {
-            $comboBox.$key = $Config[$key]
-        }
+        # ToolTip
+        if ($key -eq "ToolTip") { $global:ToolTip.SetToolTip($comboBox, $Config[$key]) } 
+
+        # Events mit "Add_" oder "Remove_" Präfix werden direkt über die entsprechenden Methoden hinzugefügt, z.B. Add_SelectedIndexChanged, Remove_SelectedIndexChanged, etc.
+        $name = if ($events -contains $key) { $key }
+            elseif ($key -like "Add_*") { $key.Substring(4) } 
+            elseif ($key -like "Remove_*") { $key.Substring(7) } 
+            else { $null }
+        if ($events -contains $name) { $comboBox.$key($Config[$key]) }
+
+        # Items und SelectedIndex separat behandeln, da SelectedIndex erst nach dem Hinzufügen der Items gesetzt werden kann, sonst könnte es zu einem ungültigen Index kommen, wenn Items noch leer sind.
+        if ($key -eq "Items") { foreach ($item in $Config[$key]) { [void]$comboBox.Items.Add($item) } } 
+        elseif ($key -eq "SelectedIndex") { $deferredSelectedIndex = [int]$Config[$key] }
+        
+        # Properties
+        if ($prop -contains $key) { $comboBox.$key = $Config[$key] } 
     }
 
-    if (($deferredSelectedIndex) -and ($comboBox.Items.Count -gt 0)) {
-        if ($deferredSelectedIndex -ge 0 -and $deferredSelectedIndex -lt $comboBox.Items.Count) {
-            $comboBox.SelectedIndex = $deferredSelectedIndex
-        }
+    # Nachdem alle Items hinzugefügt wurden, den SelectedIndex setzen, falls angegeben. Wenn kein gültiger SelectedIndex angegeben ist oder keine Items vorhanden sind, wird stattdessen ein Platzhalter-Item "Keine Einträge" hinzugefügt und ausgewählt.
+    if ($deferredSelectedIndex -and ($comboBox.Items.Count -gt 0)) {
+        if ($deferredSelectedIndex -ge 0 -and $deferredSelectedIndex -lt $comboBox.Items.Count) { $comboBox.SelectedIndex = $deferredSelectedIndex }
     } else {
         $comboBox.Items.Add("Keine Einträge") | Out-Null
         $comboBox.SelectedIndex = 0
     }
 
-    $comboBox
+    # Return
+    return $comboBox
 }
 function New-Label {
     param( [hashtable]$Config = @{}  )
@@ -1139,7 +1143,7 @@ function Get-Control {
     # Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
 
     # Formular des Controls finden, da die Referenzen auf Formularebene gespeichert werden
-    $form = $control.FindForm()
+    $form = if ($control -is [Form]) { $control } else { $control.FindForm() }
 
     # Überprüfen, ob das Formular und die Referenzen vorhanden sind, bevor versucht wird, auf die Referenzen zuzugreifen
     if (-not $form -or -not $form.Tag -or -not $form.Tag.Refs) { return $null }

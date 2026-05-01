@@ -90,63 +90,58 @@ $FormConfig = @{
                                 Controls    = @{
                                     TableLayout = @{
                                         Control     = "TableLayoutPanel"
-                                        Padding     = [Padding]::new(0)
                                         Column      = @( "50", "50" )
-                                        Row         = @( 40, 25, 25, 50, "AutoSize" )
                                         Controls    = [ordered]@{
-                                            # Column 1 – Programme 
-                                            ProgramLabel = @{
-                                                Control     = "Label"
-                                                Text        = "Programme"
-                                                Font        = Get-Font -Preset "TableTitle"
-                                                Position    = 0,0
-                                            }
-                                            UninstallOneDrive = @{
-                                                Control     = "Label"
-                                                Text        = "OneDrive entfernen"
-                                                Font        = Get-Font -Preset "TableLink"
-                                                Position    = 0,1
-                                                Hover       = "Underline"
-                                                Cursor      = Get-Cursor "Hand"
-                                                
-                                                Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
-                                                Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
-                                                Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-OneDrive.ps1") }
-                                            }
-                                            UninstallEdge = @{
-                                                Control     = "Label"
-                                                Text        = "Microsoft Edge entfernen"
-                                                Font        = Get-Font -Preset "TableLink"
-                                                Position    = 0,2
-                                                Cursor      = Get-Cursor "Hand"
+                                            ProgramTable = @{
+                                                Control     = "TableLayoutPanel"
+                                                Margin      = [Padding]::new(5)
+                                                Row         = @( 30, 30, 30, 30, 30, 30, 30, 30, 30 )
+                                                Controls    = [ordered]@{
+                                                    ProgramLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "Programme"
+                                                        Font        = Get-Font -Preset "TableTitle"
+                                                    }
+                                                    UninstallOneDrive = @{
+                                                        Control     = "Label"
+                                                        Text        = "OneDrive entfernen"
+                                                        Font        = Get-Font -Preset "TableLink"
+                                                        Hover       = "Underline"
+                                                        Cursor      = Get-Cursor "Hand"
+                                                        
+                                                        Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
+                                                        Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
+                                                        Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-OneDrive.ps1") }
+                                                    }
+                                                    UninstallEdge = @{
+                                                        Control     = "Label"
+                                                        Text        = "Microsoft Edge entfernen"
+                                                        Font        = Get-Font -Preset "TableLink"
+                                                        Cursor      = Get-Cursor "Hand"
 
-                                                Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
-                                                Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
-                                                Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-MicrosoftEdge.ps1") }
-                                            }   
-                                            # Column 2 – System
-                                            SystemLabel = @{
-                                                Control     = "Label"
-                                                Text        = "System"
-                                                Font        = Get-Font -Preset "TableTitle"
-                                                TextAlign   = "MiddleCenter"
-                                                Position    = 1,0
+                                                        Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
+                                                        Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
+                                                        Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-MicrosoftEdge.ps1") }
+                                                    } 
+                                                }
                                             }
-                                            HideStartMenuIcons = @{
-                                                Control     = "Button"
-                                                Text        = "Startmenü-Icons entfernen"
-                                                Font        = Get-Font -Preset "TableButton"
-                                                Position    = 1,1
-                                                Margin      = [Padding]::new(20,0,20,0)
-                                                Add_Click   = { & (Join-Path $PSScriptRoot "Scripts/Remove-StartMenuIcons.ps1") }
-                                            }
-                                            DisableTelemetry = @{
-                                                Control     = "Button"
-                                                Text        = "Telemetrie deaktivieren"
-                                                Font        = Get-Font -Preset "TableButton"
-                                                Position    = 1,2
-                                                Margin      = [Padding]::new(20,0,20,0)
-                                                Add_Click   = { & (Join-Path $PSScriptRoot "Scripts/Disable-Telemetry.ps1") }
+                                            SystemTable = @{
+                                                Control     = "TableLayoutPanel"
+                                                Margin      = [Padding]::new(5)
+                                                Row         = @( 30, 40, 40, 30, 30, 30, 30, 30, 30 )
+                                                Controls    = [ordered]@{
+                                                    SystemLabel = @{
+                                                        Control     = "Label"
+                                                        Text        = "System"
+                                                        # Font        = Get-Font -Preset "TableTitle"
+                                                    }
+                                                    HideStartMenuIcons = @{
+                                                        Control     = "Button"
+                                                        Text        = "Startmenü-Icons entfernen"
+                                                        Margin      = [Padding]::new(5)
+                                                        Add_Click   = { & (Join-Path $PSScriptRoot "Scripts/Remove-StartMenuIcons.ps1") }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -500,151 +495,99 @@ $FormConfig = @{
                                         }
                                     }
                                 }
-                                Add_Enter = {
-                                    $PowerValues = @{
-                                        "StandbyValueAC"    = Get-PowerStatus "AC" "Standby" -TextOutput
-                                        "HibernateValueAC"  = Get-PowerStatus "AC" "Hibernate" -TextOutput
-                                        "MonitorValueAC"    = Get-PowerStatus "AC" "Monitor" -TextOutput
-                                        "StandbyValueDC"    = Get-PowerStatus "DC" "Standby" -TextOutput
-                                        "HibernateValueDC"  = Get-PowerStatus "DC" "Hibernate" -TextOutput
-                                        "MonitorValueDC"    = Get-PowerStatus "DC" "Monitor" -TextOutput
-                                    }
-                                    foreach ($key in $PowerValues.Keys) {
-                                        $label = $this.FindForm().Controls.Find($key, $true)[0]
-                                        $label.Text = $PowerValues[$key]
-                                        if ($label.Text -ne "Nie") {
-                                            $this.FindForm().Controls.Find("DisableSleep", $true)[0].Visible = $true
-                                        } 
-                                        $label.Add_TextChanged({
-                                                if ($this.Text -eq "Nie") {
-                                                $this.FindForm().Controls.Find("DisableSleep", $true)[0].Visible = $false
-                                            } elseif ($this.Text -ne "Nie") {
-                                                $this.FindForm().Controls.Find("DisableSleep", $true)[0].Visible = $true
-                                            }
-                                        })
-                                    }
-                                }
+                                
                             }
                             OfficeTab = @{
-                                Text        = "Office"
+                                Text        = "OfficeR"
                                 Controls    = @{
                                     OfficeTable  = @{
                                         Control  = "TableLayoutPanel"
                                         Row      = @( "15", "12", "15", "15", "15" ,"15", "15" )
                                         Padding  = [Padding]::new(10,5,10,10)
                                         Controls = [ordered]@{
-                                            InstallOfficeLabel    = @{
+                                            OfficeC2RInstallerTitle     = @{
                                                 Control     = "Label"
-                                                Text        = "Office Installieren"
-                                                Font        = Get-Font -Preset "TableTitle"
+                                                Text        = "Office C2R Installer"
                                                 Padding     = [Padding]::new(0,10,0,0)
                                             }
-                                            InstallOfficeDropdown = @{
+                                            SelectOfficeC2RInstaller    = @{
                                                 Control     = "TableLayoutPanel"
-                                                Column      = @( "20", "30", "50" )
+                                                Column      = @( "14", "20", "41", "25" )
                                                 Controls    = [ordered]@{
-                                                    LicenseList = @{
-                                                        Control     = "ComboBox"
-                                                        Add_SelectedIndexChanged = { Update-InstallDropdown $this }
-                                                    }
-                                                    VersionList = @{
-                                                        Control     = "ComboBox"
-                                                        Add_SelectedIndexChanged = { Update-InstallDropdown $this }
-                                                    }
-                                                    EditionList = @{
-                                                        Control     = "ComboBox"
-                                                    }
+                                                    LicenseList = @{ Control = "ComboBox"; Add_SelectedIndexChanged = { Update-InstallDropdown $this } }
+                                                    VersionList = @{ Control = "ComboBox"; Add_SelectedIndexChanged = { Update-InstallDropdown $this } }
+                                                    EditionList = @{ Control = "ComboBox" }
+                                                    TypeList    = @{ Control = "ComboBox" }
                                                 }
                                             }
-                                            InstallOfficeButtons  = @{
+                                            OfficeC2RInstallerButtons   = @{
                                                 Control     = "TableLayoutPanel"
-                                                Column      = @( "35", "35", "30" )
+                                                Column      = @( "50", "50" )
                                                 Controls    = [ordered]@{
-                                                    OnlineInstaller32 = @{
+                                                    InstallOfficeButton = @{
                                                         Control     = "Button"
-                                                        Text        = "Online (32-bit)"
-                                                        Font        = Get-Font -Preset "TableButton"
+                                                        Text        = "Installieren"
                                                         Add_Click   = { 
-                                                            Install-Office $this "Online" "x86"
+                                                            Install-Office $this
                                                             Update-OfficeDropdown $this 
                                                         }
                                                     }
-                                                    OnlineInstaller64 = @{
+                                                    SaveOfficeButton = @{
                                                         Control     = "Button"
-                                                        Text        = "Online (64-bit)"
-                                                        Font        = Get-Font -Preset "TableButton"
+                                                        Text        = "Herunterladen"
                                                         Add_Click   = { 
-                                                            Install-Office $this "Online" "x64"
-                                                            Update-OfficeDropdown $this 
-                                                        }
-                                                    }
-                                                    OfflineInstaller  = @{
-                                                        Control     = "Button"
-                                                        Text        = "Offline"
-                                                        Font        = Get-Font -Preset "TableButton"
-                                                        Add_Click   = { 
-                                                            Install-Office $this "Offline"
-                                                            Update-OfficeDropdown $this 
+                                                            Save-OfficeConfig $this
                                                         }
                                                     }
                                                 }
                                             }
 
-                                            UninstallOfficeLabel  = @{
+                                            OfficeC2RCustomInstallerTitle = @{
+                                                Control     = "Label"
+                                                Text        = "Office C2R Custom Installer"
+                                                Padding     = [Padding]::new(0,10,0,0)
+                                            }
+
+                                            InstalledOfficeTitle  = @{
                                                 Control     = "Label"
                                                 Text        = "Office Deinstallieren"
-                                                Font        = Get-Font -Preset "TableTitle"
                                                 Padding     = [Padding]::new(0,10,0,0)
                                             }
-                                            UninstallOfficePanel  = @{
+                                            InstalledOfficePanel  = @{
                                                 Control     = "TableLayoutPanel"
-                                                Column      = @( "60", "40" )
+                                                Column      = @( "40", "30", "30" )
+                                                Row         = @( 50, 50 )
                                                 Controls    = [ordered]@{
-                                                    InstalledOfficeList     = @{
-                                                        Control     = "ComboBox"
-                                                        Anchor      = "Left, Right"
-                                                    }
-                                                    UninstallOfficeButton   = @{
-                                                        Control     = "Button"
-                                                        Text        = "Deinstallieren"
-                                                        Font        = Get-Font -Preset "TableButton"
-                                                        Add_Click   = { 
-                                                            $installedOfficeList = Get-Control $this "InstalledOfficeList"
-                                                            if ($installedOfficeList.SelectedItem) {
-                                                                Uninstall-Office $this.FindForm() $installedOfficeList.SelectedItem
-                                                                Update-OfficeDropdown $this
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            ActivateOfficeLabel   = @{
-                                                Control     = "Label"
-                                                Text        = "Office Aktivieren"
-                                                Font        = Get-Font -Preset "TableTitle"
-                                                Padding     = [Padding]::new(0,10,0,0)
-                                            }
-                                            ActivateOfficePanel   = @{
-                                                Control     = "TableLayoutPanel"
-                                                Column      = @( "60", "40" )
-                                                Controls    = [ordered]@{
-                                                    ActivateOfficeList   = @{
+                                                    InstalledDropdown     = @{
                                                         Control     = "ComboBox"
                                                         Anchor      = "Left, Right"
                                                     }
                                                     ActivateOfficeButton = @{
                                                         Control     = "Button"
                                                         Text        = "Aktivieren"
-                                                        Font        = Get-Font -Preset "TableButton"
+                                                        Anchor      = "Left, Right"
                                                         Add_Click   = { 
-                                                            $productID = $this.Parent.Controls["ActivateOfficeList"].SelectedItem
-                                                            if ($productID) {
-                                                                Activate-Office $this
-                                                                # Nach der Aktivierung die Dropdown-Liste aktualisieren
+                                                            Enable-Office $this
+                                                        }
+                                                    }
+                                                    UninstallOfficeButton   = @{
+                                                        Control     = "Button"
+                                                        Text        = "Deinstallieren"
+                                                        Anchor      = "Left, Right"
+                                                        Add_Click   = { 
+                                                            $installedDropdown = Get-Control $this "InstalledDropdown"
+                                                            if ($installedDropdown.SelectedItem) {
+                                                                Uninstall-Office $this.FindForm() $installedDropdown.SelectedItem
                                                                 Update-OfficeDropdown $this
                                                             }
                                                         }
+                                                    }
+                                                    OfficeInformation = @{
+                                                        Control     = "Label"
+                                                        Text        = "Wählen Sie eine installierte Office-Version aus, um sie zu aktivieren oder zu deinstallieren."
+                                                        Font        = Get-Font -Preset "TableText"
+                                                        ColumnSpan  = 3
+                                                        Padding     = [Padding]::new(0,10,0,0)
                                                     }
                                                 }
                                             }
@@ -820,22 +763,36 @@ $FormConfig = @{
                                 }
                             }
                         }
+                        # Nach dem TabControl-Wechsel
                         Add_SelectedIndexChanged = {
                             param ($tabControl, $e)
+                            $form        = $this.FindForm()
+                            $header      = Get-Control $this "Header"
                             $selectedTab = $tabControl.SelectedTab
 
                             switch ($selectedTab.Name) {
-                                "PackageTab" { Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox") } 
-                                "PowerTab" { 
-                                    # Triggern des Enter-Events, um die Werte zu aktualisieren
-                                    $powerTab = Get-Control $this "PowerTab"
-                                    if ($powerTab) { $powerTab.OnEnter([EventArgs]::Empty) }
-                                }
-                                "OfficeTab" { 
-                                    Set-InstallDropdown $this
-                                    Set-OfficeDropdown  $this
+                                "StartTab"      { $header.Text = $AppInfo.Name.ToUpper();   $form.MinimumSize = [Size]::new(400,300) }
+                                "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG";      $form.MinimumSize = [Size]::new(1000,500) } 
+                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN";         $form.MinimumSize = [Size]::new(550,400) }
+                                "OfficeTab"     { $header.Text = "MICROSOFT OFFICE";        $form.MinimumSize = [Size]::new(580,400) }
+                                "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN";     $form.MinimumSize = [Size]::new(550,400) }
+                            }
+                        }
+                        # Nach dem TabPage-Wechsel
+                        Add_Selected = {
+                            param ($tabControl, $e)
+                            
+                            switch ($e.TabPage.Name) {
+                                "PackageTab" { Import-Module PackageManager; Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox") }
+                                "PowerTab"   { Import-Module PowerStatus; Update-PowerTab $this }
+                                "OfficeTab"  { 
+                                    Import-Module OfficeR
+                                    Initialize-LicenseList $this
+                                    Set-TypeList $this
+                                    Update-OfficeDropdown  $this 
                                 }
                                 "InfoTab"    { 
+                                    Import-Module SystemInfo
                                     foreach ($table in @("WindowsTable", "DeviceTable")) {
                                         $tableControl = Get-Control $this $table
                                         if ($tableControl) {
@@ -847,33 +804,7 @@ $FormConfig = @{
                                                 Enable-LabelCopyOnClick -Label $label
                                             }
                                         }
-                                    }
-                                }
-                            }
-                        }
-                        # Vor dem TabPage-Wechsel
-                        Add_Selecting = {
-                            param ($tabControl, $e)
-                            $header = Get-Control $this "Header"
-                            # Module nur bei Bedarf laden, um die Startzeit des Skripts zu verkürzen
-                            switch ($e.TabPage.Name) {
-                                "StartTab"      { $header.Text = $AppInfo.Name.ToUpper() }
-                                "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG"   ; Import-Module PackageManager }
-                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN"      ; Import-Module PowerStatus }
-                                "OfficeTab"     { $header.Text = "OfficeR"              ; Import-Module OfficeR }
-                                "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN"  ; Import-Module SystemInfo }
-                                default { $header.Refresh() }
-                            }
-                        }
-                        # Nach dem TabPage-Wechsel
-                        Add_Selected = {
-                            param ($tabControl, $e)
-                            
-                            switch ($tabControl.SelectedTab.Name) {
-                                "PackageTab" { $this.FindForm().MinimumSize = [Size]::new(1000,500) }
-                                "PowerTab"   { $this.FindForm().MinimumSize = [Size]::new(550,400) }
-                                "OfficeTab"  { $this.FindForm().MinimumSize = [Size]::new(550,400) }
-                                "InfoTab"    { $this.FindForm().MinimumSize = [Size]::new(550,400) }
+                                    } }
                             }
                         }
                     }
@@ -956,7 +887,7 @@ $FormConfig = @{
 
             Shown       = { 
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-                (Get-Control $this "TabControl").SelectedIndex = 1
+                (Get-Control $this "TabControl").SelectedIndex = 4
             }
         }
     }

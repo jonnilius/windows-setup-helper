@@ -1,4 +1,5 @@
-﻿<# OFFICE #>
+﻿using namespace System.Windows.Forms
+<# OFFICE #>
 $Offices = [ordered]@{
     "Retail" = [ordered]@{
         "Office365"  = @{
@@ -171,51 +172,108 @@ $Offices = [ordered]@{
         }
     }
 }
+$HWIDKeys = [ordered]@{
+    "Windows 10" = @{
+        "Education" =	"YNMGQ-8RYV3-4PGQ3-C8XTP-7CFBY"
+        "Education N" =	"84NGF-MHBT6-FXBX8-QWJK7-DRR8H"
+        "Enterprise" =	"XGVPP-NMH47-7TTHJ-W3FW7-8HV2C"
+        "Enterprise N" =	"3V6Q6-NQXCX-V8YXR-9QCYV-QPFCT"
+        "Enterprise LTSB 2015" =	"FWN7H-PF93Q-4GGP8-M8RF3-MDWWW"
+        "Enterprise LTSB 2016" =	"NK96Y-D9CD8-W44CQ-R8YTK-DYJWX"
+        "Enterprise LTSC 2019" =	"43TBQ-NH92J-XKTM7-KT3KK-P39PB"
+        "Enterprise N LTSB 2015" =	"NTX6B-BRYC2-K6786-F6MVQ-M7V2X"
+        "Enterprise N LTSB 2016" =	"2DBW3-N2PJG-MVHW3-G7TDK-9HKR4"
+        "Home" =	"YTMG3-N6DKC-DKB77-7M9GH-8HVX7"
+        "Home N" =	"4CPRK-NM3K3-X6XXQ-RXX86-WXCHW"
+        "Home China" =	"N2434-X9D7W-8PF6X-8DV9T-8TYMD"
+        "Home Single Language" =	"BT79Q-G7N6G-PGBYW-4YWX6-6F4BT"
+        "IoT Enterprise" =	"XQQYW-NFFMW-XJPBH-K8732-CKFFD"
+        "IoT Enterprise Subscription" = "P8Q7T-WNK7X-PMFXY-VXHBG-RRK69"
+        "IoT Enterprise LTSC 2021" = "QPM6N-7J2WJ-P88HH-P3YRH-YY74H"
+        "IoT Enterprise LTSC 2024" = "CGK42-GYN6Y-VD22B-BX98W-J8JXD"
+        "IoT Enterprise LTSC Subscription 2024" = "N979K-XWD77-YW3GB-HBGH6-D32MH"
+        "Pro" = "VK7JG-NPHTM-C97JM-9MPGT-3V66T"
+        "Pro N" = "2B87N-8KFHP-DKV6R-Y2C8J-PKCKT"
+        "Pro Education" = "8PTT6-RNW4C-6V7J2-C2D3X-MHBPB"
+        "Pro Education N" = "GJTYN-HDMQY-FRR76-HVGC7-QPF8P"
+        "Pro for Workstations" = "DXG7C-N36C4-C4HTG-X4T3X-2YV77"
+        "Pro N for Workstations" = "WYPNQ-8C467-V2W6J-TX4WX-WT2RQ"
+        "S" = "V3WVW-N2PV2-CGWC3-34QGF-VMJ2C"
+        "S N" = "NH9J3-68WK7-6FB93-4K3DF-DJ4F6"
+        "SE" = "KY7PN-VR6RX-83W6Y-6DDYQ-T6R4W"
+        "SE N" = "K9VKN-3BGWV-Y624W-MCRMQ-BHDCD"
+        "Team" = "XKCNC-J26Q9-KFHD2-FKTHY-KD72Y"
+    }
+}
+
+function Update-OfficeTab {
+    param ( [Parameter(Mandatory=$true)]$control )
+
+    Update-InstallDropdown -control $control
+    Update-OfficeDropdown -control $control
+}
+
 
 <# InstallDropdown Functions #>
-function Set-InstallDropdown { 
-    param ( $control )
-    if (-not $control) { return }
+function Initialize-LicenseList { 
+    param ( [Parameter(Mandatory=$true)]$control )
 
+    # Fülle die Lizenztypen in die Dropdown-Liste
     $list = Get-Control $control "LicenseList"
     if ($list) {
+        $list.Items.Clear() # Vorherige Einträge entfernen
+        [void]$list.Items.AddRange($Offices.Keys) # Lizenztypen hinzufügen
+        $list.SelectedIndex = 0 # Standardmäßig den ersten Eintrag auswählen
+    }
+
+    return
+}
+function Update-InstallDropdown {
+    param ( [Parameter(Mandatory=$true)]$control )
+
+    :outer foreach ($key in $Offices.Keys) { # Äußere Schleife für Lizenztypen
+        foreach($subkey in $Offices[$key].Keys) { # Innere Schleife für Office-Versionen
+
+            # Überprüfe, ob das ausgewählte Element eine Office-Version ist
+            if ($control.SelectedItem -eq $subkey) { 
+                $list   = Get-Control $control "EditionList"    # Hole die EditionList ComboBox
+                $items  = $Offices[$key][$subkey].Keys          # Fülle die Editionen basierend auf der ausgewählten Office-Version
+                break outer
+            }
+        }
+
+        # Überprüfe, ob das ausgewählte Element ein Lizenztyp ist
+        if ($control.SelectedItem -eq $key) { 
+            $list   = Get-Control $control "VersionList"    # Hole die VersionList ComboBox
+            $items  = $Offices[$key].Keys                   # Fülle die Versionen basierend auf dem ausgewählten Lizenztyp
+            break outer
+        }
+    }
+
+    # Aktualisiere die ComboBox mit den neuen Einträgen
+    if ($list -and $items) {
+        $list.Items.Clear()             # Vorherige Einträge entfernen
+        $list.Items.AddRange($items)    # Neue Einträge hinzufügen
+        $list.SelectedIndex = 0         # Standardmäßig den ersten Eintrag auswählen
+    }
+}
+function Set-TypeList {
+    param ( [Parameter(Mandatory=$true)]$control )
+
+    $list = Get-Control $control "TypeList"
+    if ($list) {
         $list.Items.Clear()
-        [void]$list.Items.AddRange($Offices.Keys)
+        [void]$list.Items.AddRange(@("Online 32-bit","Online 64-bit", "Offline"))
         $list.SelectedIndex = 0
     }
     return
 }
-function Update-InstallDropdown {
-    param ( $control )
-    if (-not $control) { return }
 
-    :outer foreach ($key in $Offices.Keys) {
-        foreach($subkey in $Offices[$key].Keys) {
-            if ($control.SelectedItem -eq $subkey) {
-                $list = Get-Control $control "EditionList"
-                $items = $Offices[$key][$subkey].Keys
-                break outer
-            }
-        }
-        if ($control.SelectedItem -eq $key) { 
-            $list = Get-Control $control "VersionList"
-            $items = $Offices[$key].Keys
-            break outer
-        }
-    }
-    if ($list -and $items) {
-        $list.Items.Clear()
-        $list.Items.AddRange($items)
-        $list.SelectedIndex = 0
-    }
-}
 
-Set-Alias Set-OfficeDropdown Update-OfficeDropdown
 function Update-OfficeDropdown {
-    param ( $control )
-    if (-not $control) { return }
+    param ( [Parameter(Mandatory=$true)]$control )
 
-    $officeLists        = @("InstalledOfficeList", "ActivateOfficeList") | ForEach-Object { Get-Control $control $_ }
+    $officeLists        = @("InstalledDropdown", "ActivateOfficeList") | ForEach-Object { Get-Control $control $_ }
     $installedOffice   = Get-C2RProducts | ForEach-Object { $_.ProductID } | Sort-Object
 
     foreach ($list in $officeLists) {
@@ -322,27 +380,12 @@ function Get-C2RProducts {
 
 
 
-
-function Get-OfficeDownloadURL {
-    param (
-        [string]$productID,
-        [string]$language   = "de-de",
-        [string]$version    = "O16GA",
-        [string]$platform   = "x64",
-        [string]$internet
-    )
-    if ($internet -eq "Offline") {
-        return "https://officecdn.microsoft.com/db/492350f6-3a01-4f97-b9c0-c7c6ddf67d60/media/" + $language + "/" + $productID + ".img"
-    }
-    # Anpassung der Plattformbezeichnung
-    if ($platform -eq "x86") { $platform = "x32" }
-    return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=" + $platform + "&language=" + $language + "&version=" + $version
-}
+<# OFFICE INSTALLIEREN #>
 function Install-Office {
     param ( $control, $internet, $architecture )
     if (-not $control) { return }
     Hide-Window $control.FindForm()
-    Show-ProgressDialog "Office Installation" "Starte Office-Installation..." -Control $control
+    Show-ProgressDialog "Office Installation" "Starte Office-Installation..."
 
     # Ermittle die ausgewählten Optionen aus der UI
     $license = (Get-Control $control "LicenseList").SelectedItem
@@ -418,18 +461,112 @@ function Install-Office {
         Show-Window $control.FindForm()
     }
 }
+function Get-OfficeDownloadURL {
+    param (
+        [string]$productID,
+        [string]$language   = "de-de",
+        [string]$version    = "O16GA",
+        [string]$platform   = "x64",
+        [string]$internet
+    )
+    if ($internet -eq "Offline") {
+        return "https://officecdn.microsoft.com/db/492350f6-3a01-4f97-b9c0-c7c6ddf67d60/media/" + $language + "/" + $productID + ".img"
+    }
+    # Anpassung der Plattformbezeichnung
+    if ($platform -eq "x86") { $platform = "x32" }
+    return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=" + $platform + "&language=" + $language + "&version=" + $version
+}
+
+<# OFFICE AKTIVIEREN #>
+function Enable-Office {
+    param ( $control )
+    Hide-Window $control.FindForm()
+    Show-ProgressDialog "Office Aktivierung" "Starte Office-Aktivierung..."
+
+    Update-ProgressDialog "Lade Ohook KMS38 Aktivierungsskript herunter..."
+    $downloadURL = "https://github.com/asdcorp/ohook/releases/download/0.5/ohook_0.5.zip"
+    $tempZip    = Join-Path -Path $env:TEMP -ChildPath "ohook.zip"
+    Request-File -Url $downloadURL -File $tempZip -OnProgress {
+        param($ProgressPercentage, $BytesReceived, $TotalBytesToReceive)
+        $mbReceived = [math]::Round($BytesReceived / 1MB, 1)
+        $mbTotal    = if ($TotalBytesToReceive -gt 0) { [math]::Round($TotalBytesToReceive / 1MB, 1) } else { '?' }
+        Update-ProgressDialog "Download: $mbReceived MB / $mbTotal MB ($ProgressPercentage%)"
+    }
+
+    New-Item -Path "$env:SystemDrive\ohook" -ItemType Directory -Force | Out-Null
+    Expand-Archive -Path $tempZip -DestinationPath "$env:SystemDrive\ohook" -Force
+    $ohookPath = Join-Path -Path "$env:SystemDrive\ohook" -ChildPath "ohook.exe"
+    if (-not (Test-Path $ohookPath)) {
+        Close-ProgressDialog "Ohook-Aktivierungsskript konnte nicht gefunden werden." -Control $control
+        Show-Window $control.FindForm()
+        return
+    }
+
+    mklink "%ProgramFiles%\Microsoft Office\root\vfs\System\sppcs.dll" "%windir%\System32\sppc.dll"
+    cd /d C:\ohook
+    copy /y sppc64.dll "%ProgramFiles%\Microsoft Office\root\vfs\System\sppc.dll"
+
+    reg add HKCU\Software\Microsoft\Office\16.0\Common\Licensing\Resiliency /v "TimeOfLastHeartbeatFailure" /t REG_SZ /d "2040-01-01T00:00:00Z" /f
+
+
+    Close-ProgressDialog "Office-Aktivierung abgeschlossen." -Control $control
+}
+
+
+<# WINDOWS AKTIVIEREN #>
+function Enable-Windows {
+    param ( $control )
+    Hide-Window $control.FindForm()
+    Show-ProgressDialog "Windows Aktivierung" "Starte Windows-Aktivierung..."
+
+
+    Update-ProgressDialog "Lese Windows-Edition aus..."
+    $currentVersion = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
+    $KeyID = $currentVersion.ProductName -replace 'Windows\s\d+\s', '' 
+    $editionID = $KeyID -replace '\s+', '.'
+
+    Update-ProgressDialog "Lade entrsprechendes Ticket für $($currentVersion.ProductName)..."
+    $downloadURL = Get-WindowsTicketURL -EditionID $currentVersion.ProductName
+    $tempFile   = Join-Path -Path $env:TEMP -ChildPath "$editionID.xml"
+    Write-Host $downloadURL
+    Request-File -Url $downloadURL -File $tempFile -OnProgress {
+        param($ProgressPercentage, $BytesReceived, $TotalBytesToReceive)
+        $mbReceived = [math]::Round($BytesReceived / 1MB, 1)
+        $mbTotal    = if ($TotalBytesToReceive -gt 0) { [math]::Round($TotalBytesToReceive / 1MB, 1) } else { '?' }
+        Update-ProgressDialog "Download: $mbReceived MB / $mbTotal MB ($ProgressPercentage%)"
+    }
+    Write-Host "Ticket heruntergeladen: $tempFile"
+    Copy-Item -Path $tempFile -Destination "C:\ProgramData\Microsoft\Windows\ClipSVC\GenuineTicket" -Force
+    $Key = $HWIDKeys["Windows 10"][$KeyID]
+    Write-Host "$KeyID : $Key"
+    Set-Clipboard -Value $Key -ErrorAction SilentlyContinue
+
+    
+    Show-Window $control.FindForm()
+    Update-ProgressDialog "Schlüssel liegt in der Zwischenablage."
+    Start-Sleep -Seconds 2
+
+    Close-ProgressDialog "Office-Aktivierung abgeschlossen." -Control $control
+}
+function Get-WindowsTicketURL {
+    param ( [Parameter(Mandatory=$true)]$EditionID )
+
+    $urlEdition = $EditionID -replace 'Windows\s\d+\s', '' -replace '\s+', '.'
+
+    return "https://github.com/massgravel/hwid-kms38-tickets/releases/latest/download/$urlEdition.xml"
+}
 
 
 <# OFFICE ENTFERNEN #>
 function Uninstall-Office {
     param ( $control, [string]$ProductID )
-    Show-ProgressDialog "Office Deinstallation" "Starte Office-Deinstallation..." -Control $control
+    Show-ProgressDialog "Office Deinstallation" "Starte Office-Deinstallation..."
 
     # Wenn kein ProductID-Parameter übergeben wurde, versuche ihn aus der UI zu ermitteln
     if (-not $ProductID -and $control) {
-        $dropdownList = if ($control.Parent -and $control.Parent.Controls.ContainsKey("InstalledOfficeList")) { $control.Parent.Controls["InstalledOfficeList"] } 
-                        elseif ($control.FindForm()) { $control.FindForm().Controls.Find("InstalledOfficeList", $true) | Select-Object -First 1 } 
-                        else { Get-Control $control "InstalledOfficeList" }
+        $dropdownList = if ($control.Parent -and $control.Parent.Controls.ContainsKey("InstalledDropdown")) { $control.Parent.Controls["InstalledDropdown"] } 
+                        elseif ($control.FindForm()) { $control.FindForm().Controls.Find("InstalledDropdown", $true) | Select-Object -First 1 } 
+                        else { Get-Control $control "InstalledDropdown" }
 
         if ($dropdownList) { $ProductID = [string]$dropdownList.SelectedItem }
         else { Write-Warning "Keine Möglichkeit gefunden, die ausgewählte Office-Produkt-ID zu ermitteln."; return }

@@ -47,3 +47,24 @@ function Update-PowerStatus {
 
     Show-PowerStatusForm -GroupBoxText $GroupBoxText -CurrentMinutes $CurrentMinutes -StatusType $StatusType -PowerScheme $PowerScheme
 }
+
+<# POWERTAB #>
+function Update-PowerTab {
+    param ( $control )
+
+    $PowerValues = @{
+        "StandbyValueAC"    = Get-PowerStatus "AC" "Standby" -TextOutput
+        "HibernateValueAC"  = Get-PowerStatus "AC" "Hibernate" -TextOutput
+        "MonitorValueAC"    = Get-PowerStatus "AC" "Monitor" -TextOutput
+        "StandbyValueDC"    = Get-PowerStatus "DC" "Standby" -TextOutput
+        "HibernateValueDC"  = Get-PowerStatus "DC" "Hibernate" -TextOutput
+        "MonitorValueDC"    = Get-PowerStatus "DC" "Monitor" -TextOutput
+    }
+    foreach ($Values in $PowerValues.GetEnumerator()) {
+        $label      = Get-Control $control $Values.Key
+        $label.Text = $Values.Value
+        if ($label.Text -ne "Nie") { (Get-Control $control "DisableSleep").Visible = $true }
+
+        $label.Add_TextChanged({ (Get-Control $this "DisableSleep").Visible = $this.Text -ne "Nie" })
+    }
+}

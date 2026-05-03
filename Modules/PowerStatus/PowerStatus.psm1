@@ -27,7 +27,14 @@ function Get-PowerStatus {
     else { return $minutes }
 }
 function Set-PowerStatus {
-    param ( [ValidateSet("AC", "DC")][string]$PowerScheme = "AC", [string]$StatusType = "Standby", [int]$Minutes )
+    param ( [ValidateSet("AC", "DC")][string]$PowerScheme = "AC", [string]$StatusType = "Standby", [int]$Minutes, [switch]$DisableSleep )
+    if ($DisableSleep) { 
+        foreach ($type in @("Standby", "Hibernate", "Monitor")) {
+            foreach ($scheme in @("AC", "DC")) {
+                Set-PowerStatus -PowerScheme $scheme -StatusType $type -Minutes 0
+            }
+        }    
+    }
 
     if ($Minutes -lt 0) { throw "Ungültige Minutenanzahl. Bitte geben Sie eine positive Zahl ein." }
 

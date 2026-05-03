@@ -370,7 +370,7 @@ function New-TableLayoutPanel {
                     }
                     "Button" {
                         if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset "TableButton" }
-                        if (-not $controlConfig.Anchor) { $control.Anchor = "Top,Left,Right" }
+                        if (-not $controlConfig.Anchor) { $control.Anchor = "Bottom" }
                     }
                 }
             }

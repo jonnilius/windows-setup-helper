@@ -50,21 +50,17 @@ function Update-PowerStatus {
 
 <# POWERTAB #>
 function Update-PowerTab {
-    param ( $control )
+    param ( [Parameter(Mandatory=$true)][System.Windows.Forms.TabPage]$powerTab )
+    $powerTable = $powerTab.Controls[0] # Annahme: Das TableLayoutPanel ist das erste Steuerelement auf der TabPage
 
-    $PowerValues = @{
-        "StandbyValueAC"    = Get-PowerStatus "AC" "Standby" -TextOutput
-        "HibernateValueAC"  = Get-PowerStatus "AC" "Hibernate" -TextOutput
-        "MonitorValueAC"    = Get-PowerStatus "AC" "Monitor" -TextOutput
-        "StandbyValueDC"    = Get-PowerStatus "DC" "Standby" -TextOutput
-        "HibernateValueDC"  = Get-PowerStatus "DC" "Hibernate" -TextOutput
-        "MonitorValueDC"    = Get-PowerStatus "DC" "Monitor" -TextOutput
-    }
-    foreach ($Values in $PowerValues.GetEnumerator()) {
-        $label      = Get-Control $control $Values.Key
-        $label.Text = $Values.Value
-        if ($label.Text -ne "Nie") { (Get-Control $control "DisableSleep").Visible = $true }
+    foreach ($control in $powerTable.Controls) {
+        if ($control.Name -match "^(Standby|Hibernate|Monitor)Value(AC|DC)$") {
+            $statusType     = $matches[1]
+            $powerScheme    = $matches[2]
+            $control.Text   = Get-PowerStatus -PowerScheme $powerScheme -StatusType $statusType -TextOutput
+            $control.Add_TextChanged({ (Get-Control $this "DisableSleep").Visible = $this.Text -ne "Nie" })
 
-        $label.Add_TextChanged({ (Get-Control $this "DisableSleep").Visible = $this.Text -ne "Nie" })
+            if ($control.Text -ne "Nie") { (Get-Control $powerTab "DisableSleep").Visible = $true }
+        }
     }
 }

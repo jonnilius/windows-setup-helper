@@ -138,7 +138,6 @@ $script:Defaults = @{
     }
     TabPage = @{
         BorderStyle   = "None"
-        ForeColor   = Get-Color "Accent"
         BackColor   = Get-Color "Dark"
         Font        = Get-Font -Control "TabPage"
     }

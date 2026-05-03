@@ -42,8 +42,8 @@ Set-Administrator -Command $PSCommandPath -Enable
 $FormConfig = @{
     Main        = @{
         Properties  = @{
+            FormBorderStyle = "FixedSingle"
             ClientSize  = [Size]::new(450,450) # Breite, Höhe
-            MinimumSize = [Size]::new(450,450)
             Padding     = [Padding]::new(10,0,10,0)
         }
         Controls    = [ordered]@{
@@ -58,6 +58,7 @@ $FormConfig = @{
                         Controls    = [ordered]@{
                             StartTab     = @{
                                 Text        = "Start"
+                                Visible     = $false
                                 Controls    = [ordered]@{
                                     MainTable = @{
                                         Control     = "TableLayoutPanel"
@@ -69,15 +70,15 @@ $FormConfig = @{
                                             StartTitle = @{
                                                 ColumnSpan  = 2
                                                 Control     = "Label"
-                                                Text        = "Start-Einstellungen"
+                                                Text        = "Startseite"
                                             }
                                             StartLabel = @{
                                                 Control     = "Label"
-                                                Text        = ""
+                                                Text        = "Eigenschaft:"
                                             }
                                             StartValue = @{
                                                 Control     = "Label"
-                                                Text        = "Randrom Text"
+                                                Text        = "Aktueller Wert"
                                             }
 
 
@@ -286,35 +287,24 @@ $FormConfig = @{
                                         Controls    = [ordered]@{
 
                                             # Row 1 – Im Netzbetrieb
-                                            PowerLabelDC = @{
-                                                # Position    = 0,0
+                                            PowerLabelAC = @{
                                                 ColumnSpan  = 3
                                                 Control     = "Label"
                                                 Text        = "Im Netzbetrieb"
-                                                Font        = Get-Font -Preset "TableTitle"
-                                                TextAlign   = "MiddleCenter"
-                                                Padding     = [Padding]::new(0,10,0,0)
                                             }
 
                                             # Row 2 – Im Netzbetrieb (Energiesparmodus)
                                             StandbyLabelAC = @{
-                                                # Position    = 0,1
                                                 Control     = "Label"
                                                 Text        = "Energiesparmodus:"
                                                 TextAlign   = "MiddleRight"
-                                                Font        = Get-Font -Preset "TableLabel"
                                             }
                                             StandbyValueAC = @{
-                                                # Position    = 1,1
                                                 Control     = "Label"
-                                                Text        = Get-PowerStatus "AC" "Standby" -TextOutput
-                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             StandbyButtonAC = @{
-                                                # Position    = 2,1
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font -Preset "TableButton"
 
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Standby"
@@ -324,23 +314,16 @@ $FormConfig = @{
 
                                             # Row 3 – Im Netzbetrieb (Ruhezustand)
                                             HibernateLabelAC = @{
-                                                # Position    = 0,2
                                                 Control     = "Label"
                                                 Text        = "Ruhezustand:"
-                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             HibernateValueAC = @{
-                                                # Position    = 1,2
                                                 Control     = "Label"
-                                                Text        = Get-PowerStatus "AC" "Hibernate" -TextOutput
-                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             HibernateButtonAC = @{
-                                                # Position    = 2,2
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Hibernate"
                                                     $this.FindForm().Controls.Find("HibernateValueAC", $true)[0].Text = Get-PowerStatus "AC" "Hibernate" -TextOutput
@@ -349,23 +332,17 @@ $FormConfig = @{
 
                                             # Row 4 – Im Netzbetrieb (Monitor ausschalten)
                                             MonitorLabelAC = @{
-                                                # Position    = 0,3
                                                 Control     = "Label"
                                                 Text        = "Monitor ausschalten:"
-                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             MonitorValueAC = @{
-                                                # Position    = 1,3
                                                 Control     = "Label"
-                                                Text        = Get-PowerStatus "AC" "Monitor" -TextOutput
                                                 Font        = Get-Font -Preset "TableText"
                                             }
                                             MonitorButtonAC = @{
-                                                # Position    = 2,3
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "AC" -StatusType "Monitor"
                                                     $this.FindForm().Controls.Find("MonitorValueAC", $true)[0].Text = Get-PowerStatus "AC" "Monitor" -TextOutput
@@ -373,35 +350,26 @@ $FormConfig = @{
                                             }
                                             
                                             # Row 5 – Im Akkubetrieb
-                                            BatteryLabelDC = @{
-                                                # Position    = 0,4
+                                            PowerLabelDC = @{
                                                 ColumnSpan  = 3
                                                 Control     = "Label"
                                                 Text        = "Im Akkubetrieb"
-                                                Font        =  Get-Font -Preset "TableTitle"
-                                                TextAlign   = "TopCenter"
+                                                # TextAlign   = "TopCenter"
                                                 Padding     = [Padding]::new(0,10,0,0)
                                             }
 
                                             # Row 6 – Im Akkubetrieb (Energiesparmodus)
                                             StandbyLabelDC = @{
-                                                # Position    = 0,5
                                                 Control     = "Label"
                                                 Text        = "Energiesparmodus:"
-                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             StandbyValueDC = @{
-                                                # Position    = 1,5
                                                 Control     = "Label"
-                                                Text        = Get-PowerStatus "DC" "Standby" -TextOutput
-                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             StandbyButtonDC = @{
-                                                # Position    = 2,5
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Standby"
                                                     $this.FindForm().Controls.Find("StandbyValueDC", $true)[0].Text = Get-PowerStatus "DC" "Standby" -TextOutput
@@ -410,23 +378,16 @@ $FormConfig = @{
 
                                             # Row 7 – Im Akkubetrieb (Ruhezustand)
                                             HibernateLabelDC = @{
-                                                # Position    = 0,6
                                                 Control     = "Label"
                                                 Text        = "Ruhezustand:"
-                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             HibernateValueDC = @{
-                                                # Position    = 1,6
                                                 Control     = "Label"
-                                                Text        = Get-PowerStatus "DC" "Hibernate" -TextOutput
-                                                Font        = Get-Font -Preset "TableText"
                                             }
                                             HibernateButtonDC = @{
-                                                # Position    = 2,6
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Hibernate"
                                                     $this.FindForm().Controls.Find("HibernateValueDC", $true)[0].Text = Get-PowerStatus "DC" "Hibernate" -TextOutput
@@ -435,23 +396,17 @@ $FormConfig = @{
 
                                             # Row 8 – Im Akkubetrieb (Monitor ausschalten)
                                             MonitorLabelDC = @{
-                                                # Position    = 0,7
                                                 Control     = "Label"
                                                 Text        = "Monitor ausschalten:"
-                                                Font        = Get-Font -Preset "TableLabel"
                                                 TextAlign   = "MiddleRight"
                                             }
                                             MonitorValueDC = @{
-                                                # Position    = 1,7
                                                 Control     = "Label"
-                                                Text        = Get-PowerStatus "DC" "Monitor" -TextOutput
                                                 Font        = Get-Font -Preset "TableText"
                                             }
                                             MonitorButtonDC = @{
-                                                # Position    = 2,7
                                                 Control     = "Button"
                                                 Text        = "Ändern"
-                                                Font        = Get-Font -Preset "TableButton"
                                                 Add_Click   = { 
                                                     Update-PowerStatus -PowerScheme "DC" -StatusType "Monitor"
                                                     $this.FindForm().Controls.Find("MonitorValueDC", $true)[0].Text = Get-PowerStatus "DC" "Monitor" -TextOutput
@@ -460,12 +415,12 @@ $FormConfig = @{
 
                                             # Row 9 – Energiesparmodus deaktivieren
                                             DisableSleep = @{
-                                                Visible     = $false
-                                                # Position    = 0,8
-                                                ColumnSpan  = 3
                                                 Control     = "Button"
                                                 Text        = "Energiesparmodus deaktivieren"
-                                                Font        = Get-Font -Preset "TableButton"
+                                                Visible     = $false
+                                                Height      = 25 
+                                                Width       = 200
+                                                ColumnSpan  = 3
 
                                                 Add_Click = { 
                                                     Set-PowerStatus -PowerScheme "AC" -StatusType "Standby" -Minutes 0
@@ -502,14 +457,16 @@ $FormConfig = @{
                                 Controls    = @{
                                     OfficeTable  = @{
                                         Control  = "TableLayoutPanel"
-                                        Row      = @( "15", "12", "15", "15", "15" ,"15", "15" )
+                                        Row      = @( "15", "12", "15", "15", "43" )
                                         Padding  = [Padding]::new(10,5,10,10)
                                         Controls = [ordered]@{
+                                            # Row 1 - Office C2R Installer
                                             OfficeC2RInstallerTitle     = @{
                                                 Control     = "Label"
                                                 Text        = "Office C2R Installer"
                                                 Padding     = [Padding]::new(0,10,0,0)
                                             }
+                                            # Row 2 - Dropdowns für Office C2R Installer
                                             SelectOfficeC2RInstaller    = @{
                                                 Control     = "TableLayoutPanel"
                                                 Column      = @( "14", "20", "41", "25" )
@@ -520,6 +477,7 @@ $FormConfig = @{
                                                     TypeList    = @{ Control = "ComboBox" }
                                                 }
                                             }
+                                            # Row 3 - Buttons für Office C2R Installer
                                             OfficeC2RInstallerButtons   = @{
                                                 Control     = "TableLayoutPanel"
                                                 Column      = @( "50", "50" )
@@ -527,6 +485,7 @@ $FormConfig = @{
                                                     InstallOfficeButton = @{
                                                         Control     = "Button"
                                                         Text        = "Installieren"
+                                                        Anchor      = "Left, Right"
                                                         Add_Click   = { 
                                                             Install-Office $this
                                                             Update-OfficeDropdown $this 
@@ -535,6 +494,7 @@ $FormConfig = @{
                                                     SaveOfficeButton = @{
                                                         Control     = "Button"
                                                         Text        = "Herunterladen"
+                                                        Anchor      = "Left, Right"
                                                         Add_Click   = { 
                                                             Save-OfficeConfig $this
                                                         }
@@ -542,17 +502,13 @@ $FormConfig = @{
                                                 }
                                             }
 
-                                            OfficeC2RCustomInstallerTitle = @{
-                                                Control     = "Label"
-                                                Text        = "Office C2R Custom Installer"
-                                                Padding     = [Padding]::new(0,10,0,0)
-                                            }
-
+                                            # Row 4 - Dropdown und Buttons für Office Verwalten
                                             InstalledOfficeTitle  = @{
                                                 Control     = "Label"
-                                                Text        = "Office Deinstallieren"
+                                                Text        = "Office Verwalten"
                                                 Padding     = [Padding]::new(0,10,0,0)
                                             }
+                                            # Row 5 - Dropdown und Buttons für Office Deinstallieren
                                             InstalledOfficePanel  = @{
                                                 Control     = "TableLayoutPanel"
                                                 Column      = @( "40", "30", "30" )
@@ -771,11 +727,11 @@ $FormConfig = @{
                             $selectedTab = $tabControl.SelectedTab
 
                             switch ($selectedTab.Name) {
-                                "StartTab"      { $header.Text = $AppInfo.Name.ToUpper();   $form.MinimumSize = [Size]::new(400,300) }
-                                "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG";      $form.MinimumSize = [Size]::new(1000,500) } 
-                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN";         $form.MinimumSize = [Size]::new(550,400) }
-                                "OfficeTab"     { $header.Text = "MICROSOFT OFFICE";        $form.MinimumSize = [Size]::new(580,400) }
-                                "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN";     $form.MinimumSize = [Size]::new(550,400) }
+                                "StartTab"      { $header.Text = $AppInfo.Name.ToUpper();   $form.ClientSize = [Size]::new(440,300) }
+                                "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG";      $form.ClientSize = [Size]::new(1000,500) } 
+                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN";         $form.ClientSize = [Size]::new(440,400) }
+                                "OfficeTab"     { $header.Text = "MICROSOFT OFFICE";        $form.ClientSize = [Size]::new(580,400) }
+                                "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN";     $form.ClientSize = [Size]::new(550,400) }
                             }
                         }
                         # Nach dem TabPage-Wechsel
@@ -784,7 +740,7 @@ $FormConfig = @{
                             
                             switch ($e.TabPage.Name) {
                                 "PackageTab" { Import-Module PackageManager; Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox") }
-                                "PowerTab"   { Import-Module PowerStatus; Update-PowerTab $this }
+                                "PowerTab"   { Import-Module PowerStatus; Set-PowerTab $e.TabPage; Update-PowerTab $e.TabPage }
                                 "OfficeTab"  { 
                                     Import-Module OfficeR
                                     Initialize-LicenseList $this
@@ -887,7 +843,7 @@ $FormConfig = @{
 
             Shown       = { 
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-                (Get-Control $this "TabControl").SelectedIndex = 4
+                (Get-Control $this "TabControl").SelectedIndex = 3
             }
         }
     }

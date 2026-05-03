@@ -382,20 +382,21 @@ function Get-C2RProducts {
 
 <# OFFICE INSTALLIEREN #>
 function Install-Office {
-    param ( $control, $internet, $architecture )
+    param ( $control, $architecture )
     if (-not $control) { return }
     Hide-Window $control.FindForm()
     Show-ProgressDialog "Office Installation" "Starte Office-Installation..."
 
     # Ermittle die ausgewählten Optionen aus der UI
-    $license = (Get-Control $control "LicenseList").SelectedItem
-    $version = (Get-Control $control "VersionList").SelectedItem
-    $edition = (Get-Control $control "EditionList").SelectedItem
+    $license    = (Get-Control $control "LicenseList").SelectedItem
+    $version    = (Get-Control $control "VersionList").SelectedItem
+    $edition    = (Get-Control $control "EditionList").SelectedItem
+    $internet   = (Get-Control $control "TypeList").SelectedItem
 
     # Stelle die Download-URL basierend auf den ausgewählten Optionen zusammen
     Update-ProgressDialog "Ermittle URL für $license $version $edition ($architecture, $internet)..."
     $productID      = if ($Offices.Contains($license)) { $edition + $license } else { $edition }
-    $downloadURL    = Get-OfficeDownloadURL -productID $productID -language "de-de" -platform $architecture -internet $internet
+    $downloadURL    = Get-OfficeDownloadURL -productID $productID -internet $internet
 
     # Bestimme den temporären Dateinamen basierend auf der Installationsart
     $fileName   = if ($internet -eq "Offline") { "$($productID)_installer.img" } else { "$($productID)_installer.exe" }
@@ -466,15 +467,13 @@ function Get-OfficeDownloadURL {
         [string]$productID,
         [string]$language   = "de-de",
         [string]$version    = "O16GA",
-        [string]$platform   = "x64",
-        [string]$internet
+        [string]$internet    = "Offline"
     )
-    if ($internet -eq "Offline") {
-        return "https://officecdn.microsoft.com/db/492350f6-3a01-4f97-b9c0-c7c6ddf67d60/media/" + $language + "/" + $productID + ".img"
+    switch ($internet) {
+        "Offline" { return "https://officecdn.microsoft.com/db/492350f6-3a01-4f97-b9c0-c7c6ddf67d60/media/" + $language + "/" + $productID + ".img" }
+        "Online 32-bit" { return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=x32&language=" + $language + "&version=" + $version }
+        "Online 64-bit" { return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=x64&language=" + $language + "&version=" + $version }
     }
-    # Anpassung der Plattformbezeichnung
-    if ($platform -eq "x86") { $platform = "x32" }
-    return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=" + $platform + "&language=" + $language + "&version=" + $version
 }
 
 <# OFFICE AKTIVIEREN #>

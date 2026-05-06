@@ -1437,6 +1437,4 @@ function ConvertFrom-ChocolateyInfoText {
 
 
 <### EXPORT ######################################>
-function Start-ChocolateyUI {
-    Start-Form $FormConfig
-}
+function Start-ChocolateyUI { Start-Form $FormConfig }

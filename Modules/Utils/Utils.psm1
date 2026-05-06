@@ -3,6 +3,8 @@ using namespace System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+Import-Module (Join-Path $PSScriptRoot "Cache.psm1")
+
 <## PSConsole #########################################################################>
 if (-not ("ConsoleWindowNativeMethods" -as [type])) {
     Add-Type @"

@@ -350,7 +350,7 @@ function New-TableLayoutPanel {
 
                 # Nur automatisch auf Fill docken, wenn kein explizites Layout im Control gesetzt ist.
                 if (-not $controlConfig.Dock -and -not $controlConfig.Anchor -and -not $controlConfig.AutoCellDock) { $control.Dock = "Fill" }
-                if ($controlConfig.Anchor -and -not $controlConfig.AutoSize) { $control.AutoSize = $true }
+                if ($controlConfig.Anchor -and -not $controlConfig.ContainsKey('AutoSize')) { $control.AutoSize = $true }
                 
                 # Standard-Font für Labels in TableLayoutPanel setzen, wenn kein Font angegeben ist
                 switch ($controlConfig.Control) {
@@ -370,7 +370,7 @@ function New-TableLayoutPanel {
                     }
                     "Button" {
                         if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset "TableButton" }
-                        if (-not $controlConfig.Anchor) { $control.Anchor = "Bottom" }
+                        if (-not $controlConfig.Dock -and -not $controlConfig.Anchor) { $control.Anchor = "Bottom" }
                     }
                 }
             }

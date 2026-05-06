@@ -1,9 +1,24 @@
 using namespace System.Drawing
+using namespace System.IO
+
+function Get-IconPath {
+    param ( [string]$ScriptRoot = $PSScriptRoot )
+    $Names = @("Assets", "Icons", "Images", "Resources")
+
+    foreach ($name in $Names) {
+        $potentialPath = [Path]::Combine($ScriptRoot, $name)
+        if (Test-Path $potentialPath) { return $potentialPath }
+    }
+
+
+
+    return $null
+}
 
 function Get-Icon {
     param ( [string]$Name = "Default", [string]$ScriptRoot = $PSScriptRoot )
 
-    $iconPaths = ( $ScriptRoot, "$ScriptRoot/Assets", "$ScriptRoot/Icons", "$ScriptRoot/Assets/Icons" ) | Where-Object { Test-Path $_ }
+    $iconPaths = Get-IconPath -ScriptRoot $ScriptRoot
 
     # Zuerst versuchen, das Icon in den möglichen Verzeichnissen zu finden, bevor der Standardpfad verwendet wird
     foreach ($path in $iconPaths) {
@@ -19,7 +34,7 @@ function Get-Icon {
 function Get-Image {
     param ( [string]$Name = "Default", [string]$ScriptRoot = $PSScriptRoot )
 
-    $iconPaths = ( $ScriptRoot, "$ScriptRoot/Assets", "$ScriptRoot/Icons", "$ScriptRoot/Assets/Icons" ) | Where-Object { Test-Path $_ }
+    $iconPaths = Get-IconPath -ScriptRoot $ScriptRoot
 
     # Zuerst versuchen, das Bild in den möglichen Verzeichnissen zu finden, bevor der Standardpfad verwendet wird
     foreach ($path in $iconPaths) {

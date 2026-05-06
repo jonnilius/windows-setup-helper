@@ -70,6 +70,7 @@ $script:Defaults = @{
         BackColor   = Get-Color "Dark"
         Font        = Get-Font -Control "GroupBox"
         Dock        = "Fill"
+        Text        = "GroupBox Title"
     }
     Label = @{
         Text        = "New-Label Text"
@@ -316,8 +317,8 @@ function New-TableLayoutPanel {
         if ($key -eq "Controls") { 
             foreach ($cfg in $Config[$key].GetEnumerator()) {
                 # Control erstellen und konfigurieren
-                $control        = New-Control $cfg.Value
-                $control.Name   = $cfg.Key
+                $control        = New-Control $cfg.Value $cfg.Key
+                # $control.Name   = $cfg.Key
                 $controlConfig  = $cfg.Value
 
                 # Positionierung vom Control im TableLayoutPanel
@@ -357,9 +358,9 @@ function New-TableLayoutPanel {
                         # Preset für Font-Auswahl basierend auf der Position und dem Namen des Controls festlegen
                         $preset = switch ($true) {
                             ($controlConfig.ColumnSpan -gt 1)   { "TableTitle"; break }
-                            ($cfg.Key -match "Title")           { "TableTitle"; break }
-                            ($cfg.Key -match "Label")           { "TableLabel"; break }
-                            ($cfg.Key -match "Value")           { "TableText";  break }
+                            ($control.Name -match "Title")           { "TableTitle"; break }
+                            ($control.Name -match "Label")           { "TableLabel"; break }
+                            ($control.Name -match "Value")           { "TableText";  break }
                             default { "TableText" }
                         }
                         $control.Font = if ($controlConfig.Font) { $controlConfig.Font } else { Get-Font -Preset $preset }
@@ -457,6 +458,68 @@ function New-TableLayoutPanel {
     # Return
     $table
 }
+function Set-TableLayoutControls {
+    param( 
+        [Parameter(Mandatory=$true)][TableLayoutPanel]$Table, 
+        [Parameter(Mandatory=$true)][Hashtable]$Controls
+        )
+
+    foreach ($controlsConfig in $Controls.GetEnumerator()) {
+        # Control erstellen
+        $controlKey     = $controlsConfig.Key
+        $controlConfig  = $controlsConfig.Value
+        $control        = New-Control $controlConfig $controlKey
+
+        # Dock
+        if (-not $controlConfig.Dock -and -not $controlConfig.Anchor -and -not $controlConfig.AutoCellDock) { $control.Dock = "Fill" }
+        if (-not $controlConfig.AutoSize -and $controlConfig.Anchor) { $control.AutoSize = $true }
+
+        # Positionierung vom Control im TableLayoutPanel
+         if ($position = $controlConfig.Position) {
+            
+            # Column (Spalte)
+            $column         = if($position.Column) { $position.Column } else { $position[0] }
+            $columnPosition = if ($column -is [array]) { $column[0] } else { $column }
+            $controlConfig.ColumnSpan     = if ($column -is [array]) { $column[1] - $column[0] + 1 } else { 1 }
+
+            # Row (Zeile)
+            $row         = if($position.Row) { $position.Row } else { $position[1] }
+            $rowPosition = if ($row -is [array]) { $row[0] } else { $row }
+            $controlConfig.rowSpan     = if ($row -is [array]) { $row[1] - $row[0] + 1 } else { 1 }
+            
+            # Control zur Tabelle hinzufügen
+            $table.Controls.Add($control, $columnPosition, $rowPosition)
+        } else { $table.Controls.Add($control) } # Wenn keine Position angegeben ist, einfach hinzufügen und automatisch positionieren lassen
+        
+        # ColumnSpan und RowSpan setzen, falls angegeben (alternative Möglichkeit zur Angabe von ColumnSpan und RowSpan direkt im ControlConfig, ohne eine Position angeben zu müssen)
+        if ($controlConfig.ColumnSpan) { $table.SetColumnSpan($control, $controlConfig.ColumnSpan) }
+        if ($controlConfig.RowSpan)    { $table.SetRowSpan($control, $controlConfig.RowSpan) }
+
+        
+        # Standard-Font für Labels in TableLayoutPanel setzen, wenn kein Font angegeben ist
+        switch ($controlConfig.Control) {
+            "Label" { 
+                # Preset für Font-Auswahl basierend auf der Position und dem Namen des Controls festlegen
+                $preset = switch ($true) {
+                    ($controlConfig.ColumnSpan -gt 1)   { "TableTitle"; break }
+                    ($controlKey -match "Title")        { "TableTitle"; break }
+                    ($controlKey -match "Label")        { "TableLabel"; break }
+                    ($controlKey -match "Value")        { "TableText";  break }
+                    default { "TableText" }
+                }
+                $control.Font = if ($controlConfig.Font) { $controlConfig.Font } else { Get-Font -Preset $preset }
+                
+                # TextAlign basierend auf der Position und dem Namen des Controls festlegen, wenn kein TextAlign angegeben ist
+                $control.TextAlign = if ($controlConfig.TextAlign) { $controlConfig.TextAlign } elseif ($preset -eq "TableTitle") { "MiddleCenter" } else { "MiddleLeft" }
+            }
+            "Button" {
+                if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset "TableButton" }
+                if (-not $controlConfig.Anchor) { $control.Anchor = "Bottom" }
+            }
+        }
+    
+    }        
+}
 
 
 <### STRUKTUR-CONTAINER ###>
@@ -464,10 +527,12 @@ function New-GroupBox {
     param ( [hashtable]$Config = @{} )
     $groupBox   = [GroupBox]::new()
 
-
     # Properties und Events dynamisch setzen
-    $events = $groupBox.GetType().GetEvents().Name
-    $prop   = $groupBox.GetType().GetProperties().Name
+    $type   = $groupBox.GetType()
+    $events = $type.GetEvents().Name
+
+    $prop   = $type.GetProperties().Name
+
     foreach ($key in $Config.Keys) {
         if ($key -eq "Controls") { 
             $ControlConfig = $Config[$key]
@@ -707,6 +772,12 @@ function New-ComboBox {
 
     # Return
     return $comboBox
+}
+function Update-ComboBoxItems {
+    param ( [ComboBox]$ComboBox, $Items, [int]$SelectedIndex = 0 )
+    $ComboBox.Items.Clear()
+    $ComboBox.Items.AddRange($Items)
+    $ComboBox.SelectedIndex = if ($Items.Count -gt 0) { $SelectedIndex } else { -1 }
 }
 function New-Label {
     param( [hashtable]$Config = @{}  )
@@ -1071,13 +1142,18 @@ function Start-Form {
 
 <# CONTROL #>
 function New-Control {
-    param( [hashtable]$Config )
+    param( [hashtable]$Config, [string]$Key = $null )
     if (-not $Config.Control) { throw "Config fehlt das Feld 'Control'" }
-
 
     # Control-Typ ermitteln und Control erstellen
     $type = $Config.Control
     $copy = $Config.Clone()
+
+    # Setze den Namen des Controls auf den Schlüssel in der übergeordneten Controls-Hashtable
+    if ($Key) { 
+        if ($Config.Name) { Write-Warning "Sowohl 'Name' in der Control-Konfiguration als auch der Schlüssel in der übergeordneten Controls-Hashtable sind gesetzt. Der Schlüssel '$Key' wird als Name verwendet und überschreibt den Wert in der Konfiguration." }
+        $copy.Name = $Key 
+    }
 
     # Kontextmenü-Konfiguration erkennen und Kontextmenü erstellen, falls vorhanden
     if ($copy.ContainsKey("ContextMenu")) {
@@ -1139,16 +1215,20 @@ function Register-Control {
 }
 function Get-Control {
     param( $control, $name )
-    # Write-Debug "[ENTER] $($MyInvocation.MyCommand.Name) | Params: $($PSBoundParameters | Out-String)"
 
     # Formular des Controls finden, da die Referenzen auf Formularebene gespeichert werden
     $form = if ($control -is [Form]) { $control } else { $control.FindForm() }
 
-    # Überprüfen, ob das Formular und die Referenzen vorhanden sind, bevor versucht wird, auf die Referenzen zuzugreifen
-    if (-not $form -or -not $form.Tag -or -not $form.Tag.Refs) { return $null }
+    # Validierung der Form- und Referenzstruktur, um sicherzustellen, dass die Referenzen korrekt abgerufen werden können. Wenn die Struktur nicht wie erwartet ist, werden Warnungen ausgegeben, um mögliche Ursachen zu identifizieren.
+    if (-not $form) { Write-Warning "Formular für Control '$($control.Name)' nicht gefunden. Stelle sicher, dass Get-Control von einem gültigen Control innerhalb eines Formulars aufgerufen wird."; return $null }
+    elseif (-not $form.Tag) { Write-Warning "Formular '$($form.Name)' hat keine Tag-Eigenschaft. Stelle sicher, dass die Controls mit Register-Control korrekt registriert wurden und dass Get-Control von einem gültigen Control innerhalb eines Formulars aufgerufen wird."; return $null }
+    elseif (-not $form.Tag.Refs) { Write-Warning "Formular '$($form.Name)' hat keine Referenzen im Tag gespeichert. Stelle sicher, dass die Controls mit Register-Control korrekt registriert wurden und dass Get-Control von einem gültigen Control innerhalb eines Formulars aufgerufen wird."; return $null }
 
-    # Control-Referenz anhand des Namens zurückgeben, oder $null, wenn der Name nicht gefunden wird
-    return $form.Tag.Refs[$name]
+    # Versuche, die Referenz des gewünschten Controls anhand des Namens abzurufen. Wenn die Referenz nicht gefunden wird, wird eine Warnung ausgegeben, um mögliche Ursachen zu identifizieren.
+    $controlRef = $form.Tag.Refs[$name]
+    if (-not $controlRef) { Write-Warning "Control mit Namen '$name' nicht gefunden in den Referenzen des Formulars '$($form.Name)'. Stelle sicher, dass der Control mit diesem Namen existiert und dass die Controls mit Register-Control korrekt registriert wurden."; return $null }
+    
+    return $controlRef
 }
 function Test-Control {
     param( $control )
@@ -1205,83 +1285,7 @@ function Update-ProcessLabel {
         $label.Visible = $false
     }
 }
-function Show-PowerStatusForm {
-    param( [string]$GroupBoxText, [int]$CurrentMinutes, $PowerScheme, $StatusType )
 
-    $FormConfig = @{
-        Properties = @{
-            Text        = "Energieoptionen Ändern"
-            ClientSize  = [Size]::new(280,60)
-            MinimizeBox = $false
-            MaximizeBox = $false
-            KeyPreview  = $true
-            FormBorderStyle = "FixedDialog"
-            Padding     = [Padding]::new(5)
-            BackColor   = Get-Color "Dark"
-            Icon       = "PowerStatus"
-        }
-        Controls = [ordered]@{
-            GroupBox = @{
-                Control     = "GroupBox"
-                Text        = $GroupBoxText
-                Controls    = [ordered]@{
-                    TestTable = @{
-                        Control     = "TableLayoutPanel"
-                        Dock        = "Fill"
-                        Column      = @(50, "AutoSize", "40")
-                        Row         = @(30)
-                        Controls    = [ordered]@{
-                            Minutes = @{
-                                Control     = "NumericUpDown"
-                                Value       = $CurrentMinutes
-                                Dock        = "Fill"
-                                Minimum     = 0
-                                Increment   = 5
-                                Maximum     = 999
-                                Add_KeyPress = { 
-                                    # Akzeptiere nur Ziffern
-                                    if (-not [char]::IsDigit($_.KeyChar) -and $_.KeyChar -ne [char]8) { $_.Handled = $true } 
-                                    # Begrenze die Eingabe auf maximal 3 Zeichen
-                                    elseif ($this.Text.Length -ge 3 -and $_.KeyChar -ne [char]8) { $_.Handled = $true }
-                                }
-                            }
-                            MinutesLabel = @{
-                                Control     = "Label"
-                                Text        = "Minuten"
-                                Dock        = "Fill"
-                                TextAlign   = "MiddleLeft"
-                            }
-                            ChangeButton = @{
-                                Control     = "Button"
-                                Name        = "ChangeButton"
-                                Text        = "Ändern"
-                                Dock        = "Fill"
-                                Add_Click    = {
-                                    $form = $this.FindForm()
-                                    [int]$minutes = $this.Parent.Controls["Minutes"].Text
-                                    Set-PowerStatus -PowerScheme $PowerScheme -StatusType $StatusType -Minutes $minutes
-                                    $form.Close()
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Events = @{
-            KeyDown = {
-                # Bestätigt die Eingabe, wenn die Enter-Taste gedrückt wird, aber nur wenn der Fokus auf dem Minuten-Textfeld liegt
-                if ($this.ActiveControl.Name -eq "Minutes") {
-                    if ($_.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
-                        $this.Controls["GroupBox"].Controls["TestTable"].Controls["ChangeButton"].PerformClick()
-                    }
-                }
-            }
-        }
-    }
-
-    Start-Form $FormConfig
-}
 
 
 <# Forms dot-source #>

@@ -29,13 +29,17 @@
                             Control = "RichTextBox"
                             Size    = [Size]::new(310,310)
                             Text    = @"
-Windows Setup Helper ist ein PowerShell-Skript, das die Einrichtung und Grundkonfiguration eines Windows-Systems deutlich vereinfacht.`n
-Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
+Windows Setup Helper ist ein reines PowerShell-Skript zum Einrichten und Konfigurieren von Windows-Systemen.`n
+Mit einer übersichtlichen grafischen Oberfläche ermöglicht es die schnelle Installation und Verwaltung von Programmen über Chocolatey und WinGet, das Ändern von Systemeinstellungen wie Gerätename oder Zeitserver sowie das Anzeigen wichtiger Systeminformationen.`n
 Das Skript richtet sich an alle, die Windows-PCs effizient und wiederholbar einrichten möchten - egal ob für den privaten Gebrauch, im Unternehmen oder in Bildungseinrichtungen.`n
 Durch die Integration von Automatisierung und Benutzerfreundlichkeit spart der Windows Setup Helper Zeit und reduziert Fehlerquellen bei der Systemeinrichtung.`n
 Version: $($AppInfo.Version)
 Entwickler: $($AppInfo.Author)
 Lizenz: MIT
+
+Credits:
+ - Uninstall Microsoft Edge: bibicadotnet
+ - Uninstall Chocolatey: chocolatey.org
 "@
                         }
                     }

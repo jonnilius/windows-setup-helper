@@ -88,17 +88,19 @@ $FormConfig = @{
                             }
                             TweakTab  = @{
                                 Text        = "Tweaks"
+                                Padding     = [Padding]::new(0)
                                 Controls    = @{
                                     TableLayout = @{
                                         Control     = "TableLayoutPanel"
+                                        Padding     = [Padding]::new(0)
                                         Column      = @( "50", "50" )
                                         Controls    = [ordered]@{
                                             ProgramTable = @{
                                                 Control     = "TableLayoutPanel"
-                                                Margin      = [Padding]::new(5)
-                                                Row         = @( 30, 30, 30, 30, 30, 30, 30, 30, 30 )
+                                                Padding     = [Padding]::new(0)
+                                                Row         = @( 30, 20, 20, 30, 30, 30, 30, 30, "AutoSize" )
                                                 Controls    = [ordered]@{
-                                                    ProgramLabel = @{
+                                                    ProgramTitle = @{
                                                         Control     = "Label"
                                                         Text        = "Programme"
                                                         Font        = Get-Font -Preset "TableTitle"
@@ -109,6 +111,7 @@ $FormConfig = @{
                                                         Font        = Get-Font -Preset "TableLink"
                                                         Hover       = "Underline"
                                                         Cursor      = Get-Cursor "Hand"
+                                                        TextAlign = "MiddleCenter"
                                                         
                                                         Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
                                                         Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
@@ -119,6 +122,7 @@ $FormConfig = @{
                                                         Text        = "Microsoft Edge entfernen"
                                                         Font        = Get-Font -Preset "TableLink"
                                                         Cursor      = Get-Cursor "Hand"
+                                                        TextAlign = "MiddleCenter"
 
                                                         Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
                                                         Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
@@ -126,24 +130,47 @@ $FormConfig = @{
                                                     } 
                                                 }
                                             }
-                                            SystemTable = @{
-                                                Control     = "TableLayoutPanel"
-                                                Margin      = [Padding]::new(5)
-                                                Row         = @( 30, 40, 40, 30, 30, 30, 30, 30, 30 )
-                                                Controls    = [ordered]@{
-                                                    SystemLabel = @{
-                                                        Control     = "Label"
-                                                        Text        = "System"
-                                                        # Font        = Get-Font -Preset "TableTitle"
-                                                    }
-                                                    HideStartMenuIcons = @{
-                                                        Control     = "Button"
-                                                        Text        = "Startmenü-Icons entfernen"
-                                                        Margin      = [Padding]::new(5)
-                                                        Add_Click   = { & (Join-Path $PSScriptRoot "Scripts/Remove-StartMenuIcons.ps1") }
-                                                    }
+                                            SystemTweaks = & {
+                                                $systemTable = @{ 
+                                                    Control  = "TableLayoutPanel"
+                                                    Row      = @()
+                                                    Controls = [ordered]@{} 
                                                 }
+                                                
+                                                $Tweaks = [ordered]@{
+                                                    SystemTweaksTitle   = @{ Name = "System Tweaks";                Script = $null }
+                                                    HideStartMenuIcons  = @{ Name = "Startmenü-Icons entfernen";    Script = "Remove-StartMenuIcons.ps1" }
+                                                    ThemePatcher        = @{ Name = "UltraUXThemePatcher";        Script = "Start-ThemePatcher.ps1" }
+                                                }
+                                                
+                                                
+                                                foreach ($tweak in $Tweaks.GetEnumerator()) {
+                                                    $tweakKey = $tweak.Key
+
+                                                    # Dynamische Erstellung der Controls für die System Tweaks
+                                                    $systemTable.Controls[$tweakKey] = @{ 
+                                                        Control = "Label"
+                                                        Text    = $tweak.Value.Name
+                                                        Dock    = "Fill"
+                                                    }
+
+                                                    # Wenn ein Skript definiert ist, füge einen Button hinzu, um den Tweak auszuführen
+                                                    if ($tweak.Value.Script) { 
+                                                        $Path = Join-Path $PSScriptRoot "Scripts/$($tweak.Value.Script)"
+                                                        $systemTable.Controls[$tweakKey].Tag = $Path
+                                                        $systemTable.Controls[$tweakKey].Control = "Button" 
+                                                        $systemTable.Controls[$tweakKey].Add_Click = { & $this.Tag}
+                                                        
+                                                    }
+                                                    $Control = $systemTable.Controls[$tweakKey].Control
+
+                                                    $systemTable.Row        += switch ($Control) { "Label" { 30 } "Button" { 40 } default { "AutoSize" } }
+                                                }
+                                                $systemTable.Row += "AutoSize"
+                                                
+                                                $systemTable
                                             }
+                                            
                                         }
                                     }
                                 }
@@ -181,6 +208,9 @@ $FormConfig = @{
                                                 Control     = "Label"
                                                 Text        = "Paket-Manager"
                                                 Font        = Get-Font -Preset "TableLabel"
+                                                Add_Click = {
+                                                    Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox")
+                                                }
                                             }
                                             ChocolateyButton = @{
                                                 # Position    = 1,0
@@ -593,6 +623,7 @@ $FormConfig = @{
 
                             switch ($selectedTab.Name) {
                                 "StartTab"      { $header.Text = $AppInfo.Name.ToUpper();   $form.ClientSize = [Size]::new(440,300) }
+                                "TweaksTab"     { $header.Text = "SYSTEMANPASSUNGEN";       $form.ClientSize = [Size]::new(600,400) }
                                 "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG";      $form.ClientSize = [Size]::new(1000,500) } 
                                 "PowerTab"      { $header.Text = "ENERGIEOPTIONEN";         $form.ClientSize = [Size]::new(440,410) }
                                 "OfficeTab"     { $header.Text = "MICROSOFT OFFICE";        $form.ClientSize = [Size]::new(580,400) }
@@ -604,7 +635,7 @@ $FormConfig = @{
                             param ($tabControl, $e)
                             
                             switch ($e.TabPage.Name) {
-                                "PackageTab" { Import-Module PackageManager; Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox") }
+                                "PackageTab" { Import-Module PackageManager;  }
                                 "PowerTab"   { Import-Module PowerStatus; Initialize-PowerTab -powerTab $e.TabPage }
                                 "OfficeTab"  { Import-Module OfficeR; Update-OfficeTab $e.TabPage }
                                 "InfoTab"    { 
@@ -703,7 +734,7 @@ $FormConfig = @{
 
             Shown       = { 
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-                (Get-Control $this "TabControl").SelectedIndex = 3
+                (Get-Control $this "TabControl").SelectedIndex = 1
             }
         }
     }
@@ -995,10 +1026,8 @@ $FormConfig = @{
             }
         }
     }
+    PowerStatus = Get-PowerStatusConfig
+    Chocolatey  = Get-ChocolateyConfig
 }
 
-# Start-Form $FormConfig.Main
-
-Show-PowerForm
-# Start-ChocolateyUI
-
+Start-Form $FormConfig.Main

@@ -284,169 +284,31 @@ $FormConfig = @{
                                         Padding     = [Padding]::new(10)
                                         Column      = @( "55", "25", "20" )
                                         Row         = @( 30, 30, 30, 30, 30, 30, 30, 30, 40, "AutoSize" )
-                                        Controls    = [ordered]@{
+                                        Controls    = & {
+                                                # Dynamische Erstellung der Controls für die Energieoptionen
+                                                $schemes = @( "AC", "DC" )
+                                                $types   = @{ Standby = "Energiesparmodus"; Hibernate = "Ruhezustand"; Monitor = "Monitor ausschalten" }
+                                                $result  = [ordered]@{}
+                                                foreach ($scheme in $schemes) {
+                                                    # Titel-Label für jeden Energieschema
+                                                    $result["PowerLabel$scheme"] = @{ Control = "Label"; ColumnSpan = 3 }
 
-                                            # Row 1 – Im Netzbetrieb
-                                            PowerLabelAC = @{
-                                                ColumnSpan  = 3
-                                                Control     = "Label"
-                                                Text        = "Im Netzbetrieb"
-                                            }
-
-                                            # Row 2 – Im Netzbetrieb (Energiesparmodus)
-                                            StandbyLabelAC = @{
-                                                Control     = "Label"
-                                                Text        = "Energiesparmodus:"
-                                                TextAlign   = "MiddleRight"
-                                            }
-                                            StandbyValueAC = @{
-                                                Control     = "Label"
-                                            }
-                                            StandbyButtonAC = @{
-                                                Control     = "Button"
-                                                Text        = "Ändern"
-
-                                                Add_Click   = { 
-                                                    Update-PowerStatus -PowerScheme "AC" -StatusType "Standby"
-                                                    $this.FindForm().Controls.Find("StandbyValueAC", $true)[0].Text = Get-PowerStatus "AC" "Standby" -TextOutput
+                                                    foreach ($type in $types.Keys) {
+                                                        $result["$type`Label$scheme"]   = @{ Control = "Label" }
+                                                        $result["$type`Value$scheme"]   = @{ Control = "Label" }
+                                                        $result["$type`Button$scheme"]  = @{ Control = "Button" }
+                                                    }
                                                 }
-                                            }
-
-                                            # Row 3 – Im Netzbetrieb (Ruhezustand)
-                                            HibernateLabelAC = @{
-                                                Control     = "Label"
-                                                Text        = "Ruhezustand:"
-                                                TextAlign   = "MiddleRight"
-                                            }
-                                            HibernateValueAC = @{
-                                                Control     = "Label"
-                                            }
-                                            HibernateButtonAC = @{
-                                                Control     = "Button"
-                                                Text        = "Ändern"
-                                                Add_Click   = { 
-                                                    Update-PowerStatus -PowerScheme "AC" -StatusType "Hibernate"
-                                                    $this.FindForm().Controls.Find("HibernateValueAC", $true)[0].Text = Get-PowerStatus "AC" "Hibernate" -TextOutput
-                                                 }
-                                            }
-
-                                            # Row 4 – Im Netzbetrieb (Monitor ausschalten)
-                                            MonitorLabelAC = @{
-                                                Control     = "Label"
-                                                Text        = "Monitor ausschalten:"
-                                                TextAlign   = "MiddleRight"
-                                            }
-                                            MonitorValueAC = @{
-                                                Control     = "Label"
-                                                Font        = Get-Font -Preset "TableText"
-                                            }
-                                            MonitorButtonAC = @{
-                                                Control     = "Button"
-                                                Text        = "Ändern"
-                                                Add_Click   = { 
-                                                    Update-PowerStatus -PowerScheme "AC" -StatusType "Monitor"
-                                                    $this.FindForm().Controls.Find("MonitorValueAC", $true)[0].Text = Get-PowerStatus "AC" "Monitor" -TextOutput
-                                                 }
-                                            }
-                                            
-                                            # Row 5 – Im Akkubetrieb
-                                            PowerLabelDC = @{
-                                                ColumnSpan  = 3
-                                                Control     = "Label"
-                                                Text        = "Im Akkubetrieb"
-                                                # TextAlign   = "TopCenter"
-                                                Padding     = [Padding]::new(0,10,0,0)
-                                            }
-
-                                            # Row 6 – Im Akkubetrieb (Energiesparmodus)
-                                            StandbyLabelDC = @{
-                                                Control     = "Label"
-                                                Text        = "Energiesparmodus:"
-                                                TextAlign   = "MiddleRight"
-                                            }
-                                            StandbyValueDC = @{
-                                                Control     = "Label"
-                                            }
-                                            StandbyButtonDC = @{
-                                                Control     = "Button"
-                                                Text        = "Ändern"
-                                                Add_Click   = { 
-                                                    Update-PowerStatus -PowerScheme "DC" -StatusType "Standby"
-                                                    $this.FindForm().Controls.Find("StandbyValueDC", $true)[0].Text = Get-PowerStatus "DC" "Standby" -TextOutput
-                                                 }
-                                            }
-
-                                            # Row 7 – Im Akkubetrieb (Ruhezustand)
-                                            HibernateLabelDC = @{
-                                                Control     = "Label"
-                                                Text        = "Ruhezustand:"
-                                                TextAlign   = "MiddleRight"
-                                            }
-                                            HibernateValueDC = @{
-                                                Control     = "Label"
-                                            }
-                                            HibernateButtonDC = @{
-                                                Control     = "Button"
-                                                Text        = "Ändern"
-                                                Add_Click   = { 
-                                                    Update-PowerStatus -PowerScheme "DC" -StatusType "Hibernate"
-                                                    $this.FindForm().Controls.Find("HibernateValueDC", $true)[0].Text = Get-PowerStatus "DC" "Hibernate" -TextOutput
+                                                # Button zum Deaktivieren des Energiesparmodus
+                                                $result["DisableSleep"] = @{
+                                                    Control     = "Button"
+                                                    Text        = "Energiesparmodus deaktivieren"
+                                                    Visible     = $false
+                                                    Size       = [Size]::new(200,25)
+                                                    ColumnSpan  = 3
                                                 }
-                                            }
 
-                                            # Row 8 – Im Akkubetrieb (Monitor ausschalten)
-                                            MonitorLabelDC = @{
-                                                Control     = "Label"
-                                                Text        = "Monitor ausschalten:"
-                                                TextAlign   = "MiddleRight"
-                                            }
-                                            MonitorValueDC = @{
-                                                Control     = "Label"
-                                                Font        = Get-Font -Preset "TableText"
-                                            }
-                                            MonitorButtonDC = @{
-                                                Control     = "Button"
-                                                Text        = "Ändern"
-                                                Add_Click   = { 
-                                                    Update-PowerStatus -PowerScheme "DC" -StatusType "Monitor"
-                                                    $this.FindForm().Controls.Find("MonitorValueDC", $true)[0].Text = Get-PowerStatus "DC" "Monitor" -TextOutput
-                                                }
-                                            }
-
-                                            # Row 9 – Energiesparmodus deaktivieren
-                                            DisableSleep = @{
-                                                Control     = "Button"
-                                                Text        = "Energiesparmodus deaktivieren"
-                                                Visible     = $false
-                                                Height      = 25 
-                                                Width       = 200
-                                                ColumnSpan  = 3
-
-                                                Add_Click = { 
-                                                    Set-PowerStatus -PowerScheme "AC" -StatusType "Standby" -Minutes 0
-                                                    $this.FindForm().Controls.Find("StandbyValueAC", $true)[0].Text = Get-PowerStatus "AC" "Standby" -TextOutput
-
-                                                    Set-PowerStatus -PowerScheme "AC" -StatusType "Hibernate" -Minutes 0
-                                                    $this.FindForm().Controls.Find("HibernateValueAC", $true)[0].Text = Get-PowerStatus "AC" "Hibernate" -TextOutput
-
-                                                    Set-PowerStatus -PowerScheme "AC" -StatusType "Monitor" -Minutes 0
-                                                    $this.FindForm().Controls.Find("MonitorValueAC", $true)[0].Text = Get-PowerStatus "AC" "Monitor" -TextOutput
-
-                                                    Set-PowerStatus -PowerScheme "DC" -StatusType "Standby" -Minutes 0
-                                                    $this.FindForm().Controls.Find("StandbyValueDC", $true)[0].Text = Get-PowerStatus "DC" "Standby" -TextOutput
-
-                                                    Set-PowerStatus -PowerScheme "DC" -StatusType "Hibernate" -Minutes 0
-                                                    $this.FindForm().Controls.Find("HibernateValueDC", $true)[0].Text = Get-PowerStatus "DC" "Hibernate" -TextOutput
-
-                                                    Set-PowerStatus -PowerScheme "DC" -StatusType "Monitor" -Minutes 0
-                                                    $this.FindForm().Controls.Find("MonitorValueDC", $true)[0].Text = Get-PowerStatus "DC" "Monitor" -TextOutput
-
-                                                    $this.Visible = $false
-                                                }
-                                                Add_VisibleChanged = {
-                                                    if ($this.Visible) { $this.FindForm().MinimumSize = [Size]::new(410,450) } else { $this.FindForm().MinimumSize = [Size]::new(410,420) }
-                                                }
-                                            }
+                                                return $result
                                         }
                                     }
                                 }
@@ -460,25 +322,27 @@ $FormConfig = @{
                                         Row      = @( "15", "12", "15", "15", "43" )
                                         Padding  = [Padding]::new(10,5,10,10)
                                         Controls = [ordered]@{
-                                            # Row 1 - Office C2R Installer
-                                            OfficeC2RInstallerTitle     = @{
+
+                                                    <# OFFICE INSTALLER #>
+                                            # Row 1 - Titel für Office C2R Installer
+                                            InstallOfficeTitle     = @{
                                                 Control     = "Label"
-                                                Text        = "Office C2R Installer"
+                                                Text        = "Office Installer" # "Office C2R Installer"
                                                 Padding     = [Padding]::new(0,10,0,0)
                                             }
-                                            # Row 2 - Dropdowns für Office C2R Installer
-                                            SelectOfficeC2RInstaller    = @{
+                                            # Row 2 - Dropdown Listen für Office C2R Installer
+                                            InstallOfficeDropdown    = @{
                                                 Control     = "TableLayoutPanel"
                                                 Column      = @( "14", "20", "41", "25" )
                                                 Controls    = [ordered]@{
                                                     LicenseList = @{ Control = "ComboBox"; Add_SelectedIndexChanged = { Update-InstallDropdown $this } }
                                                     VersionList = @{ Control = "ComboBox"; Add_SelectedIndexChanged = { Update-InstallDropdown $this } }
-                                                    EditionList = @{ Control = "ComboBox" }
-                                                    TypeList    = @{ Control = "ComboBox" }
+                                                    EditionList = @{ Control = "ComboBox"; Tag = { Update-InstallDropdown $this } }
+                                                    OptionList  = @{ Control = "ComboBox"; Tag = { Update-InstallDropdown $this } }
                                                 }
                                             }
                                             # Row 3 - Buttons für Office C2R Installer
-                                            OfficeC2RInstallerButtons   = @{
+                                            InstallOfficeButtons   = @{
                                                 Control     = "TableLayoutPanel"
                                                 Column      = @( "50", "50" )
                                                 Controls    = [ordered]@{
@@ -496,25 +360,26 @@ $FormConfig = @{
                                                         Text        = "Herunterladen"
                                                         Anchor      = "Left, Right"
                                                         Add_Click   = { 
-                                                            Save-OfficeConfig $this
+                                                            Save-OfficeInstaller -control $this
                                                         }
                                                     }
                                                 }
                                             }
 
+                                                    <# OFFICE VERWALTEN #>
                                             # Row 4 - Dropdown und Buttons für Office Verwalten
-                                            InstalledOfficeTitle  = @{
+                                            ManageOfficeTitle  = @{
                                                 Control     = "Label"
                                                 Text        = "Office Verwalten"
                                                 Padding     = [Padding]::new(0,10,0,0)
                                             }
                                             # Row 5 - Dropdown und Buttons für Office Deinstallieren
-                                            InstalledOfficePanel  = @{
+                                            ManageOfficeTable  = @{
                                                 Control     = "TableLayoutPanel"
                                                 Column      = @( "40", "30", "30" )
                                                 Row         = @( 50, 50 )
                                                 Controls    = [ordered]@{
-                                                    InstalledDropdown     = @{
+                                                    OfficeList     = @{
                                                         Control     = "ComboBox"
                                                         Anchor      = "Left, Right"
                                                     }
@@ -531,9 +396,9 @@ $FormConfig = @{
                                                         Text        = "Deinstallieren"
                                                         Anchor      = "Left, Right"
                                                         Add_Click   = { 
-                                                            $installedDropdown = Get-Control $this "InstalledDropdown"
-                                                            if ($installedDropdown.SelectedItem) {
-                                                                Uninstall-Office $this.FindForm() $installedDropdown.SelectedItem
+                                                            $OfficeList = Get-Control $this "OfficeList"
+                                                            if ($OfficeList.SelectedItem) {
+                                                                Uninstall-Office $this.FindForm() $OfficeList.SelectedItem
                                                                 Update-OfficeDropdown $this
                                                             }
                                                         }
@@ -729,7 +594,7 @@ $FormConfig = @{
                             switch ($selectedTab.Name) {
                                 "StartTab"      { $header.Text = $AppInfo.Name.ToUpper();   $form.ClientSize = [Size]::new(440,300) }
                                 "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG";      $form.ClientSize = [Size]::new(1000,500) } 
-                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN";         $form.ClientSize = [Size]::new(440,400) }
+                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN";         $form.ClientSize = [Size]::new(440,410) }
                                 "OfficeTab"     { $header.Text = "MICROSOFT OFFICE";        $form.ClientSize = [Size]::new(580,400) }
                                 "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN";     $form.ClientSize = [Size]::new(550,400) }
                             }
@@ -740,13 +605,8 @@ $FormConfig = @{
                             
                             switch ($e.TabPage.Name) {
                                 "PackageTab" { Import-Module PackageManager; Update-InstalledProgramsList -ListView (Get-Control $this "InstalledPackagesListBox") }
-                                "PowerTab"   { Import-Module PowerStatus; Set-PowerTab $e.TabPage; Update-PowerTab $e.TabPage }
-                                "OfficeTab"  { 
-                                    Import-Module OfficeR
-                                    Initialize-LicenseList $this
-                                    Set-TypeList $this
-                                    Update-OfficeDropdown  $this 
-                                }
+                                "PowerTab"   { Import-Module PowerStatus; Initialize-PowerTab -powerTab $e.TabPage }
+                                "OfficeTab"  { Import-Module OfficeR; Update-OfficeTab $e.TabPage }
                                 "InfoTab"    { 
                                     Import-Module SystemInfo
                                     foreach ($table in @("WindowsTable", "DeviceTable")) {
@@ -1137,4 +997,8 @@ $FormConfig = @{
     }
 }
 
-Start-Form $FormConfig.Main
+# Start-Form $FormConfig.Main
+
+Show-PowerForm
+# Start-ChocolateyUI
+

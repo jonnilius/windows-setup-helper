@@ -7,7 +7,7 @@
 
     RequiredModules = @('FormBuilder', 'Utils')
 
-    FunctionsToExport   = @('Start-ChocolateyUI')
+    FunctionsToExport   = @('Show-Chocolatey', 'Get-ChocolateyConfig')
     CmdletsToExport     = @()
     VariablesToExport   = @()
     AliasesToExport     = @()

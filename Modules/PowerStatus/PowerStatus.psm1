@@ -6,7 +6,7 @@ function Get-Cache  { param( [string]$Key ) return Get-GlobalCache -Key "PowerFo
 function Test-Cache { param( [string]$Key, $Value ) Test-GlobalCache -Key "PowerForm.$Key" -Value $Value }
 
 
-$FormConfig = @{
+$script:FormConfig = @{
     Main = @{
         Properties  = @{
             Text        = "Energieoptionen"
@@ -105,7 +105,7 @@ $FormConfig = @{
                                 type = $this.Tag.type
                                 groupboxtext = $this.Tag.groupboxtext
                             }
-                            Start-PowerDialog -PowerScheme $Tag.scheme -PowerType $Tag.type -GroupBoxText $Tag.groupboxtext
+                            Show-PowerDialog -PowerScheme $Tag.scheme -PowerType $Tag.type -GroupBoxText $Tag.groupboxtext
                             Update-PowerControl -Control $this -PowerScheme $Tag.scheme -PowerType $Tag.type
                         })
                     }
@@ -237,14 +237,14 @@ function Set-PowerStatus {
 }
 
 <# POWERDIALOG #>
-function Start-PowerDialog {
+function Show-PowerDialog {
     param ( [string]$PowerScheme, [string]$PowerType, [string]$GroupBoxText )
     Set-Cache -Key "GroupBoxText" -Value $GroupBoxText
     Set-Cache -Key "CurrentMinutes" -Value (Get-Cache -Key "$PowerType$PowerScheme")
     Set-Cache -Key "PowerScheme" -Value $PowerScheme
     Set-Cache -Key "PowerType" -Value $PowerType
 
-    Show-PowerForm "Change"
+    Start-Form $FormConfig.Change
 }
 
 
@@ -264,7 +264,7 @@ function Initialize-PowerTab {
 
         foreach ($type in $types.Keys) {
             # Überprüfen, ob der Status bereits im Cache vorhanden ist, um unnötige Abfragen zu vermeiden
-            Sync-Cache -Key "$type$scheme" -Value (Get-PowerStatus -PowerScheme $scheme -PowerType $type)
+            Test-Cache -Key "$type$scheme" -Value (Get-PowerStatus -PowerScheme $scheme -PowerType $type)
             $powerStatus    = Get-Cache -Key "$type$scheme"
 
             # Aktualisieren der Label- und Value-Controls basierend auf dem PowerType und PowerScheme
@@ -282,7 +282,7 @@ function Initialize-PowerTab {
             $buttonControl.Text     = "Ändern"
             $buttonControl.Tag      = @{ scheme = $scheme; type = $type; powertab = $powerTab; groupboxtext = "$($types[$type]) ($($schemes[$scheme]))" }
             $buttonControl.Add_Click({ 
-                Start-PowerDialog -PowerScheme $this.Tag.scheme -PowerType $this.Tag.type -GroupBoxText $this.Tag.groupboxtext
+                Show-PowerDialog -PowerScheme $this.Tag.scheme -PowerType $this.Tag.type -GroupBoxText $this.Tag.groupboxtext
                 Update-PowerTab -powerTab $this.Tag.powertab 
             })
 
@@ -311,10 +311,8 @@ function Update-PowerTab {
 
 
 <# POWERFORM #>
-function Show-PowerForm { 
-    param ( [string]$FormType = "Main" )
-    Start-Form $FormConfig[$FormType]
-}
+function Get-PowerStatusConfig { return $FormConfig.Main }
+function Show-PowerStatus { Start-Form $FormConfig.Main }
 function Update-PowerControl {
     param( [Control]$Control, [string]$PowerScheme, [string]$PowerType )
     $powerStatus = Get-PowerStatus -PowerScheme $PowerScheme -PowerType $PowerType

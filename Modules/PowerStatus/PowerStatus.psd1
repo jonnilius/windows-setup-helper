@@ -7,7 +7,6 @@
 
     RequiredModules     = @( 'FormBuilder', 'Utils' )
 
-    FunctionsToExport   = @('Show-PowerForm', 'Update-PowerTab', 'Update-PowerStatus', 'Initialize-PowerTab', 'Get-PowerStatus', 'Set-PowerStatus')
     CmdletsToExport     = @()
     VariablesToExport   = @()
     AliasesToExport     = @()

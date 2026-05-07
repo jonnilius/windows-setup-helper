@@ -40,6 +40,7 @@ Lizenz: MIT
 Credits:
  - Uninstall Microsoft Edge: bibicadotnet
  - Uninstall Chocolatey: chocolatey.org
+ - UltraUXThemePatcher: mhoefs.eu
 "@
                         }
                     }

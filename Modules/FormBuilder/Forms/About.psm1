@@ -52,6 +52,4 @@ Credits:
         KeyDown = { if ($_.KeyCode -eq "Escape") { $this.Close() } }
     }
 }
-function Start-AboutUI {
-    Start-Form $FormConfig
-}
+function Start-AboutUI { Start-Form $FormConfig }

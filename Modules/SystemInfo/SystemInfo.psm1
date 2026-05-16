@@ -13,9 +13,8 @@ function Get-WindowsInfo {
         $Edition { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductName }
         $Version { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").DisplayVersion }
         $Build   { 
-            # $currentBuild = [System.Environment]::OSVersion.Version.Build
             $currentVersion = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion"
-            return $currentVersion.CurrentBuild + "." + $currentVersion.UBR }
+            return $currentVersion.CurrentBuild + "." + $currentVersion.UBR }  # $currentBuild = [System.Environment]::OSVersion.Version.Build
         $Key     { 
             $SoftwareProtectionPlatform = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SoftwareProtectionPlatform"
             return $SoftwareProtectionPlatform.BackupProductKeyDefault
@@ -35,14 +34,10 @@ function Get-DeviceInfo {
     )
     # Gebe die angeforderten Informationen zurück
     switch ($true) {
-        $Name       { 
-            # [System.Environment]::MachineName
-            return (Get-CimInstance Win32_ComputerSystem).Name 
-        }
-        $Processor  { 
-            # [System.Environment]::ProcessorCount # Anzahl der logischen Prozessoren
-            return (Get-CimInstance Win32_Processor).Name 
-        }
+
+        
+        $Name       { return (Get-CimInstance Win32_ComputerSystem).Name }  # [System.Environment]::MachineName
+        $Processor  { return (Get-CimInstance Win32_Processor).Name }       # [System.Environment]::ProcessorCount # Anzahl der logischen Prozessoren
         $RAM        { 
             $totalRAM   = [math]::Round((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1GB, 2) 
             $avaibleRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
@@ -58,10 +53,7 @@ function Get-DeviceInfo {
         }
         $ID         { return (Get-CimInstance Win32_ComputerSystem).Name }
         $ProductID  { return (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").ProductId }
-        $SystemType { 
-            # [System.Environment]::Is64BitOperatingSystem
-            return (Get-CimInstance Win32_ComputerSystem).SystemType 
-        }
+        $SystemType { return (Get-CimInstance Win32_ComputerSystem).SystemType } # [System.Environment]::Is64BitOperatingSystem
     }
 }
 function Get-SystemInfo {

@@ -3,60 +3,7 @@ using namespace System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
-Import-Module (Join-Path $PSScriptRoot "Cache.psm1")
 
-<## PSConsole #########################################################################>
-if (-not ("ConsoleWindowNativeMethods" -as [type])) {
-    Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-public static class ConsoleWindowNativeMethods
-{
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr GetConsoleWindow();
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool IsWindowVisible(IntPtr hWnd);
-}
-"@
-}
-function Show-PSConsole {
-    $consoleWindow = [ConsoleWindowNativeMethods]::GetConsoleWindow()
-    if ($consoleWindow -eq [IntPtr]::Zero) { return }
-    [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 4) # 4 = SW_SHOW without activating
-}
-function Hide-PSConsole {
-    $consoleWindow = [ConsoleWindowNativeMethods]::GetConsoleWindow()
-    if ($consoleWindow -eq [IntPtr]::Zero) { return }
-    [void][ConsoleWindowNativeMethods]::ShowWindow($consoleWindow, 0) # 0 = SW_HIDE
-}
-function Get-PSConsole {
-    $consoleWindow = [ConsoleWindowNativeMethods]::GetConsoleWindow()
-    if ($consoleWindow -eq [IntPtr]::Zero) { return $false }
-    return [ConsoleWindowNativeMethods]::IsWindowVisible($consoleWindow)
-}
-
-<# WINDOW #########################################################################>
-function Show-Window {
-    param ( $Control )
-    if (-not $Control) { return }
-
-    $Form = if ($Control -ne [System.Windows.Forms.Form]) { $Control.FindForm() } else { $Control }
-    if (-not $Form.Visible) { $Form.Visible = $true }
-}
-function Hide-Window {
-    param ( $Control )
-    if (-not $Control) { return }
-
-    $Form = if ($Control -ne [System.Windows.Forms.Form]) { $Control.FindForm() } else { $Control }
-    if ($Form.Visible) { $Form.Visible = $false }
-}
 
 <# DOWNLOADER #########################################################################>
 function Get-Downloader {
@@ -356,7 +303,27 @@ function Show-MessageBox {
         default { return $result }
     }
 }
+function ConvertTo-Identifier {
+    param(
+        [string]$Text
+    )
 
+    $Text = $Text.Trim()
+
+    # Umlaute ersetzen
+    $Text = $Text.Replace('ä', 'ae')
+    $Text = $Text.Replace('ö', 'oe')
+    $Text = $Text.Replace('ü', 'ue')
+    $Text = $Text.Replace('Ä', 'Ae')
+    $Text = $Text.Replace('Ö', 'Oe')
+    $Text = $Text.Replace('Ü', 'Ue')
+    $Text = $Text.Replace('ß', 'ss')
+
+    # Sonderzeichen entfernen
+    $Text = $Text -replace '[^a-zA-Z0-9]', ''
+
+    return $Text
+}
 <# SHELL PROCESS #>
 function Start-ShellProcess {
     <# 
@@ -442,7 +409,6 @@ function Set-Timer {
     $timer.Add_Tick($Action)
     return $timer
 }
-<# TIMER #>
 function Start-Timer {
     param ( [Timer]$Timer, [string]$Name = "Timer", [System.Windows.Forms.Control]$Control )
 
@@ -506,6 +472,53 @@ function Start-Command {
         return Start-Process powershell -ArgumentList "-Command $Command" -NoNewWindow -Wait
     }
 }
+
+<# REGISTRY #>
+function Test-RegistryValue {
+    param (
+        [Parameter(Mandatory)][string]$RegistryPath,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$ValueName,
+        [Parameter(Mandatory)]$ValueData,
+        $ValueType
+    )
+
+    if (-not (Test-Path $RegistryPath)) { return $false }
+
+    try {
+        $resultData = Get-ItemPropertyValue `
+            -Path $RegistryPath `
+            -Name $ValueName `
+            -ErrorAction Stop
+
+        return $resultData -eq $ValueData
+    }
+    catch {
+        return $false
+    }
+}
+function Set-RegistryValue {
+    param (
+        [Parameter(Mandatory)][string]$RegistryPath, 
+        [Parameter(Mandatory)][AllowEmptyString()][string]$ValueName,
+        [Parameter(Mandatory)]$ValueData,
+        [Parameter(Mandatory)][ValidateSet("String", "Dword", "Qword", "Binary", "MultiString")][string]$ValueType,
+        [switch]$Preview
+    )
+
+    # Erstelle den Registrierungspfad, falls er nicht existiert
+    if (-not (Test-Path $RegistryPath)) { $null = New-Item -Path $RegistryPath -Force }
+
+    $displayName = if ($ValueName) { $ValueName } else { "(Default)" }
+
+    if ($Preview) { Write-Output "Setze $displayName auf $ValueData. $RegistryPath"; return }
+    
+    $params         = @{ Path = $RegistryPath; Name = $ValueName; Value = $ValueData }
+    $PropertyExists = $null -ne (Get-ItemProperty -Path $RegistryPath -Name $ValueName -ErrorAction SilentlyContinue)
+    if (-not $PropertyExists) { New-ItemProperty @params -PropertyType $ValueType -Force | Out-Null } 
+    else { Set-ItemProperty @params } 
+}
+
+
 
 <# APP CONFIG #>
 function Set-AppConfig {

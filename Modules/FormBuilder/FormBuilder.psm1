@@ -166,6 +166,32 @@ function Convert-ToSize($size) {
 
     throw "Ungültiges Size-Format: $size"
 }
+function ConvertTo-Padding {
+    param( $padding )
+    if ($padding -is [System.Windows.Forms.Padding]) { return $padding }
+
+    if ($padding -is [string] -and $padding -match '^(\d{1,4})(,(\d{1,4})){0,3}$') {
+        $values = $Matches[0].Split(',') | ForEach-Object { [int]$_ }
+        switch ($values.Count) {
+            1 { return [System.Windows.Forms.Padding]::new($values[0]) }
+            2 { return [System.Windows.Forms.Padding]::new($values[0], $values[1], $values[0], $values[1]) }
+            3 { return [System.Windows.Forms.Padding]::new($values[0], $values[1], $values[2], $values[1]) }
+            4 { return [System.Windows.Forms.Padding]::new($values[0], $values[1], $values[2], $values[3]) }
+        }
+    }
+
+    if ($padding -is [System.Collections.IEnumerable]) {
+        $arr = @($padding)
+        switch ($arr.Count) {
+            1 { return [System.Windows.Forms.Padding]::new([int]$arr[0]) }
+            2 { return [System.Windows.Forms.Padding]::new([int]$arr[0], [int]$arr[1], [int]$arr[0], [int]$arr[1]) }
+            3 { return [System.Windows.Forms.Padding]::new([int]$arr[0], [int]$arr[1], [int]$arr[2], [int]$arr[1]) }
+            4 { return [System.Windows.Forms.Padding]::new([int]$arr[0], [int]$arr[1], [int]$arr[2], [int]$arr[3]) }
+        }
+    }
+
+    throw "Ungültiges Padding-Format: $padding"
+}
 
 function Merge-Config {
     param( [hashtable]$DefaultConfig, [hashtable]$CustomConfig )
@@ -304,6 +330,7 @@ function New-FlowLayoutPanel {
     # Return
     return $flowPanel
 }
+<# TableLayoutPanel #>
 function New-TableLayoutPanel {
     param ( $Config = @{} )
     $table  = [TableLayoutPanel]::new()
@@ -315,11 +342,13 @@ function New-TableLayoutPanel {
 
     foreach ($key in $Config.Keys) {
         if ($key -eq "Controls") { 
+            # Set-TableLayoutControls -Table $table -Controls $Config[$key]
             foreach ($cfg in $Config[$key].GetEnumerator()) {
                 # Control erstellen und konfigurieren
-                $control        = New-Control $cfg.Value $cfg.Key
-                # $control.Name   = $cfg.Key
+                $controlKey     = $cfg.Key
                 $controlConfig  = $cfg.Value
+                $control        = New-Control $controlConfig $controlKey
+                
 
                 # Positionierung vom Control im TableLayoutPanel
                 if ($controlConfig.Position) {
@@ -376,19 +405,12 @@ function New-TableLayoutPanel {
             }
             continue
         } 
-        # Events mit "Add_" oder "Remove_" Präfix werden direkt über die entsprechenden Methoden hinzugefügt, z.B. Add_CellPaint, Remove_CellPaint, etc.
-        if ($events -contains $key) { 
-            $table.$("Add_$key")($Config[$key])
-            continue
-        } elseif ($key -like "Add_*") { 
-            $name = $key.Substring(4) 
-            if ($events -contains $name) { $table.$key($Config[$key]) }
-            continue
-        } elseif ($key -like "Remove_*") { 
-            $name = $key.Substring(7) 
-            if ($events -contains $name) { $table.$key($Config[$key]) }
-            continue
-        } 
+
+        # Überprüfe auf Event-Präfix "Add_*" oder "Remove_*"
+        $name = if ($key -like "Add_*"){ $key.SubString(4) } elseif ($key -like "Remove_*"){ $key.Substring(7)} else { $key }
+        
+        if ($events -contains $key)         { $table.$("Add_$key")($Config[$key]); continue }
+        elseif ($events -contains $name)    { $table.$key($Config[$key]); continue }
 
         if ($key -in @("Column", "Row")) {
             # Spezialbehandlung für RowStyles und ColumnStyles, da diese komplexe Objekte sind und nicht direkt über die Property gesetzt werden können
@@ -458,69 +480,31 @@ function New-TableLayoutPanel {
     # Return
     $table
 }
-function Set-TableLayoutControls {
-    param( 
-        [Parameter(Mandatory=$true)][TableLayoutPanel]$Table, 
-        [Parameter(Mandatory=$true)][Hashtable]$Controls
-        )
+function Get-TableCell {
+    param ( 
+        [Parameter(Mandatory)]
+        [TableLayoutPanel]$Table,
 
-    foreach ($controlsConfig in $Controls.GetEnumerator()) {
-        # Control erstellen
-        $controlKey     = $controlsConfig.Key
-        $controlConfig  = $controlsConfig.Value
-        $control        = New-Control $controlConfig $controlKey
+        [int[]]$Pos = @(0,0),
 
-        # Dock
-        if (-not $controlConfig.Dock -and -not $controlConfig.Anchor -and -not $controlConfig.AutoCellDock) { $control.Dock = "Fill" }
-        if (-not $controlConfig.AutoSize -and $controlConfig.Anchor) { $control.AutoSize = $true }
-
-        # Positionierung vom Control im TableLayoutPanel
-         if ($position = $controlConfig.Position) {
-            
-            # Column (Spalte)
-            $column         = if($position.Column) { $position.Column } else { $position[0] }
-            $columnPosition = if ($column -is [array]) { $column[0] } else { $column }
-            $controlConfig.ColumnSpan     = if ($column -is [array]) { $column[1] - $column[0] + 1 } else { 1 }
-
-            # Row (Zeile)
-            $row         = if($position.Row) { $position.Row } else { $position[1] }
-            $rowPosition = if ($row -is [array]) { $row[0] } else { $row }
-            $controlConfig.rowSpan     = if ($row -is [array]) { $row[1] - $row[0] + 1 } else { 1 }
-            
-            # Control zur Tabelle hinzufügen
-            $table.Controls.Add($control, $columnPosition, $rowPosition)
-        } else { $table.Controls.Add($control) } # Wenn keine Position angegeben ist, einfach hinzufügen und automatisch positionieren lassen
-        
-        # ColumnSpan und RowSpan setzen, falls angegeben (alternative Möglichkeit zur Angabe von ColumnSpan und RowSpan direkt im ControlConfig, ohne eine Position angeben zu müssen)
-        if ($controlConfig.ColumnSpan) { $table.SetColumnSpan($control, $controlConfig.ColumnSpan) }
-        if ($controlConfig.RowSpan)    { $table.SetRowSpan($control, $controlConfig.RowSpan) }
-
-        
-        # Standard-Font für Labels in TableLayoutPanel setzen, wenn kein Font angegeben ist
-        switch ($controlConfig.Control) {
-            "Label" { 
-                # Preset für Font-Auswahl basierend auf der Position und dem Namen des Controls festlegen
-                $preset = switch ($true) {
-                    ($controlConfig.ColumnSpan -gt 1)   { "TableTitle"; break }
-                    ($controlKey -match "Title")        { "TableTitle"; break }
-                    ($controlKey -match "Label")        { "TableLabel"; break }
-                    ($controlKey -match "Value")        { "TableText";  break }
-                    default { "TableText" }
-                }
-                $control.Font = if ($controlConfig.Font) { $controlConfig.Font } else { Get-Font -Preset $preset }
-                
-                # TextAlign basierend auf der Position und dem Namen des Controls festlegen, wenn kein TextAlign angegeben ist
-                $control.TextAlign = if ($controlConfig.TextAlign) { $controlConfig.TextAlign } elseif ($preset -eq "TableTitle") { "MiddleCenter" } else { "MiddleLeft" }
-            }
-            "Button" {
-                if (-not $controlConfig.Font) { $control.Font = Get-Font -Preset "TableButton" }
-                if (-not $controlConfig.Anchor) { $control.Anchor = "Bottom" }
-            }
-        }
+        [switch]$All
+    )
     
-    }        
-}
+    if ($Pos.Count -eq 1){ $Pos = @($Pos[0], $Pos[0]) } elseif ($Pos.Count -ne 2){ throw "Position muss aus Column und Row bestehen" }
 
+    $Col = $Pos[0]
+    $Row = $Pos[1]
+
+    if ($All){ 
+        return $Table.Controls | Where-Object { 
+            $pos = $Table.GetPositionFromControl($_)
+                    
+            $pos.Column -eq $Col -and 
+            $pos.Row    -eq $Row 
+        }
+    } 
+    return $Table.GetControlFromPosition($Col, $Row)
+}
 
 <### STRUKTUR-CONTAINER ###>
 function New-GroupBox {
@@ -530,7 +514,6 @@ function New-GroupBox {
     # Properties und Events dynamisch setzen
     $type   = $groupBox.GetType()
     $events = $type.GetEvents().Name
-
     $prop   = $type.GetProperties().Name
 
     foreach ($key in $Config.Keys) {
@@ -669,115 +652,18 @@ function New-CheckBox {
     $events = $checkBox.GetType().GetEvents().Name
     $prop   = $checkBox.GetType().GetProperties().Name
     foreach ($key in $Config.Keys) {
-        if ($key -like "Add_*") {
-            $name = $key.Substring(4)
-            if ($events -contains $name) { $checkBox.$key($Config[$key]) }
-        } elseif ($key -like "Remove_*") {
-            $name = $key.Substring(7)
-            if ($events -contains $name) { $checkBox.$key($Config[$key]) }
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($checkBox, $Config[$key])
-        } elseif ($prop -contains $key) {
-            $checkBox.$key = $Config[$key]
-        } else {
-            if ($checkBox.PSObject.Properties[$key]) {
-                $checkBox.$key = $Config[$key]
-            }
-        }
+        # ToolTip / Beschreibungstext für das Control setzen, falls angegeben
+        if ($key -eq "ToolTip") { $ToolTip.SetToolTip($checkBox, $Config[$key]) } 
+
+        # Eventnamen extrahieren, z.B. "CheckedChanged" aus "Add_CheckedChanged" oder "Remove_CheckedChanged"
+        $name = if ($key -like "Add_*") { $key.Substring(4) } elseif ($key -like "Remove_*") { $key.Substring(7) } else { $key }
+        
+        # Prüfen, ob es sich um ein Event oder eine Property handelt, und entsprechend setzen
+        if ($events -contains $name) { $checkBox.$key($Config[$key]) } 
+        elseif ($prop -contains $key) { $checkBox.$key = $Config[$key] } 
     }
 
     $checkBox
-}
-function New-CheckedListBox {
-    param ( [hashtable]$Config = @{} )
-    $checkedListBox = [CheckedListBox]::new()
-    $Config         = Merge-Config $Defaults.CheckedListBox $Config
-    
-
-    # Dynamisch Properties und Events setzen
-    $type   = $checkedListBox.GetType()
-    $events = $type.GetEvents().Name
-    $prop   = $type.GetProperties().Name
-
-    foreach ($key in $Config.Keys) {
-        if ($key -like "Add_*") { 
-            $name = $key.Substring(4) # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Add_SelectedIndexChanged"
-            if ($events -contains $name) { $checkedListBox.$key($Config[$key]) }
-            continue
-        } elseif ($key -like "Remove_*") { 
-            $name = $key.Substring(7) # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Remove_SelectedIndexChanged"
-            if ($events -contains $name) { $checkedListBox.$key($Config[$key]) }
-            continue
-        } elseif ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($checkedListBox, $Config[$key])
-            continue
-        } elseif ($key -eq "Items") {
-            foreach ($program in $Config[$key]) {
-                $id     = if ($program.PSObject.Properties["Id"]) { $program.Id } elseif ($program.PSObject.Properties["Key"]) { $program.Key } else { $null }
-                $name   = if ($program.PSObject.Properties["Name"]) { $program.Name } elseif ($program.PSObject.Properties["Value"]) { $program.Value } else { $id }
-                $item   = [PSCustomObject]@{
-                    Id      = $id
-                    Name    = $name
-                }
-                [void]$checkedListBox.Items.Add($item, $false)
-            }
-            continue
-        } elseif ($prop -contains $key) { 
-            $checkedListBox.$key = $Config[$key]
-            continue
-        } elseif ($checkedListBox.PSObject.Properties[$key]) { 
-            $checkedListBox.$key = $Config[$key] 
-        }
-    }
-
-    # Return
-    return $checkedListBox
-}
-function New-ComboBox {
-    param ( [hashtable]$Config )
-    $comboBox   = [ComboBox]::new()
-    $deferredSelectedIndex = $null
-
-    # Properties und Events dynamisch setzen
-    $type   = $comboBox.GetType()
-    $events = $type.GetEvents().Name
-    $prop   = $type.GetProperties().Name
-
-    foreach ($key in $Config.Keys) {
-        # ToolTip
-        if ($key -eq "ToolTip") { $global:ToolTip.SetToolTip($comboBox, $Config[$key]) } 
-
-        # Events mit "Add_" oder "Remove_" Präfix werden direkt über die entsprechenden Methoden hinzugefügt, z.B. Add_SelectedIndexChanged, Remove_SelectedIndexChanged, etc.
-        $name = if ($events -contains $key) { $key }
-            elseif ($key -like "Add_*") { $key.Substring(4) } 
-            elseif ($key -like "Remove_*") { $key.Substring(7) } 
-            else { $null }
-        if ($events -contains $name) { $comboBox.$key($Config[$key]) }
-
-        # Items und SelectedIndex separat behandeln, da SelectedIndex erst nach dem Hinzufügen der Items gesetzt werden kann, sonst könnte es zu einem ungültigen Index kommen, wenn Items noch leer sind.
-        if ($key -eq "Items") { foreach ($item in $Config[$key]) { [void]$comboBox.Items.Add($item) } } 
-        elseif ($key -eq "SelectedIndex") { $deferredSelectedIndex = [int]$Config[$key] }
-        
-        # Properties
-        if ($prop -contains $key) { $comboBox.$key = $Config[$key] } 
-    }
-
-    # Nachdem alle Items hinzugefügt wurden, den SelectedIndex setzen, falls angegeben. Wenn kein gültiger SelectedIndex angegeben ist oder keine Items vorhanden sind, wird stattdessen ein Platzhalter-Item "Keine Einträge" hinzugefügt und ausgewählt.
-    if ($deferredSelectedIndex -and ($comboBox.Items.Count -gt 0)) {
-        if ($deferredSelectedIndex -ge 0 -and $deferredSelectedIndex -lt $comboBox.Items.Count) { $comboBox.SelectedIndex = $deferredSelectedIndex }
-    } else {
-        $comboBox.Items.Add("Keine Einträge") | Out-Null
-        $comboBox.SelectedIndex = 0
-    }
-
-    # Return
-    return $comboBox
-}
-function Update-ComboBoxItems {
-    param ( [ComboBox]$ComboBox, $Items, [int]$SelectedIndex = 0 )
-    $ComboBox.Items.Clear()
-    $ComboBox.Items.AddRange($Items)
-    $ComboBox.SelectedIndex = if ($Items.Count -gt 0) { $SelectedIndex } else { -1 }
 }
 function New-Label {
     param( [hashtable]$Config = @{}  )
@@ -812,42 +698,6 @@ function New-Label {
 
     # Return
     return $label
-}
-function New-ListBox {
-    param ( [hashtable]$Config = @{} )
-    $listBox = [ListBox]::new()
-
-    # Dynamisch Properties und Events setzen
-    $type   = $listBox.GetType()
-    $events = $type.GetEvents().Name
-    $props  = $type.GetProperties().Name
-
-    foreach ($key in $Config.Keys) {
-        if ($key -eq "ToolTip") {
-            $ToolTip.SetToolTip($listBox, $Config[$key])
-        } elseif ($key -like "Add_*") { 
-            $name = $key.Substring(4) 
-            if ($events -contains $name) { $listBox.$key($Config[$key]) }
-        } elseif ($key -like "Remove_*") { 
-            $name = $key.Substring(7) 
-            if ($events -contains $name) { $listBox.$key($Config[$key]) }
-        } elseif ($key -eq "Items") {
-            foreach ($program in $Config[$key]) {
-                $item = [PSCustomObject]@{
-                    Id      = $program.Key
-                    Name    = $program.Value
-                }
-                [void]$listBox.Items.Add($item)
-            }
-        } elseif ($props -contains $key) {
-            $listBox.$key = $Config[$key]
-        } elseif ($listBox.PSObject.Properties[$key]) {
-            $listBox.$key = $Config[$key]
-        }
-    }
-
-    # Return
-    return $listBox
 }
 function New-ListView {
     param ( [hashtable]$Config = @{} )
@@ -1031,6 +881,138 @@ function New-TextBox {
 
     # Return
     return $textbox
+}
+
+
+<### LEAF LIST CONTROLS #>
+function New-CheckedListBox {
+    param ( [hashtable]$Config = @{} )
+    $checkedListBox = [CheckedListBox]::new()
+    $Config         = Merge-Config $Defaults.CheckedListBox $Config
+    
+
+    # Dynamisch Properties und Events setzen
+    $type   = $checkedListBox.GetType()
+    $events = $type.GetEvents().Name
+    $prop   = $type.GetProperties().Name
+
+    foreach ($key in $Config.Keys) {
+        if ($key -like "Add_*") { 
+            $name = $key.Substring(4) # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Add_SelectedIndexChanged"
+            if ($events -contains $name) { $checkedListBox.$key($Config[$key]) }
+            continue
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) # Eventnamen extrahieren, z.B. "SelectedIndexChanged" aus "Remove_SelectedIndexChanged"
+            if ($events -contains $name) { $checkedListBox.$key($Config[$key]) }
+            continue
+        } elseif ($key -eq "ToolTip") {
+            $ToolTip.SetToolTip($checkedListBox, $Config[$key])
+            continue
+        } elseif ($key -eq "Items") {
+            foreach ($program in $Config[$key]) {
+                $id     = if ($program.PSObject.Properties["Id"]) { $program.Id } elseif ($program.PSObject.Properties["Key"]) { $program.Key } else { $null }
+                $name   = if ($program.PSObject.Properties["Name"]) { $program.Name } elseif ($program.PSObject.Properties["Value"]) { $program.Value } else { $id }
+                $item   = [PSCustomObject]@{
+                    Id      = $id
+                    Name    = $name
+                }
+                [void]$checkedListBox.Items.Add($item, $false)
+            }
+            continue
+        } elseif ($prop -contains $key) { 
+            $checkedListBox.$key = $Config[$key]
+            continue
+        } elseif ($checkedListBox.PSObject.Properties[$key]) { 
+            $checkedListBox.$key = $Config[$key] 
+        }
+    }
+
+    # Return
+    return $checkedListBox
+}
+function New-ComboBox {
+    param ( [hashtable]$Config )
+    $comboBox   = [ComboBox]::new()
+    $deferredSelectedIndex = $null
+
+    # Properties und Events dynamisch setzen
+    $type   = $comboBox.GetType()
+    $events = $type.GetEvents().Name
+    $prop   = $type.GetProperties().Name
+
+    foreach ($key in $Config.Keys) {
+        # ToolTip
+        if ($key -eq "ToolTip") { $global:ToolTip.SetToolTip($comboBox, $Config[$key]) } 
+
+        # Events mit "Add_" oder "Remove_" Präfix werden direkt über die entsprechenden Methoden hinzugefügt, z.B. Add_SelectedIndexChanged, Remove_SelectedIndexChanged, etc.
+        $name = if ($events -contains $key) { $key }
+            elseif ($key -like "Add_*") { $key.Substring(4) } 
+            elseif ($key -like "Remove_*") { $key.Substring(7) } 
+            else { $null }
+        if ($events -contains $name) { $comboBox.$key($Config[$key]) }
+
+        # Items und SelectedIndex separat behandeln, da SelectedIndex erst nach dem Hinzufügen der Items gesetzt werden kann, sonst könnte es zu einem ungültigen Index kommen, wenn Items noch leer sind.
+        if ($key -eq "Items") { foreach ($item in $Config[$key]) { [void]$comboBox.Items.Add($item) } } 
+        elseif ($key -eq "SelectedIndex") { $deferredSelectedIndex = [int]$Config[$key] }
+        
+        # Properties
+        if ($prop -contains $key) { $comboBox.$key = $Config[$key] } 
+    }
+
+    # Nachdem alle Items hinzugefügt wurden, den SelectedIndex setzen, falls angegeben. Wenn kein gültiger SelectedIndex angegeben ist oder keine Items vorhanden sind, wird stattdessen ein Platzhalter-Item "Keine Einträge" hinzugefügt und ausgewählt.
+    if ($deferredSelectedIndex -and ($comboBox.Items.Count -gt 0)) {
+        if ($deferredSelectedIndex -ge 0 -and $deferredSelectedIndex -lt $comboBox.Items.Count) { $comboBox.SelectedIndex = $deferredSelectedIndex }
+    } else {
+        $comboBox.Items.Add("Keine Einträge") | Out-Null
+        $comboBox.SelectedIndex = 0
+    }
+
+    # Return
+    return $comboBox
+}
+function Update-ComboBox {
+    param ( [ComboBox]$ComboBox, $Items, [int]$SelectedIndex = 0 )
+    $ComboBox.Items.Clear()             # Alte Items entfernen
+    $ComboBox.Items.AddRange($Items)    # Neue Items hinzufügen
+
+    # SelectedIndex innerhalb der gültigen Grenzen setzen (zwischen 0 und der Anzahl der Items - 1)
+    $ComboBox.SelectedIndex = [Math]::Min($SelectedIndex, $ComboBox.Items.Count - 1) 
+}
+function New-ListBox {
+    param ( [hashtable]$Config = @{} )
+    $listBox = [ListBox]::new()
+
+    # Dynamisch Properties und Events setzen
+    $type   = $listBox.GetType()
+    $events = $type.GetEvents().Name
+    $props  = $type.GetProperties().Name
+
+    foreach ($key in $Config.Keys) {
+        if ($key -eq "ToolTip") {
+            $ToolTip.SetToolTip($listBox, $Config[$key])
+        } elseif ($key -like "Add_*") { 
+            $name = $key.Substring(4) 
+            if ($events -contains $name) { $listBox.$key($Config[$key]) }
+        } elseif ($key -like "Remove_*") { 
+            $name = $key.Substring(7) 
+            if ($events -contains $name) { $listBox.$key($Config[$key]) }
+        } elseif ($key -eq "Items") {
+            foreach ($program in $Config[$key]) {
+                $item = [PSCustomObject]@{
+                    Id      = $program.Key
+                    Name    = $program.Value
+                }
+                [void]$listBox.Items.Add($item)
+            }
+        } elseif ($props -contains $key) {
+            $listBox.$key = $Config[$key]
+        } elseif ($listBox.PSObject.Properties[$key]) {
+            $listBox.$key = $Config[$key]
+        }
+    }
+
+    # Return
+    return $listBox
 }
 
 

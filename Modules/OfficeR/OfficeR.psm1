@@ -1,6 +1,8 @@
 ﻿using namespace System.Windows.Forms
-<# OFFICE #>
-$Offices = [ordered]@{
+
+
+<# VARIABLES #>
+$script:Offices = [ordered]@{
     "Retail" = [ordered]@{
         "Office365"  = @{
             "O365AppsBasic"     = "3HYJN-9KG99-F8VG9-V3DT8-JFMHV"
@@ -172,31 +174,77 @@ $Offices = [ordered]@{
         }
     }
 }
-$InstallerOptions = @{
-    "Online 32-bit" = "x86"
-    "Online 64-bit" = "x64"
-    "Offline"       = "Offline"
+$script:InstallerOptions = @{ x86 = "32-bit"; x64 = "64-bit"; Offline = "Offline" }
+$script:Languages = @{
+    "en-us" = "Englisch"
+    "ar-sa" = "Arabic"
+    "bg-bg" = "Bulgarisch"
+    "cs-cz" = "Czech"
+    "da-dk" = "Danish"
+    "de-de" = "German"
+    "el-gr" = "Greek"
+    "en-gb" = "English (UK)"
+    "es-es" = "Spanish"
+    "es-mx" = "Spanish (Mexico)"
+    "et-ee" = "Estonian"
+    "fi-fi" = "Finnish"
+    "fr-ca" = "French (Canada)"
+    "fr-fr" = "French"
+    "he-il" = "Hebrew"
+    "hi-in" = "Hindi"
+    "hr-hr" = "Croatian"
+    "hu-hu" = "Hungarian"
+    "id-id" = "Indonesian"
+    "it-it" = "Italian"
+    "ja-jp" = "Japanese"
+    "kk-kz" = "Kazakh"
+    "ko-kr" = "Korean"
+    "lt-lt" = "Lithuanian"
+    "lv-lv" = "Latvian"
+    "ms-my" = "Malay (Latin)"
+    "nb-no" = "Norwegian (Bokmål)"
+    "nl-nl" = "Dutch"
+    "pl-pl" = "Polish"
+    "pt-br" = "Portuguese (Brazil)"
+    "pt-pt" = "Portuguese (Portugal)"
+    "ro-ro" = "Romanian"
+    "ru-ru" = "Russian"
+    "sk-sk" = "Slovak"
+    "sl-si" = "Slovenian"
+    "sr-latn-rs" = "Serbian (Latin)"
+    "sv-se" = "Swedish"
+    "th-th" = "Thai"
+    "tr-tr" = "Turkish"
+    "uk-ua" = "Ukrainian"
+    "vi-vn" = "Vietnamese"
+    "zh-cn" = "Chinese (Simplified)"
+    "zh-tw" = "Chinese (Traditional)"
 }
+$script:TempDirs = @($env:TEMP, [System.IO.Path]::GetTempPath())
+
 
 <# OfficeTab Functions #>
-function Update-OfficeTab {
-    param ( [Parameter(Mandatory=$true)]$officeTab )
-    $licenseList   = Get-Control $officeTab "LicenseList"
+function Initialize-OfficeTab {
+    param ( [Parameter(Mandatory=$true)][Control]$officeTab )
+    $officeTable = $officeTab.Controls | Where-Object { $_.Name -eq "OfficeTable" }
 
-    Initialize-LicenseList $officeTab
-    Update-ComboBoxItems (Get-Control $officeTab "OptionList") $InstallerOptions.Keys
+    # Office Installer
+    $officeTable.Controls["InstallOfficeTitle"].Text = "Office C2R Installer"
+    $officeTable.Controls["ManageOfficeTitle"].Text = "Installierte Office-Versionen verwalten"
+    $installOfficeDropdown = $officeTable.Controls["InstallOfficeDropdown"]
+
+    # VersionList Selection Changed Event hinzufügen
+    $versionList = $installOfficeDropdown.Controls["VersionList"]
+    $versionList.Add_SelectedIndexChanged({ Update-InstallDropdown $this })
+    Update-ComboBox $versionList $Offices["Retail"].Keys
+    
+    Update-ComboBox $installOfficeDropdown.Controls["OptionList"] $InstallerOptions.Values
+    Update-ComboBox $installOfficeDropdown.Controls["LanguageList"] $Languages.Values
     Update-OfficeDropdown $officeTab
 
     return
 }
-function Initialize-LicenseList { 
-    param ( [Parameter(Mandatory=$true)]$control )
-    <# Initialisiere nur die Lizenzliste, da die Versionen und Editionen später basierend auf der Auswahl aktualisiert werden #>
 
-    # Fülle die Lizenztypen in die Dropdown-Liste
-    $licenseList = Get-Control $control "LicenseList"
-    Update-ComboBoxItems $licenseList $Offices.Keys
-}
 
 <# Dropdown Functions #>
 function Update-InstallDropdown {
@@ -222,7 +270,7 @@ function Update-InstallDropdown {
     }
 
     # Aktualisiere die ComboBox mit den neuen Einträgen
-    if ($list -and $items) { Update-ComboBoxItems $list $items }
+    if ($list -and $items) { Update-ComboBox $list $items }
 }
 function Update-OfficeDropdown {
     param ( [Parameter(Mandatory=$true)]$control )
@@ -231,8 +279,9 @@ function Update-OfficeDropdown {
     if (-not $installedOffice) { $installedOffice = @() }
 
     $OfficeList = Get-Control $control "OfficeList"
-    Update-ComboBoxItems $OfficeList $installedOffice
+    Update-ComboBox $OfficeList $installedOffice
 }
+
 
 <# Get-OfficeProducts #>
 function Get-C2RProducts {    
@@ -326,16 +375,16 @@ function Get-C2RProducts {
     return $products
 }
 function ConvertTo-ProductID {
-    param ( [string]$edition, [string]$license, [System.Windows.Forms.Control]$control )
+    param ( [string]$edition, [string]$license, [Control]$Control )
 
     # Versuche die ProductID basierend auf den übergebenen Parametern zu konstruieren
-    if ((-not $edition -or -not $license) -and $control) {
+    if ((-not $edition -or -not $license) -and $Control) {
         # Versuche die Informationen aus der UI zu extrahieren, falls nicht explizit übergeben
-        $edition = if (-not $edition) { (Get-Control $control "EditionList").SelectedItem } else { $edition }
-        $license = if (-not $license) { (Get-Control $control "LicenseList").SelectedItem } else { $license }
+        $license = if (-not $license) { (Get-Control $Control "LicenseList").SelectedItem } else { $license }
+        $edition = if (-not $edition) { (Get-Control $Control "EditionList").SelectedItem } else { $edition }
     }
 
-    if ($Offices.Contains($license)) { return $edition + $license } else { return $edition }
+    if ($script:Offices.Contains($license)) { return $edition + $license } else { return $edition }
 }
 function Get-SelectedOfficeProduct {
     param ( [System.Windows.Forms.Control]$control )
@@ -353,28 +402,41 @@ function Get-OfficeC2RInstallerURL {
         [string]$productID,
         [string]$language   = "de-de",
         [string]$version    = "O16GA",
-        [string]$option    = "Offline"
+        [string]$option     = "Offline"
     )
+    if ($InstallerOptions.Values -notcontains $option) { 
+        if ($InstallerOptions.Keys -notcontains $option) { 
+            throw "Ungültige Option '$option'. Gültige Optionen sind: Offline, 32-bit, 64-bit oder: $($InstallerOptions.Keys -join ", ")." 
+            Write-Warning "Fallback auf Plattform-basierte Option..."
+            $platform = if ([System.Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" }
+            $option = $InstallerOptions[$platform]
+        }
+        $option = $InstallerOptions[$option]
+    }
     switch ($option) {
-        Offline { return "https://officecdn.microsoft.com/db/492350f6-3a01-4f97-b9c0-c7c6ddf67d60/media/" + $language + "/" + $productID + ".img" }
-        x86 { return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=x32&language=" + $language + "&version=" + $version }
-        x64 { return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=x64&language=" + $language + "&version=" + $version }
+        "Offline"       { return "https://officecdn.microsoft.com/db/492350f6-3a01-4f97-b9c0-c7c6ddf67d60/media/" + $language + "/" + $productID + ".img" }
+        "32-bit" { return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=x32&language=" + $language + "&version=" + $version }
+        "64-bit" { return "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=" + $productID + "&platform=x64&language=" + $language + "&version=" + $version }
     }
 }
+# https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=O365ProPlusRetail&platform=x64&language=en-us&version=O16GA
 function Request-OfficeInstaller {
     param (
         [string]$productID,
         [string]$language   = "de-de",
         [string]$version    = "O16GA",
         [string]$option     = "Offline",
+
+        [string]$url        = $null,
         [string]$filePath   = $env:TEMP,
         [string]$fileName   = $null
     )
     # Stelle die Download-URL basierend auf den ausgewählten Optionen zusammen
-    $url = Get-OfficeC2RInstallerURL -productID $productID -language $language -version $version -option $option
+    $url        = if ($url) { $url } else { Get-OfficeC2RInstallerURL -productID $productID -language $language -version $version -option $option }
+    $filePath   = if ($filePath) { $filePath } else { $env:TEMP }
 
     if (-not $fileName) { $fileName   = if ($option -eq "Offline") { "$($productID)_installer.img" } else { "$($productID)_installer.exe" } }
-    # $filePath = Join-Path -Path $filePath -ChildPath $fileName
+    $filePath = Join-Path -Path $filePath -ChildPath $fileName
 
     Update-ProgressDialog "Lade $productID Installer herunter..."
     Request-File -Url $url -File $filePath -OnProgress {
@@ -384,29 +446,27 @@ function Request-OfficeInstaller {
         Update-ProgressDialog "Download: $mbReceived MB / $mbTotal MB ($ProgressPercentage%)"
     }
 
-    return @{
-        FilePath = $filePath
-        URL      = $url
-    }
+    return @{ FilePath = $filePath; URL = $url }
 }
 
 
 <# OFFICE INSTALLIEREN #>
 function Install-Office {
-    param ( $control )
-    if (-not $control) { return }
-    Hide-Window $control.FindForm()
+    param ( [Parameter(Mandatory = $true)][Control]$Control )
+
+    Hide-Window $Control
     Show-ProgressDialog "Office Installation" "Starte Office-Installation..."
-
-    # Ermittle die ausgewählten Optionen aus der UI
-    $option     = (Get-Control $control "OptionList").SelectedItem
-
+    
     # Stelle die Download-URL basierend auf den ausgewählten Optionen zusammen
-    $productID  = ConvertTo-ProductID -control $control
-    $file       = Request-OfficeInstaller -productID $productID -option $InstallerOptions[$option]
-
+    $ProductID  = ConvertTo-ProductID -control $Control
+    $option     = (Get-Control $Control "OptionList").SelectedItem
+    $url        = Get-OfficeC2RInstallerURL -productID $ProductID -option $option
+    
+    # Lade den Installer herunter und erhalte den Pfad zur heruntergeladenen Datei
+    $file       = Request-OfficeInstaller -productID $ProductID -option $option -url $url
 
     Update-ProgressDialog "Starte $($file.FilePath)..."
+
     if ($option -eq "Offline") {
         try {
             $mount = Mount-DiskImage -ImagePath $file.FilePath -PassThru -ErrorAction Stop
@@ -456,19 +516,24 @@ function Install-Office {
     }
 }
 function Save-OfficeInstaller {
-    param (
-        $control,
-        [string]$language   = "de-de",
-        [string]$version    = "O16GA"
-    )
-    $productID  = ConvertTo-ProductID -control $control
-    $option     = (Get-Control $control "OptionList").SelectedItem
-    
-    $fileName   = if ($option -eq "Offline") { "$($productID)_installer.img" } else { "$($productID)_installer.exe" }
-    # $filePath   = Join-Path -Path $env:USERPROFILE -ChildPath "Downloads"
-    Request-OfficeInstaller -productID $productID -option $option -fileName $fileName
+    param ( [Parameter(Mandatory = $true)][Control]$Control )
 
-    Close-ProgressDialog "Datei gespeichert: `n$filePath"
+    Hide-Window $Control
+    Show-ProgressDialog "Office Download" "Starte Download des Office-Installers..."
+
+    Update-ProgressDialog "Stelle Download-URL basierend auf den ausgewählten Optionen zusammen..."
+    $ProductID  = ConvertTo-ProductID -control $Control
+    $option     = (Get-Control $Control "OptionList").SelectedItem
+    $url        = Get-OfficeC2RInstallerURL -productID $ProductID -option $option
+
+    $fileName   = if ($option -eq "Offline") { "$($ProductID).img" } else { "$($ProductID).exe" }
+    $filePath   = Join-Path -Path $env:USERPROFILE -ChildPath "Downloads"
+    
+    # Lade den Installer herunter und erhalte den Pfad zur heruntergeladenen Datei
+    Request-OfficeInstaller -productID $ProductID -option $option -fileName $fileName -url $url -filePath $filePath
+    Close-ProgressDialog "Gespeichert im Downloads-Ordner."
+    
+    Start-Process -FilePath $filePath -ErrorAction SilentlyContinue
 }
 
 <# OFFICE AKTIVIEREN #>

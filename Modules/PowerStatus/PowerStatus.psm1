@@ -247,9 +247,6 @@ function Show-PowerDialog {
     Start-Form $FormConfig.Change
 }
 
-
-
-
 <# POWERTAB #>
 function Initialize-PowerTab {
     param ( [Parameter(Mandatory=$true)][System.Windows.Forms.TabPage]$powerTab )
@@ -309,7 +306,6 @@ function Update-PowerTab {
     if ($DisableSleepButton) { $disableSleep.Visible = $false }
 }
 
-
 <# POWERFORM #>
 function Get-PowerStatusConfig { return $FormConfig.Main }
 function Show-PowerStatus { Start-Form $FormConfig.Main }
@@ -319,3 +315,53 @@ function Update-PowerControl {
     $valueControl = Get-Control $Control "$PowerType`Value$PowerScheme"
     $valueControl.Text = if ($powerStatus -eq 0) { "Nie" } else { "$powerStatus Minuten" }
 }
+
+<# EXPORT POWERSTATUS #>
+$TabConfig = @{
+    Control     = "TabPage"
+    Text        = "Energieoptionen"
+    Tag         = @{ Header = "ENERGIEOPTIONEN"; Size = [Size]::new(440,410); Expand = { Show-PowerStatus } }
+    Controls    = @{
+        PowerTable = @{
+            Control     = "TableLayoutPanel"
+            Padding     = [Padding]::new(10)
+            Column      = @( "55", "25", "20" )
+            Row         = @( 30, 30, 30, 30, 30, 30, 30, 30, 40, "AutoSize" )
+            Controls    = & {
+                    # Dynamische Erstellung der Controls für die Energieoptionen
+                    $schemes = @( "AC", "DC" )
+                    $types   = @{ Standby = "Energiesparmodus"; Hibernate = "Ruhezustand"; Monitor = "Monitor ausschalten" }
+                    $result  = [ordered]@{}
+                    foreach ($scheme in $schemes) {
+                        # Titel-Label für jeden Energieschema
+                        $result["PowerLabel$scheme"] = @{ Control = "Label"; ColumnSpan = 3 }
+
+                        foreach ($type in $types.Keys) {
+                            $result["$type`Label$scheme"]   = @{ Control = "Label" }
+                            $result["$type`Value$scheme"]   = @{ Control = "Label" }
+                            $result["$type`Button$scheme"]  = @{ Control = "Button" }
+                        }
+                    }
+                    # Button zum Deaktivieren des Energiesparmodus
+                    $result["DisableSleep"] = @{
+                        Control     = "Button"
+                        Text        = "Energiesparmodus deaktivieren"
+                        Visible     = $false
+                        Size       = [Size]::new(200,25)
+                        ColumnSpan  = 3
+                    }
+
+                    return $result
+            }
+        }
+    }
+    Add_Enter = { Initialize-PowerTab $this }
+}
+function Add-PowerStatusTab {
+    param ( [Parameter(Mandatory)][System.Windows.Forms.TabControl]$TabControl )
+
+    $TabPage = New-Control $TabConfig "PowerTab"
+
+    $TabControl.TabPages.Add($TabPage)
+}
+function Expand-PowerStatus {}

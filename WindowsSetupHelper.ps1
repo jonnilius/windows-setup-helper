@@ -9,7 +9,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Windows.Forms.DataVisualization
 [Application]::EnableVisualStyles()
 
-$global:ErrorActionPreference = "SilentlyContinue"
+
 
 
 
@@ -35,7 +35,7 @@ if ($AppConfig.ModulePath -notin ($env:PSModulePath.Split(";"))) { $env:PSModule
 
 # Initialisiere Konfiguration
 Set-AppConfig
-Set-Administrator -Command $PSCommandPath -Enable
+# Set-Administrator -Command $PSCommandPath -Enable
 
 
 <# FORM-DATA ############################################################################>
@@ -80,97 +80,21 @@ $FormConfig = @{
                                                 Control     = "Label"
                                                 Text        = "Aktueller Wert"
                                             }
-
-
-                                        }
-                                    }
-                                }
-                            }
-                            TweakTab  = @{
-                                Text        = "Tweaks"
-                                Padding     = [Padding]::new(0)
-                                Controls    = @{
-                                    TableLayout = @{
-                                        Control     = "TableLayoutPanel"
-                                        Padding     = [Padding]::new(0)
-                                        Column      = @( "50", "50" )
-                                        Controls    = [ordered]@{
-                                            ProgramTable = @{
-                                                Control     = "TableLayoutPanel"
-                                                Padding     = [Padding]::new(0)
-                                                Row         = @( 30, 20, 20, 30, 30, 30, 30, 30, "AutoSize" )
-                                                Controls    = [ordered]@{
-                                                    ProgramTitle = @{
-                                                        Control     = "Label"
-                                                        Text        = "Programme"
-                                                        Font        = Get-Font -Preset "TableTitle"
-                                                    }
-                                                    UninstallOneDrive = @{
-                                                        Control     = "Label"
-                                                        Text        = "OneDrive entfernen"
-                                                        Font        = Get-Font -Preset "TableLink"
-                                                        Hover       = "Underline"
-                                                        Cursor      = Get-Cursor "Hand"
-                                                        TextAlign = "MiddleCenter"
-                                                        
-                                                        Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
-                                                        Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
-                                                        Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-OneDrive.ps1") }
-                                                    }
-                                                    UninstallEdge = @{
-                                                        Control     = "Label"
-                                                        Text        = "Microsoft Edge entfernen"
-                                                        Font        = Get-Font -Preset "TableLink"
-                                                        Cursor      = Get-Cursor "Hand"
-                                                        TextAlign = "MiddleCenter"
-
-                                                        Add_MouseEnter  = { $this.Font = Get-Font -Preset "TableLink" -Style @("Italic","Underline") }
-                                                        Add_MouseLeave  = { $this.Font = Get-Font -Preset "TableLink" -Style "Italic" }
-                                                        Add_Click       = { & (Join-Path $PSScriptRoot "Scripts/Uninstall-MicrosoftEdge.ps1") }
-                                                    } 
+                                            AddTweaksLabel = @{
+                                                Control     = "Label"
+                                                Text        = "Tweaks hinzufügen:"
+                                            }
+                                            AddTweaksButton = @{
+                                                Control     = "Button"
+                                                Text        = "Hinzufügen"
+                                                Anchor      = "Left, Right"
+                                                Add_Click   = { 
+                                                    Import-Module Tweaks
+                                                    Add-TweaksTab (Get-Control $this "TabControl")
                                                 }
                                             }
-                                            SystemTweaks = & {
-                                                $systemTable = @{ 
-                                                    Control  = "TableLayoutPanel"
-                                                    Row      = @()
-                                                    Controls = [ordered]@{} 
-                                                }
-                                                
-                                                $Tweaks = [ordered]@{
-                                                    SystemTweaksTitle   = @{ Name = "System Tweaks";                Script = $null }
-                                                    HideStartMenuIcons  = @{ Name = "Startmenü-Icons entfernen";    Script = "Remove-StartMenuIcons.ps1" }
-                                                    ThemePatcher        = @{ Name = "UltraUXThemePatcher";        Script = "Start-ThemePatcher.ps1" }
-                                                }
-                                                
-                                                
-                                                foreach ($tweak in $Tweaks.GetEnumerator()) {
-                                                    $tweakKey = $tweak.Key
 
-                                                    # Dynamische Erstellung der Controls für die System Tweaks
-                                                    $systemTable.Controls[$tweakKey] = @{ 
-                                                        Control = "Label"
-                                                        Text    = $tweak.Value.Name
-                                                        Dock    = "Fill"
-                                                    }
 
-                                                    # Wenn ein Skript definiert ist, füge einen Button hinzu, um den Tweak auszuführen
-                                                    if ($tweak.Value.Script) { 
-                                                        $Path = Join-Path $PSScriptRoot "Scripts/$($tweak.Value.Script)"
-                                                        $systemTable.Controls[$tweakKey].Tag = $Path
-                                                        $systemTable.Controls[$tweakKey].Control = "Button" 
-                                                        $systemTable.Controls[$tweakKey].Add_Click = { & $this.Tag}
-                                                        
-                                                    }
-                                                    $Control = $systemTable.Controls[$tweakKey].Control
-
-                                                    $systemTable.Row        += switch ($Control) { "Label" { 30 } "Button" { 40 } default { "AutoSize" } }
-                                                }
-                                                $systemTable.Row += "AutoSize"
-                                                
-                                                $systemTable
-                                            }
-                                            
                                         }
                                     }
                                 }
@@ -306,69 +230,28 @@ $FormConfig = @{
                                     }
                                 }
                             }
-                            PowerTab = @{
-                                Text        = "Energieoptionen"
-                                Controls    = @{
-                                    PowerTable = @{
-                                        Control     = "TableLayoutPanel"
-                                        Padding     = [Padding]::new(10)
-                                        Column      = @( "55", "25", "20" )
-                                        Row         = @( 30, 30, 30, 30, 30, 30, 30, 30, 40, "AutoSize" )
-                                        Controls    = & {
-                                                # Dynamische Erstellung der Controls für die Energieoptionen
-                                                $schemes = @( "AC", "DC" )
-                                                $types   = @{ Standby = "Energiesparmodus"; Hibernate = "Ruhezustand"; Monitor = "Monitor ausschalten" }
-                                                $result  = [ordered]@{}
-                                                foreach ($scheme in $schemes) {
-                                                    # Titel-Label für jeden Energieschema
-                                                    $result["PowerLabel$scheme"] = @{ Control = "Label"; ColumnSpan = 3 }
-
-                                                    foreach ($type in $types.Keys) {
-                                                        $result["$type`Label$scheme"]   = @{ Control = "Label" }
-                                                        $result["$type`Value$scheme"]   = @{ Control = "Label" }
-                                                        $result["$type`Button$scheme"]  = @{ Control = "Button" }
-                                                    }
-                                                }
-                                                # Button zum Deaktivieren des Energiesparmodus
-                                                $result["DisableSleep"] = @{
-                                                    Control     = "Button"
-                                                    Text        = "Energiesparmodus deaktivieren"
-                                                    Visible     = $false
-                                                    Size       = [Size]::new(200,25)
-                                                    ColumnSpan  = 3
-                                                }
-
-                                                return $result
-                                        }
-                                    }
-                                }
-                                
-                            }
                             OfficeTab = @{
                                 Text        = "OfficeR"
+                                Padding     = ConvertTo-Padding "10,5"
                                 Controls    = @{
                                     OfficeTable  = @{
                                         Control  = "TableLayoutPanel"
                                         Row      = @( "15", "12", "15", "15", "43" )
-                                        Padding  = [Padding]::new(10,5,10,10)
                                         Controls = [ordered]@{
 
                                                     <# OFFICE INSTALLER #>
                                             # Row 1 - Titel für Office C2R Installer
-                                            InstallOfficeTitle     = @{
-                                                Control     = "Label"
-                                                Text        = "Office Installer" # "Office C2R Installer"
-                                                Padding     = [Padding]::new(0,10,0,0)
-                                            }
+                                            InstallOfficeTitle     = @{ Control = "Label" }
                                             # Row 2 - Dropdown Listen für Office C2R Installer
                                             InstallOfficeDropdown    = @{
                                                 Control     = "TableLayoutPanel"
-                                                Column      = @( "14", "20", "41", "25" )
-                                                Controls    = [ordered]@{
-                                                    LicenseList = @{ Control = "ComboBox"; Add_SelectedIndexChanged = { Update-InstallDropdown $this } }
-                                                    VersionList = @{ Control = "ComboBox"; Add_SelectedIndexChanged = { Update-InstallDropdown $this } }
-                                                    EditionList = @{ Control = "ComboBox"; Tag = { Update-InstallDropdown $this } }
-                                                    OptionList  = @{ Control = "ComboBox"; Tag = { Update-InstallDropdown $this } }
+                                                Column      = @( 105, 220, 80, "AutoSize" )
+                                                Controls = & {
+                                                    $controls = [ordered]@{}
+                                                    foreach ($option in @("Version", "Edition", "Option", "Language")) {
+                                                        $controls["${option}List"] = @{ Control = "ComboBox" }
+                                                    }
+                                                    return $controls
                                                 }
                                             }
                                             # Row 3 - Buttons für Office C2R Installer
@@ -387,7 +270,7 @@ $FormConfig = @{
                                                     }
                                                     SaveOfficeButton = @{
                                                         Control     = "Button"
-                                                        Text        = "Herunterladen"
+                                                        Text        = "Speichern"
                                                         Anchor      = "Left, Right"
                                                         Add_Click   = { 
                                                             Save-OfficeInstaller -control $this
@@ -401,7 +284,7 @@ $FormConfig = @{
                                             ManageOfficeTitle  = @{
                                                 Control     = "Label"
                                                 Text        = "Office Verwalten"
-                                                Padding     = [Padding]::new(0,10,0,0)
+                                                # Padding     = [Padding]::new(0,10,0,0)
                                             }
                                             # Row 5 - Dropdown und Buttons für Office Deinstallieren
                                             ManageOfficeTable  = @{
@@ -438,7 +321,7 @@ $FormConfig = @{
                                                         Text        = "Wählen Sie eine installierte Office-Version aus, um sie zu aktivieren oder zu deinstallieren."
                                                         Font        = Get-Font -Preset "TableText"
                                                         ColumnSpan  = 3
-                                                        Padding     = [Padding]::new(0,10,0,0)
+                                                        # Padding     = [Padding]::new(0,10,0,0)
                                                     }
                                                 }
                                             }
@@ -622,22 +505,22 @@ $FormConfig = @{
                             $selectedTab = $tabControl.SelectedTab
 
                             switch ($selectedTab.Name) {
-                                "StartTab"      { $header.Text = $AppInfo.Name.ToUpper();   $form.ClientSize = [Size]::new(440,300) }
-                                "TweaksTab"     { $header.Text = "SYSTEMANPASSUNGEN";       $form.ClientSize = [Size]::new(600,400) }
+                                "StartTab"      { $header.Text = $AppInfo.Name.ToUpper();   $form.ClientSize = [Size]::new(440,400) }
                                 "PackageTab"    { $header.Text = "PROGRAMMVERWALTUNG";      $form.ClientSize = [Size]::new(1000,500) } 
-                                "PowerTab"      { $header.Text = "ENERGIEOPTIONEN";         $form.ClientSize = [Size]::new(440,410) }
-                                "OfficeTab"     { $header.Text = "MICROSOFT OFFICE";        $form.ClientSize = [Size]::new(580,400) }
+                                "OfficeTab"     { $header.Text = "MICROSOFT OFFICE";        $form.ClientSize = [Size]::new(650,400) }
                                 "InfoTab"       { $header.Text = "SYSTEMINFORMATIONEN";     $form.ClientSize = [Size]::new(550,400) }
                             }
+                            if ($selectedTab.Tag.Size) { $form.ClientSize = $selectedTab.Tag.Size }
+                            if ($selectedTab.Tag.Header) { $header.Text = $selectedTab.Tag.Header }
                         }
                         # Nach dem TabPage-Wechsel
                         Add_Selected = {
                             param ($tabControl, $e)
                             
                             switch ($e.TabPage.Name) {
+                                "TweaksTab"   { Import-Module Tweaks; }
                                 "PackageTab" { Import-Module PackageManager;  }
-                                "PowerTab"   { Import-Module PowerStatus; Initialize-PowerTab -powerTab $e.TabPage }
-                                "OfficeTab"  { Import-Module OfficeR; Update-OfficeTab $e.TabPage }
+                                "OfficeTab"  { Import-Module OfficeR; Initialize-OfficeTab -officeTab $e.TabPage }
                                 "InfoTab"    { 
                                     Import-Module SystemInfo
                                     foreach ($table in @("WindowsTable", "DeviceTable")) {
@@ -652,6 +535,21 @@ $FormConfig = @{
                                             }
                                         }
                                     } }
+                            }
+                        }
+                        # Doppelklick
+                        Add_MouseDoubleClick = {
+                            param ( $tabControl, $e )
+
+                            for ($i = 0; $i -lt $tabControl.TabCount; $i++) {
+
+                                if ($tabControl.GetTabRect($i).Contains($e.Location)) {
+                                    $TabPage = $tabControl.TabPages[$i]
+
+                                    if (-not ($TabPage.Tag.Expand)) { Write-Output "Keine Fenster-Funktion vorhanden."; return }
+                                    $tabControl.TabPages.Remove($TabPage)
+                                    & $TabPage.Tag.Expand
+                                }
                             }
                         }
                     }
@@ -734,7 +632,10 @@ $FormConfig = @{
 
             Shown       = { 
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
-                (Get-Control $this "TabControl").SelectedIndex = 1
+                $tabControl = Get-Control $this "TabControl"
+                Add-TweaksTab -TabControl $tabControl
+                Add-PowerStatusTab -TabControl $tabControl
+                # $tabControl.SelectedIndex = $tabControl.TabCount -1
             }
         }
     }

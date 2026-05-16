@@ -1,6 +1,6 @@
 @{
     RootModule        = 'WindowsSetupHelper.psm1'
-    ModuleVersion     = '0.11.2 '
+    ModuleVersion     = '0.11.3'
     GUID              = '12345678-90ab-cdef-1234-567890abcdef'
     Author            = 'jonnilius'
     CompanyName       = 'BORINAS'

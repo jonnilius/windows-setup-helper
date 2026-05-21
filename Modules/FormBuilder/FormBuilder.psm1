@@ -127,10 +127,10 @@ $script:Defaults = @{
         ReadOnly    = $true
     }
     TabControl = @{
-        Dock        = "Fill"
-        ForeColor   = Get-Color "Accent"
-        BackColor   = Get-Color "Dark"
-        Font        = Get-Font -Control "TabControl"
+        Dock            = "Fill"
+        ForeColor       = Get-Color "Accent"
+        BackColor       = Get-Color "Dark"
+        Font            = Get-Font -Control "TabControl"
     }
     TableLayoutPanel = @{
         Dock        = "Fill"
@@ -148,6 +148,51 @@ $script:Defaults = @{
         Dock        = "Fill"
         ForeColor   = Get-Color "Accent"
         BackColor   = Get-Color "Dark"
+    }
+}
+$script:Behaviors = @{
+    TabControl = @{
+        TabDragHandler  = {
+            param( [Parameter(Mandatory)][TabControl]$TabControl, [scriptblock]$Handler )
+
+            $TabDrag = [PSCustomObject]@{
+                Tab         = $null
+                Start       = [Point]::Empty
+                Triggered   = $false
+            }
+
+            $tabControl.Add_MouseDown({
+                param( $control, $e )
+                if ($e.Button -ne [MouseButtons]::Left){ return }
+
+                for($i = 0; $i -lt $control.TabCount; $i++){
+                    if ($control.GetTabRect($i).Contains($e.Location)){
+                        $TabDrag.Tab        = $control.TabPages[$i]
+                        $TabDrag.Start      = $e.Location
+                        $TabDrag.Triggered  = $false
+                    }
+                }
+            }.GetNewClosure())
+            $tabControl.Add_MouseMove({
+                param( $control, $e )
+                if ($e.Button -ne [MouseButtons]::Left){ return }
+
+                if ($TabDrag.Triggered -or -not $TabDrag.Tab){ return }
+
+                $dx = [Math]::Abs($e.X - $TabDrag.Start.X)
+                $dy = [Math]::Abs($e.Y - $TabDrag.Start.Y)
+
+                if ($dx -gt 40 -or $dy -gt 40){ $TabDrag.Triggered = $true }
+            }.GetNewClosure())
+            $tabControl.Add_MouseUp({
+                param( $control, $e )
+                if (-not $TabDrag.Triggered){ return }
+                & $Handler -TabControl $control -TabPage $TabDrag.Tab -Location $e.Location
+                
+                $TabDrag.Tab        = $null
+                $TabDrag.Triggered  = $false
+            }.GetNewClosure())
+        }
     }
 }
 
@@ -330,6 +375,7 @@ function New-FlowLayoutPanel {
     # Return
     return $flowPanel
 }
+
 <# TableLayoutPanel #>
 function New-TableLayoutPanel {
     param ( $Config = @{} )
@@ -545,9 +591,10 @@ function New-TabControl {
     $tabControl     = [TabControl]::new()
 
     # Properties und Events dynamisch setzen
-    $type   = $tabControl.GetType()
-    $prop   = $type.GetProperties().Name
-    $events = $type.GetEvents().Name
+    $type       = $tabControl.GetType()
+    $propertys  = $type.GetProperties().Name
+    $events     = $type.GetEvents().Name
+    $actions    = $Behaviors.TabControl
 
     foreach ($key in $Config.Keys) {
 
@@ -571,7 +618,8 @@ function New-TabControl {
         
         # Prüfen, ob es sich um ein Event oder eine Property handelt, und entsprechend setzen
         if ($events -contains $name)    { $tabControl.$key($Config[$key]) } 
-        elseif ($prop -contains $name)  { $tabControl.$key = $Config[$key] }
+        elseif ($propertys -contains $name)  { $tabControl.$key = $Config[$key] }
+        elseif ($actions.ContainsKey($name)){ & $actions[$name] -TabControl $tabControl -Handler $Config[$key] }
     }
 
     # Return
@@ -611,6 +659,48 @@ function New-TabPage {
     $tabPage
 }
 
+
+function Add-TabDragHandler {
+    param( [TabControl]$tabControl, [scriptblock]$scriptBlock )
+    $DragTab        = $null
+    $DragStart      = [Point]::Empty
+    $DragTriggered  = $false
+
+    $tabControl.Add_MouseDown({
+        param($control, $e)
+        if ($e.Button -ne [MouseButtons]::Left){ return }
+
+        for ($i = 0; $i -lt $control.TabCount; $i++){
+            if ($control.GetTabRect($i).Contains($e.Location)){
+
+                $script:DragTab         = $control.TabPages[$i]
+                $script:DragStart       = $e.Location
+                $script:DragTriggered   = $false
+
+                break
+            }
+        }
+    })
+    $tabControl.Add_MouseMove({
+        param( $control, $e )
+        if (-not $script:DragTab){ return }
+        if ($e.Button -ne [MouseButtons]::Left){ return }
+        if ($script:DragTriggered){ return }
+
+        $dx = [Math]::Abs($e.X - $script:DragStart.X)
+        $dy = [Math]::Abs($e.Y - $script:DragStart.Y)
+        if ($dx -gt 20 -or $dy -gt 20){
+            $script:DragTriggered = $true
+
+            [MessageBox]::Show( "Tab gezogen: $($script:DragTab.Text)")
+            & $scriptBlock
+        }
+
+    })
+    $tabControl.Add_MouseUp({ 
+        $script:DragTab = $null 
+    })
+}
 
 <### LEAF CONTROLS ###>
 function New-Button {
@@ -1020,11 +1110,17 @@ function New-ListBox {
 function New-Form {
     param( [hashtable]$Config = @{} )
     $form = [Form]::new()
+
+    $type   = $form.GetType()
+    $props  = $type.GetProperties().Name
+    $events = $type.GetEvents().Name
+
+    if ($Config.ContainsKey("Control") -and ($Config.Control -eq "Form")){ $Config = ConvertTo-Form $Config }
+
     $Config.Properties = Merge-Config $Defaults.Form $Config.Properties
 
     # Properties dynamisch setzen
     if ($Config.ContainsKey("Properties")) {
-        $props = $form.GetType().GetProperties().Name
         foreach ($key in $Config.Properties.Keys) {
             switch ($key) {
                 # Spezialbehandlung für Text, um den Form-Namen voranzustellen (z.B. "Einstellungen – MeinApp")
@@ -1063,15 +1159,13 @@ function New-Form {
             if (-not $ControlConfig.ContainsKey("Control")) { Write-Warning "Control '$controlName' fehlt die Angabe des Control-Typs. Control wird übersprungen."; continue } 
 
             # Control erstellen und hinzufügen
-            $Control        = New-Control $ControlConfig
-            $Control.Name   = $controlName
+            $Control        = New-Control $ControlConfig $controlName
             $form.Controls.Add($Control)
         }
     }
 
     # Events hinzufügen
     if ($Config.ContainsKey("Events")) {
-        $events = $form.GetType().GetEvents().Name
         foreach ($key in $Config.Events.Keys) {
 
             # Präfix "Add_" erkennen, um Event-Handler hinzuzufügen (z.B. "Add_Click" für das Click-Event)
@@ -1102,6 +1196,7 @@ function New-Form {
     # Form zurückgeben
     return $form
 }
+
 function Resize-Form {
     param ( $Form, [int]$fontSize = 10 )
 
@@ -1113,19 +1208,39 @@ function Resize-Form {
     return $scale * $fontSize
 }
 function Start-Form {
-    param ( $Config = @{} )
+    param ( $Config = @{}, [switch]$Show )
     
     Set-Cursor "AppStarting"
     $form = New-Form $Config
-    
-    $form.ShowDialog() 
+    if ($Show){ $form.Show() } else { $form.ShowDialog() }
     $form.Dispose()
+}
+function ConvertTo-Form {
+    param( $Config )
+    $type   = [Form]::new().GetType()
+    $props  = $type.GetProperties().Name
+    $events = $type.GetEvents().Name
+
+    # Fehlende Keys hinzufügen und Störende entfernen
+    if ($Config.ContainsKey("Control")){ $Config.Remove("Control") }
+    if (-not $Config.Properties){ $Config += @{ Properties = @{} } }
+    if (-not $Config.Events)    { $Config += @{ Events = @{} } }
+
+    $copy = $Config.Clone()
+    foreach( $key in $copy.Keys ){
+        if ($key -eq "Controls"){ continue }
+        elseif ($props -contains $key){ $Config.Properties += @{ $key = $Config[$key]} } 
+        elseif ($events -contains $key){ $Config.Events[$key] = $Config[$key] }
+        elseif ($key -like "Add_*" -or $key -like "Remove_*"){ $Config.Events[$key] = $Config[$key] }
+        $Config.Remove($key)
+    }
+    return $Config
 }
 
 <# CONTROL #>
 function New-Control {
     param( [hashtable]$Config, [string]$Key = $null )
-    if (-not $Config.Control) { throw "Config fehlt das Feld 'Control'" }
+    if (-not $Config.Control) { throw "[New-Control] `$Config fehlt das Key 'Control'" }
 
     # Control-Typ ermitteln und Control erstellen
     $type = $Config.Control

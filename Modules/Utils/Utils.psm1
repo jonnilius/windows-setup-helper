@@ -517,14 +517,3 @@ function Set-RegistryValue {
     if (-not $PropertyExists) { New-ItemProperty @params -PropertyType $ValueType -Force | Out-Null } 
     else { Set-ItemProperty @params } 
 }
-
-
-
-<# APP CONFIG #>
-function Set-AppConfig {
-    param ( [string]$Key, $Value )
-    if (-not $global:AppConfig) { $global:AppConfig = @{} }
-    if ($Key) { $global:AppConfig[$Key] = $Value; return }
-    
-    if ($global:AppConfig.HideShell) { Hide-PSConsole } else { Show-PSConsole }
-}

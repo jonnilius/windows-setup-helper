@@ -28,13 +28,11 @@ $global:AppInfo = @{
 $global:AppConfig = @{
     ModulePath  = "$PSScriptRoot\Modules"
     IconPath    = "$PSScriptRoot\Assets\Icons"
-    # HideShell   = $true
 }
 if ($AppConfig.ModulePath -notin ($env:PSModulePath.Split(";"))) { $env:PSModulePath += ";$($AppConfig.ModulePath)" }
 
 
-# Initialisiere Konfiguration
-Set-AppConfig
+# Hide-PSConsole
 # Set-Administrator -Command $PSCommandPath -Enable
 
 
@@ -88,10 +86,17 @@ $FormConfig = @{
                                                 Control     = "Button"
                                                 Text        = "Hinzufügen"
                                                 Anchor      = "Left, Right"
-                                                Add_Click   = { 
-                                                    Import-Module Tweaks
-                                                    Add-TweaksTab (Get-Control $this "TabControl")
-                                                }
+                                                Add_Click   = { Add-TweaksTab (Get-Control $this "TabControl") }
+                                            }
+                                            AddPowerStatusLabel = @{
+                                                Control = "Label"
+                                                Text = "PowerStatus hinzufügen:"
+                                            }
+                                            AddPowerStatusButton = @{
+                                                Control = "Button"
+                                                Text        = "Hinzufügen"
+                                                Anchor      = "Left, Right"
+                                                Add_Click   = { $tab = Get-PowerStatusTab; (Get-Control $this "TabControl").TabPages.Add($tab) }
                                             }
 
 
@@ -537,20 +542,11 @@ $FormConfig = @{
                                     } }
                             }
                         }
-                        # Doppelklick
-                        Add_MouseDoubleClick = {
-                            param ( $tabControl, $e )
-
-                            for ($i = 0; $i -lt $tabControl.TabCount; $i++) {
-
-                                if ($tabControl.GetTabRect($i).Contains($e.Location)) {
-                                    $TabPage = $tabControl.TabPages[$i]
-
-                                    if (-not ($TabPage.Tag.Expand)) { Write-Output "Keine Fenster-Funktion vorhanden."; return }
-                                    $tabControl.TabPages.Remove($TabPage)
-                                    & $TabPage.Tag.Expand
-                                }
-                            }
+                        Add_TabDragHandler = {
+                            param ( $TabControl, $TabPage )
+                            if (-not ($TabPage.Tag.Expand)){ Write-Host "Keine Fenster-Funktion vorhanden."; return }
+                            $TabControl.TabPages.Remove($TabPage)
+                            & $TabPage.Tag.Expand
                         }
                     }
                 }
@@ -632,10 +628,17 @@ $FormConfig = @{
 
             Shown       = { 
                 (Get-Control $this "Header").Font = [Font]::new("Consolas", $(Resize-Form $this 22), [FontStyle]::Bold)
+
                 $tabControl = Get-Control $this "TabControl"
+
+                Import-Module Tweaks
                 Add-TweaksTab -TabControl $tabControl
-                Add-PowerStatusTab -TabControl $tabControl
-                # $tabControl.SelectedIndex = $tabControl.TabCount -1
+
+                Import-Module PowerStatus
+                $PowerStatusTab = Get-PowerStatusTab
+                $tabControl.TabPages.Add($PowerStatusTab)
+
+                $tabControl.SelectedIndex = $tabControl.TabCount -1
             }
         }
     }
@@ -927,8 +930,9 @@ $FormConfig = @{
             }
         }
     }
-    PowerStatus = Get-PowerStatusConfig
     Chocolatey  = Get-ChocolateyConfig
 }
 
 Start-Form $FormConfig.Main
+# Import-Module PowerStatus
+# Show-PowerStatusForm
